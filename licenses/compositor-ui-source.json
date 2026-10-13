@@ -1,0 +1,50 @@
+[
+  {
+    "source": "Compositor-CSharp/windows/src/Compositor.Desktop/Skin.cs",
+    "sha256": "8035d07b9765b2d8e0a96b63d2ee3bf2287064cbf976738ee0b8f283225dd05a"
+  },
+  {
+    "source": "Compositor-CSharp/windows/src/Compositor.Desktop/MacControls.cs",
+    "sha256": "6bdbbae3f590d58d5f9a94a41d730c6e72504529b462a94fcb2eea860ab4f096"
+  },
+  {
+    "source": "Compositor-CSharp/windows/src/Compositor.Desktop/MacControls.axaml",
+    "sha256": "65dd2990e212a742adc6af6ac2c49bab466e8598787febbdfba52600e647996e"
+  },
+  {
+    "source": "Compositor-CSharp/windows/src/Compositor.Desktop/Motion.cs",
+    "sha256": "ee67c42ca5f92dcc4525927007ae944fe5b8d7bd93a67454a65f5547fc192e48"
+  },
+  {
+    "source": "Compositor-CSharp/windows/src/Compositor.Desktop/SelectionIndicator.cs",
+    "sha256": "b4b4bf6b666b907ce0f8818686230951fbc243137e710d3bf20ef67af9a85dd6"
+  },
+  {
+    "source": "Compositor-CSharp/windows/src/Compositor.Desktop/SegmentedChoice.cs",
+    "sha256": "626393380ffeda3a726797541e46e6832a9afc82ec6c667ad37ad1d7a6719828"
+  },
+  {
+    "source": "Compositor-CSharp/windows/src/Compositor.Desktop/StableCaption.cs",
+    "sha256": "67518ab19a94dee3717f2a2747338da4a7a6f9604934cfa45f489f948d63b76a"
+  },
+  {
+    "source": "Compositor-CSharp/windows/src/Compositor.Desktop/MenuSelectionPanel.cs",
+    "sha256": "ffb95593cb01e39211def1f8c451cabb8a2980d4df31e1ccfdc125a419ce97c1"
+  },
+  {
+    "source": "Compositor-CSharp/windows/src/Compositor.Desktop/PopupMotion.cs",
+    "sha256": "1088a394ad75d7b37634bd6385204d442f07b2bfcdbe93081b4ed26ae26db240"
+  },
+  {
+    "source": "Compositor-CSharp/windows/src/Compositor.Desktop/UiText.cs",
+    "sha256": "c1ab90bcef7f1682f84fc54f15121c9aba0555d42226256b0d03f943fe821b94"
+  },
+  {
+    "source": "Compositor-CSharp/windows/src/Compositor.Desktop/UiFonts.cs",
+    "sha256": "795393aa0961a8af0f24d04e200158acc12f484c1e37d2e00476f5a5884907bf"
+  },
+  {
+    "source": "Compositor-CSharp/windows/src/Compositor.Desktop/FirstFramePresentation.cs",
+    "sha256": "7d2d8356ba755b2c27e3714fd459bda1e390d2dd354293aef9ae4114631a6e20"
+  }
+]

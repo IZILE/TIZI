@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><AssemblyName>TIZI</AssemblyName><Product>TIZI</Product>
+    <Description>Windows proxy client with subscription management and network monitoring.</Description>
+    <ApplicationIcon>Assets/TIZI.ico</ApplicationIcon><AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Tizi.Core/Tizi.Core.csproj" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Headless" Version="12.1.3" />
+    <EmbeddedResource Include="Locale/zh-CN.json" LogicalName="Tizi.Desktop.Locale.zh-CN.json" />
+    <EmbeddedResource Include="Assets/TIZI.ico" LogicalName="Tizi.Desktop.AppIcon.ico" />
+    <EmbeddedResource Include="Assets/TIZI.png" LogicalName="Tizi.Desktop.AppIcon.png" />
+    <EmbeddedResource Include="Assets/Flags/*.png" LogicalName="Tizi.Desktop.Flags.%(Filename)%(Extension)" />
+    <Content Include="../../engine/*" Link="engine/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <Content Include="../../licenses/*" Link="licenses/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

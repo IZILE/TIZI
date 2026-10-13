@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/Tizi.Core/Tizi.Core.csproj" />
+  <Project Path="src/Tizi.Desktop/Tizi.Desktop.csproj" />
+  <Project Path="tests/Tizi.Tests/Tizi.Tests.csproj" />
+</Solution>

@@ -1,0 +1,12 @@
+{
+  "repository": "https://github.com/MetaCubeX/meta-rules-dat",
+  "ref": "release",
+  "retrievedAt": "2026-10-10T18:26:46.301646+00:00",
+  "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip.dat",
+  "sha256": "116cc0f03d48991962f7f9cdbbcf53d45d89777f9c3cd1a663210853e5df6093",
+  "bytes": 16583067,
+  "generatorSourceArchive": "sources/meta-rules-dat-source.tar.gz",
+  "generatorSourceUrl": "https://codeload.github.com/MetaCubeX/meta-rules-dat/tar.gz/refs/heads/master",
+  "generatorSourceSha256": "8ce5640e5091971697598839bb9a0428249864f91c3e58a554192a686b5f744e",
+  "generatorRetrievedAt": "2026-10-10T18:47:11.492637+00:00"
+}
