@@ -51,13 +51,17 @@ internal static class Revision0122Checks
         window.NodeControl.IsDropDownOpen=true;await Until(()=>started>0);window.NodeControl.IsDropDownOpen=false;await Until(()=>!window.TestingLatency);Layout(window);
         check(!window.Controller.Connected&&!window.Controller.Engine.IsRunning&&window.Controller.State.SelectedNode==nodes[0].Id,"Closing the header dropdown cancels its synthetic tests without connecting, changing the current node or leaving an engine running");window.HeaderLatencyFixture=null;
         await LongPress(window,group.NodeRows.For(inactive.Id.ToString()));
-        check(window.SelectionMenu is {IsOpen:true}&&window.SelectionMenu.Items.OfType<MenuItem>().Count()==2,"Holding a node opens the animated Multi-select / Select all menu before any toolbar Remove appears");
-        window.SelectionMenu!.Items.OfType<MenuItem>().Single(i=>i.Header?.ToString()==UiText.Get("Multi-select")).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        check(window.SelectedItems.SetEquals(new[]{inactive.Id.ToString()})&&!group.NodeRows.ItemIds.Select(group.NodeRows.For).Any(b=>b.ContextMenu?.IsOpen==true)&&window.Controller.State.SelectedNode==nodes[0].Id,
+            "Holding a node directly selects it in multiple-selection mode without a chooser menu or switching the active node");
         var bubble=window.GetVisualDescendants().OfType<RemovalBubble>().Single();await Until(()=>bubble.IsVisible);Layout(window);
         bubble.SetOpen(false);
         using(var clock=new UiAnimationClock(bubble)){clock.Pulse(0);bubble.SetOpen(true);clock.Pulse(1);clock.Pulse(101);check(bubble.Progress>0&&bubble.Progress<1,"The red removal bubble exposes an intermediate opening frame");clock.Pulse(300);Layout(window);}
         Click(window,group.NodeRows.For(nodes[2].Id.ToString()));
         check(window.SelectedItems.Count==2&&remove.IsEffectivelyVisible&&remove.Background is ISolidColorBrush brush&&brush.Color==Color.Parse("#D74756"),"Long-press selection mode allows additional cards and reveals one red bulk Remove after the last action");Capture(window,"nodes-multiple-selection.png");
+        await LongPress(window,group.NodeRows.For(nodes[3].Id.ToString()));
+        check(window.SelectedItems.SetEquals(new[]{inactive.Id.ToString(),nodes[2].Id.ToString(),nodes[3].Id.ToString()}),"Holding another node extends the existing selection and its release does not toggle that node back off");
+        Click(window,group.NodeRows.For(nodes[3].Id.ToString()));
+        check(window.SelectedItems.Count==2,"A subsequent ordinary click toggles a selected node normally after long-press release suppression has cleared");
         Click(window,group.NodeRows.For(inactive.Id.ToString()),MouseButton.Right);check(window.SelectedItems.Count==2,"Right-clicking within a multiple selection retains all selected targets");group.NodeRows.For(inactive.Id.ToString()).ContextMenu!.Close();await Task.Delay(200);
         check(window.SelectedItems.SetEquals(new[]{inactive.Id.ToString(),nodes[2].Id.ToString()})&&window.Controller.State.SelectedNode==nodes[0].Id,$"Bulk removal has exactly the two intended inactive targets (indices: {string.Join(",",window.SelectedItems.Select(id=>nodes.FindIndex(n=>n.Id.ToString()==id)))}, active index: {nodes.FindIndex(n=>n.Id==window.Controller.State.SelectedNode)})");
         Click(window,remove);await Until(()=>!window.Controller.Busy&&window.Controller.State.Nodes.Count==17);Layout(window);
@@ -73,8 +77,10 @@ internal static class Revision0122Checks
         check(group.NodeRows.GetVisualDescendants().OfType<NodeTilePanel>().Single().Columns>=3,"Adding a fourth node switches the same subscription to its responsive grid");
         await window.Controller.ApplyAsync(beforeSmall);Layout(window);
         window.ShowPage("Rules");Layout(window);var rows=window.PageView.GetVisualDescendants().OfType<MovingRows>().Single();await LongPress(window,rows.For("0"));
-        window.SelectionMenu!.Items.OfType<MenuItem>().Single(i=>i.Header?.ToString()==UiText.Get("Select all")).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));await Until(()=>window.SelectedItems.Count==6);Layout(window);
-        check(rows.ItemIds.All(id=>rows.For(id).Classes.Contains("selected-card")),"Select all highlights every visible rule without opening an editor");
+        Click(window,rows.For("1"));
+        check(window.SelectedItems.SetEquals(new[]{"0","1"})&&rows.For("0").Classes.Contains("selected-card")&&rows.For("1").Classes.Contains("selected-card")&&window.ActiveRuleEditor is null,"Holding a rule directly enters multiple selection, retaining both selected rule highlights after mouse release");
+        rows.For("1").Focus();window.KeyPress(Key.A,RawInputModifiers.Control,PhysicalKey.A,null);window.KeyRelease(Key.A,RawInputModifiers.Control,PhysicalKey.A,null);Layout(window);
+        check(window.SelectedItems.SetEquals(new[]{"0","1"}),"Content pages no longer expose a select-all shortcut");
         Click(window,window.PageHeading);check(window.SelectedItems.Count==0,"A blank content click clears multiple selection and retracts its management action");
         typeof(MainWindow).GetMethod("Exit",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.Invoke(window,null);await Until(()=>!window.IsVisible);
         DiscoverySettings? saved=null;var original=new DiscoverySettings{ApiKey="synthetic-key-never-sent"};

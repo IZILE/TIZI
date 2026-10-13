@@ -18,9 +18,9 @@ internal sealed partial class MainWindow
     private bool IsVisibleTarget(string? id) => _page == "Nodes" ? _subscriptionTree.ContainsVisible(id) : id is not null && _visibleTargets.Contains(id);
     private void ChooseItem(string id)
     {
-        if (_suppressSelectionClick == id) { _suppressSelectionClick = null; return; }
+        if (_suppressSelectionClick == id) { _suppressSelectionClick = null; ApplyMultipleSelectionVisuals(); return; }
         if (_multiSelect && _contextSelection)
-        { if (!_selectedMany.Contains(id)) BeginMultipleSelection(id, false, _selectionManagement); else { _chosen = id; UpdateSelectionActions(); } return; }
+        { if (!_selectedMany.Contains(id)) BeginMultipleSelection(id, _selectionManagement); else { _chosen = id; UpdateSelectionActions(); } return; }
         if (_multiSelect || _selectionModifiers.HasFlag(KeyModifiers.Control) || _selectionModifiers.HasFlag(KeyModifiers.Shift))
         { _multiSelect = true; SelectMultipleItem(id); return; }
         _selectedMany.Clear(); _selectedMany.Add(id); _selectionAnchor = id; _selectionModifiers = KeyModifiers.None;

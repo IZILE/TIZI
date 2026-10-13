@@ -91,7 +91,7 @@ internal static class Revision0124Checks
             await window.Controller.ApplyAsync(window.Controller.State with { AutoUpdate = true, AutoUpdateProviders = false });
             var automatic = (Task)autoMethod.Invoke(window.Controller, null)!;
             await Until(() => gate.Requested); Layout(window);
-            var add = window.GetVisualDescendants().OfType<Button>().Single(b => b.Content is TextBlock t && t.Text == UiText.Get("Add subscription"));
+            var add = window.GetVisualDescendants().OfType<Button>().Single(b => b.Content is TextBlock t && t.Text == UiText.Get("Import nodes"));
             check(window.Controller.Updating && !window.Controller.Busy && add.IsEffectivelyEnabled && rows.IsEffectivelyEnabled, "A delayed automatic subscription request leaves content cards and toolbar buttons available instead of only the sidebar");
             SwitchBack(window); Layout(window);
             Click(window, add); var editor = window.OwnedWindows.OfType<EditorDialog>().Single(); editor.Close(); Layout(window);

@@ -19,7 +19,6 @@ internal sealed partial class MainWindow
     private bool _contextSelection;
     private RemovalBubble? _removalBubble;
     internal IReadOnlySet<string> SelectedItems => _selectedMany;
-    internal ContextMenu? SelectionMenu { get; private set; }
     private void AttachSelectionGestures()
     {
         DispatcherTimer? timer = null; Point origin = default;
@@ -38,22 +37,28 @@ internal sealed partial class MainWindow
             timer.Tick += (_, _) =>
             {
                 Stop(); if (!IsVisibleTarget(itemId)) return; _suppressSelectionClick = itemId;
-                SelectionMenu = ItemContextMenu.Create(button, () => { },
-                    [("Multi-select", () => BeginMultipleSelection(itemId, false, true)), ("Select all", () => BeginMultipleSelection(itemId, true, true))]);
-                SelectionMenu.Open(button);
-                SelectionMenu.Closed += (_, _) => _suppressSelectionClick = null;
+                _selectionModifiers = KeyModifiers.None;
+                if (!_multiSelect) BeginMultipleSelection(itemId, true);
+                else
+                {
+                    _selectionManagement = true;
+                    if (!_selectedMany.Contains(itemId)) SelectMultipleItem(itemId);
+                    else { _chosen = itemId; UpdateSelectionActions(); ApplyMultipleSelectionVisuals(); }
+                }
             }; timer.Start();
         }, RoutingStrategies.Tunnel);
-        AddHandler(PointerReleasedEvent, (_, _) => Stop(), RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerReleasedEvent, (_, _) =>
+        {
+            Stop(); var suppressed = _suppressSelectionClick;
+            // Let the button consume this release first; also clear suppression after a release outside.
+            Dispatcher.UIThread.Post(() => { if (_suppressSelectionClick == suppressed) _suppressSelectionClick = null; });
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerCaptureLostEvent, (_, _) => Stop(), RoutingStrategies.Tunnel, handledEventsToo: true);
         PointerMoved += (_, e) => { var delta=e.GetPosition(this)-origin; if (timer is not null && delta.X*delta.X+delta.Y*delta.Y > 64) Stop(); };
         KeyDown += (_, e) =>
         {
             _contextSelection = false;
             if (e.Key == Key.Escape && _multiSelect) { ClearSelection(); e.Handled = true; }
-            else if (e.Key == Key.A && e.KeyModifiers.HasFlag(KeyModifiers.Control) && _page is "Nodes" or "Providers" or "Rules" or "Connections"
-                && (e.Source is not Visual source || !source.GetVisualAncestors().Prepend(source).Any(v => v is TextBox)))
-            { BeginMultipleSelection(_chosen, true, _selectionManagement); e.Handled = true; }
         };
         Closed += (_, _) => Stop();
         Deactivated += (_, _) => { Stop(); _suppressSelectionClick = null; _selectionModifiers = KeyModifiers.None; _contextSelection = false; };
@@ -61,10 +66,10 @@ internal sealed partial class MainWindow
     private List<string> VisibleSelectionItems() => _page == "Nodes"
         ? _subscriptionTree.Groups.SelectMany(g => g.NodesShown ? g.NodeRows.ItemIds : g.Key == "manual" ? [] : new[] { "subscription:" + g.Key }).Where(IsVisibleTarget).ToList()
         : _visibleTargets.ToList();
-    private void BeginMultipleSelection(string? id, bool all, bool management)
+    private void BeginMultipleSelection(string? id, bool management)
     {
         _multiSelect = true; _selectionManagement = management; _selectedMany.Clear();
-        if (all) _selectedMany.UnionWith(VisibleSelectionItems()); else if (id is not null && IsVisibleTarget(id)) _selectedMany.Add(id);
+        if (id is not null && IsVisibleTarget(id)) _selectedMany.Add(id);
         _chosen = _selectedMany.FirstOrDefault(); _selectionAnchor = _chosen; RememberSelectedRules(); _chosenRule = _selectedRules.FirstOrDefault(); UpdateSelectionActions(); ApplyMultipleSelectionVisuals();
     }
     private void RememberSelectedRules()

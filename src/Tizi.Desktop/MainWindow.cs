@@ -169,7 +169,6 @@ internal sealed partial class MainWindow : Window
         {
             ActiveMoreSheet?.DismissImmediately();
             foreach (var choice in this.GetVisualDescendants().OfType<ComboBox>()) PopupMotion.CloseImmediately(choice);
-            if (SelectionMenu is { } selectionMenu) ItemContextMenu.CloseImmediately(selectionMenu);
             foreach (var menu in this.GetVisualDescendants().OfType<Control>().Select(c => c.ContextMenu).OfType<ContextMenu>().Distinct()) ItemContextMenu.CloseImmediately(menu);
         };
         AddHandler(PointerPressedEvent, (_, e) =>
@@ -371,7 +370,7 @@ internal sealed partial class MainWindow : Window
         {
             case "Overview": break;
             case "Nodes":
-                Action("Add subscription", AddSubscription); Action("Import nodes", ImportText);
+                Action("Import nodes", ImportText);
                 _latencyButton = Ui.Button(_latencyStop is null ? "Test latency" : "Cancel test", TestLatency); _latencyButton.MinWidth = 124; _pageActions.Children.Add(_latencyButton);
                 AddRemoveAction(); More(("Clipboard", ImportClipboard), ("File / QR", ImportFile), ("Add node", AddNode), ("Export", ExportNodes), ("Update all subscriptions", () => Run(() => _app.UpdateAsync(providers: false))), ("Protocol compatibility", ShowProtocols)); break;
             case "Providers":
