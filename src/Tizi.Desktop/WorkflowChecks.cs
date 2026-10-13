@@ -388,7 +388,7 @@ internal static class WorkflowChecks
             var restoreOption = headerWindow.PageView.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Content is TextBlock t && t.Text == UiText.Get("Restore the previous connection on startup"));
             var savedRestore = restoreOption.IsChecked; var settingsOrigin = headerWindow.PageHeading.TranslatePoint(default, headerWindow)!.Value;
             restoreOption.IsChecked = !savedRestore; Layout(headerWindow);
-            Check(headerWindow.SettingsDirty && headerWindow.Notification.Showing && headerWindow.Notification.Message == "未保存" && !headerWindow.Notification.IsError && headerWindow.PageHeading.TranslatePoint(default, headerWindow)!.Value == settingsOrigin, "Settings changes use the animated notification overlay without moving the page");
+            Check(headerWindow.SettingsDirty && !headerWindow.Notification.Showing && headerWindow.PageHeading.TranslatePoint(default, headerWindow)!.Value == settingsOrigin, "Settings edits keep their draft local without showing an early notification or moving the page");
             restoreOption.IsChecked = savedRestore; Layout(headerWindow);
             Check(!headerWindow.SettingsDirty && !headerWindow.Notification.Showing, "Restoring every original setting clears the dirty state and dismisses its notice");
             restoreOption.IsChecked = !savedRestore; headerWindow.ShowPage("Nodes"); headerWindow.ShowPage("Settings"); Layout(headerWindow);

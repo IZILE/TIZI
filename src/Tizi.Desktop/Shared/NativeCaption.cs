@@ -20,7 +20,7 @@ internal static class NativeCaption
             var dark = 1; DwmSetWindowAttribute(handle.Handle, 20, ref dark, sizeof(int));
             var caption = CaptionColor(window);
             DwmSetWindowAttribute(handle.Handle, 35, ref caption, sizeof(int));
-            if (window is MainWindow)
+            if (HideCaptionIcon(window))
             {
                 // A null HICON falls back to Windows' generic document icon. Only the
                 // caption-sized icon is transparent; ICON_BIG and ICON_SMALL2 remain
@@ -45,6 +45,7 @@ internal static class NativeCaption
         var color = window.Background is ISolidColorBrush brush ? brush.Color : Skin.Chrome;
         return color.R | color.G << 8 | color.B << 16;
     }
+    internal static bool HideCaptionIcon(Window window) => window is MainWindow || window.Tag is "discard-settings";
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(nint window, int attribute, ref int value, int size);
     [DllImport("user32.dll")] private static extern nint CreateIcon(nint instance, int width, int height, byte planes, byte bitsPerPixel, byte[] andMask, byte[] xorMask);
     [DllImport("user32.dll")] private static extern bool DestroyIcon(nint icon);

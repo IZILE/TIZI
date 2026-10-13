@@ -108,16 +108,28 @@ internal static class InteractionRevisionChecks
         check(optionsApplied == 1 && !window.Controller.Busy, "An options save completes once before its window closes");
         window.ShowPage("Settings"); Layout(window);
         var restoreOption = window.PageView.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Content is TextBlock t && t.Text == UiText.Get("Restore the previous connection on startup"));
+        window.Notification.Dismiss();
         var persistedRestore = window.Controller.State.RestoreConnection; restoreOption.IsChecked = !persistedRestore; Layout(window);
-        window.Close(); await Until(() => window.OwnedWindows.Any(w => w.Tag is "discard-settings"));
+        check(window.SettingsDirty&&!window.Notification.Showing,"Editing settings keeps the draft indicator local without a top notice");
+        window.ShowPage("Nodes");Layout(window);
+        check(window.Notification.Showing&&window.Notification.IsWarning&&!window.Notification.IsError&&window.Notification.Message==UiText.Get("Unsaved changes"),"Leaving settings with a draft shows one yellow warning");
+        check(window.Notification.GetVisualDescendants().OfType<Border>().Any(b=>b.Width==24&&b.Height==24&&b.Background is Avalonia.Media.ISolidColorBrush brush&&brush.Color==Avalonia.Media.Color.Parse("#F4C152")),"The unsaved-settings notice uses the requested yellow icon");
+        using(var warningClock=new UiAnimationClock(window.Notification)){warningClock.Pulse(0);warningClock.Pulse(400);Layout(window);AvaloniaHeadlessPlatform.ForceRenderTimerTick();using var frame=window.CaptureRenderedFrame();frame?.Save(Path.Combine(output,"settings-unsaved-warning.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());}
+        window.ShowPage("Settings");Layout(window);check(!window.Notification.Showing&&window.SettingsDirty,"Returning to settings dismisses the leave-page warning and retains the draft");
+        window.Hide();typeof(MainWindow).GetMethod("Exit",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.Invoke(window,null);
+        await Until(() => window.OwnedWindows.Any(w => w.Tag is "discard-settings"));
         var discard = window.OwnedWindows.Single(w => w.Tag is "discard-settings"); Layout(discard); Click(discard, Button(discard, "Return to editing"));
         await Until(() => !discard.IsVisible);
         check(window.IsVisible && window.SettingsDirty && window.Controller.State.RestoreConnection == persistedRestore,
             "Exiting with an unsaved settings draft offers a return path that retains the draft and leaves saved preferences unchanged");
+        check(NativeCaption.HideCaptionIcon(discard),"The unsaved-settings prompt suppresses its native caption app icon");
         window.Close(); await Until(() => window.OwnedWindows.Any(w => w.Tag is "discard-settings"));
         discard = window.OwnedWindows.Single(w => w.Tag is "discard-settings"); Layout(discard); Click(discard, Button(discard, "Discard and exit")); await Until(() => !window.IsVisible);
         check(new Vault(UserData.DirectoryPath).Read<AppState>("settings.dat")!.RestoreConnection == persistedRestore,
             "Explicitly discarding an unsaved draft exits without applying it to the encrypted profile");
+        var reopened=new MainWindow(false);reopened.Show();await Until(()=>reopened.Controller.Ready);reopened.ShowPage("Settings");Layout(reopened);
+        check(reopened.IsVisible&&!reopened.SettingsDirty&&reopened.Controller.State.RestoreConnection==persistedRestore,"After discarding and closing, a fresh application window reopens the saved profile without a stuck draft or prompt");
+        typeof(MainWindow).GetMethod("Exit",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.Invoke(reopened,null);await Until(()=>!reopened.IsVisible);
 
         var connectionWindow = new MainWindow(true, state); connectionWindow.Show();
         typeof(MainWindow).GetField("_snapshot", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(connectionWindow,

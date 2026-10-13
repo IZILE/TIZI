@@ -277,7 +277,7 @@ internal static class UiChecks
                             closing.SelectedIndex = choice; Layout(window);
                             Check(closing.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == UiText.Get(closing.Items[choice]!.ToString()!)), $"{language}/{width}: closing choice {choice} is translated");
                             Check(window.SettingsDirty == (choice == 1), $"{language}/{width}: settings detect a changed choice and clear when restored");
-                            if (choice == 1) Check(window.Notification.Showing && window.Notification.Message == UiText.Get("Unsaved changes") && !window.Notification.IsError, $"{language}/{width}: unsaved changes use the top notification with the current language");
+                            if (choice == 1) Check(!window.Notification.Showing, $"{language}/{width}: editing a settings draft does not interrupt it with an unsaved notification");
                         }
                         for (var section = 0; section < 6; section++)
                         {
@@ -344,13 +344,16 @@ internal static class UiChecks
                             && Math.Abs(buttons[0].Bounds.Y - buttons[1].Bounds.Y) < .1 && buttons[0].Bounds.Right + 8 <= buttons[1].Bounds.Left,
                             $"{language}/{width}: subscription nodes share a responsive grid row with readable widths and separated cards ({string.Join(';',buttons.Select(b=>b.Bounds.ToString()))})");
                         var faces = buttons.Select(b => b.GetVisualDescendants().OfType<Border>().Single(face => face.Name == "buttonFace")).ToArray();
+                        using(var visibleClock=new UiAnimationClock(group.Reveal)){visibleClock.Pulse(0);visibleClock.Pulse(300);Layout(window);}
                         using (var selectionClock = new UiAnimationClock(faces.Cast<Avalonia.Animation.Animatable>().Append(group.NodeRows.Indicator).Append(group.NodeRows.Indicator.Position).ToArray()))
                         {
                             selectionClock.Pulse(0); selectionClock.Pulse(200);
                             group.NodeRows.Select((string)buttons[1].Tag!); selectionClock.Pulse(210); selectionClock.Pulse(270);
-                            Check(faces.All(face => face.Background is ISolidColorBrush brush && brush.Color.A == 0), $"{language}/{width}: node selection retains transparent row faces throughout the move, without a second fading backplate");
-                            Check(group.NodeRows.Backplate.Background == Ui.SelectionBrush && group.NodeRows.Indicator.BorderThickness == default && ReferenceEquals(group.NodeRows.Backplate.RenderTransform, group.NodeRows.Indicator.Position) && group.NodeRows.Backplate.Width == group.NodeRows.Indicator.Width && group.NodeRows.Backplate.Height == group.NodeRows.Indicator.Height, $"{language}/{width}: the full neutral selection surface moves continuously without a selection outline");
-                            group.NodeRows.Select((string)buttons[0].Tag!); selectionClock.Pulse(280); selectionClock.Pulse(350);
+                            Check(!group.NodeRows.Backplate.IsVisible, $"{language}/{width}: clicking a node does not create a gray selection fill");
+                            var hoverPoint=buttons[1].TranslatePoint(new Point(buttons[1].Bounds.Width/2,buttons[1].Bounds.Height/2),window)!.Value;window.MouseMove(hoverPoint);Layout(window);selectionClock.Pulse(280);selectionClock.Pulse(410);Layout(window);
+                            Check(faces[1].BorderBrush is ISolidColorBrush outline&&outline.Color==Color.Parse("#2979F5")&&faces[1].Background is ISolidColorBrush tint&&tint.Color==Color.Parse("#182979F5"), $"{language}/{width}: hovering a node immediately shows a blue outline and a light blue overlay above its original background (over: {buttons[1].IsPointerOver}, border: {faces[1].BorderBrush}, fill: {faces[1].Background})");
+                            window.MouseMove(new Point(1,1));Layout(window);selectionClock.Pulse(420);selectionClock.Pulse(570);Layout(window);
+                            group.NodeRows.Select((string)buttons[0].Tag!); selectionClock.Pulse(580); selectionClock.Pulse(730);
                             Check(faces.All(face => face.Background is ISolidColorBrush brush && brush.Color.A == 0), $"{language}/{width}: reversing node selection does not create a gray background flash");
                         }
                         Check(group.GetVisualDescendants().OfType<Button>().Any(b => b.Content is TextBlock t && t.Text == UiText.Get("Subscription URL")), $"{language}/{width}: subscription provides its address instead of duplicate details");

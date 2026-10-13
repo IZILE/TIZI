@@ -26,14 +26,17 @@ internal sealed partial class MainWindow
     private string? _settingsStatusKey;
     private bool _settingsSaving, _settingsRuntimeSubscribed;
     private bool _askingDiscardSettings, _discardSettingsOnExit;
+    private Window? _settingsDiscardDialog;
     private async Task<bool> ConfirmDiscardSettingsAsync()
     {
-        var dialog = new Window { Title = UiText.Get("Unsaved settings"), Tag = "discard-settings", Width = 480, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Skin.ChromeBrush, ShowInTaskbar = false, Icon = Icon };
+        RestoreFromBackground();
+        var dialog = _settingsDiscardDialog = new Window { Title = UiText.Get("Unsaved settings"), Tag = "discard-settings", Width = 480, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Skin.ChromeBrush, ShowInTaskbar = false };
         var message = Ui.Text("Your settings have not been saved. Return to keep editing, or discard them and exit."); message.TextWrapping = TextWrapping.Wrap;
         var buttons = Ui.Horizontal(Ui.Button("Return to editing", () => dialog.Close(false)), Ui.Button("Discard and exit", () => dialog.Close(true))); buttons.HorizontalAlignment = HorizontalAlignment.Right;
         dialog.Content = new StackPanel { Margin = new(24), Spacing = 22, Children = { message, buttons } };
         dialog.KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) { dialog.Close(false); e.Handled = true; } };
-        return await dialog.ShowDialog<bool>(this);
+        try { return await dialog.ShowDialog<bool>(this); }
+        finally { if (ReferenceEquals(_settingsDiscardDialog, dialog)) _settingsDiscardDialog = null; }
     }
     private string SettingsFingerprint() => JsonSerializer.Serialize(new
     {
@@ -136,8 +139,7 @@ internal sealed partial class MainWindow
             var changed = SettingsDirty != dirty;
             SettingsDirty = dirty;
             RefreshSettingsRuntimeState();
-            if (changed && dirty) ShowNotice("Unsaved changes");
-            else if (changed && _notification.Message == UiText.Get("Unsaved changes")) _notification.Dismiss();
+            if (changed && !dirty && _notification.Message == UiText.Get("Unsaved changes")) _notification.Dismiss();
         }
         foreach (var input in inputs) input.PropertyChanged += (_, change) =>
         {

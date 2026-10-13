@@ -52,11 +52,12 @@ internal static class OperationNotificationChecks
         await window.Controller.ApplyAsync(window.Controller.State with { CatalogUrl = "https://catalog.example/" });
         errors.Clear(); window.Notification.Dismiss(); window.ShowPage("Providers");
         await window.Controller.RunAsync(() => window.Controller.UpdateAsync(automatic: true, subscriptions: true, providers: true)); Layout(window);
-        check(errors.Count == 1 && window.Notification.Showing && window.Notification.Message.Contains(provider.Name, StringComparison.Ordinal)
-            && !window.Notification.Message.Contains(subscription.Name, StringComparison.Ordinal)
+        check(errors.Count == 0 && !window.Notification.Showing && logs.Any(l=>l.Contains(provider.Name,StringComparison.Ordinal))
             && window.Controller.State.Providers.Single().Error is null && window.Controller.State.Providers.Single().CheckedAt is not null
             && vault.Read<AppState>("settings.dat")!.Providers.Single().Error is null,
-            "A combined automatic update does not leak silent subscription failures into directory and website notifications");
+            "Automatic subscription, directory and website failures are all logged without showing background notifications");
+        await window.Controller.RunAsync(() => window.Controller.UpdateAsync(subscriptions: false, providers: true)); Layout(window);
+        check(errors.Count==1&&window.Notification.Showing&&window.Notification.Message.Contains(provider.Name,StringComparison.Ordinal),"A manually requested website update still reports its failures once");
         check(!window.PageView.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text?.Contains(UiText.Get("Connection failed"), StringComparison.Ordinal) == true),
             "The airport page does not repeat operation failures inside its saved cards or result count");
         typeof(MainWindow).GetMethod("SearchProviders", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(window, null);

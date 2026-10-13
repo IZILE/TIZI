@@ -263,7 +263,9 @@ internal sealed partial class MainWindow : Window
         if (_shutdown) return;
         ShowInTaskbar = true;
         if (WindowState == WindowState.Minimized) WindowState = _restoreState;
-        Show(); Activate();
+        Show();
+        if (_settingsDiscardDialog is { IsVisible: true } prompt) { prompt.WindowState = WindowState.Normal; prompt.Activate(); }
+        else Activate();
     }
     private Menu BuildMenu()
     {
@@ -341,6 +343,8 @@ internal sealed partial class MainWindow : Window
     {
         ActiveMoreSheet?.DismissImmediately();
         if (page == "Subscriptions") page = "Nodes";
+        if (_page == "Settings" && page != "Settings" && SettingsDirty) _notification.Show(UiText.Get("Unsaved changes"), isError: false, isWarning: true);
+        else if (page == "Settings" && _notification.IsWarning && _notification.Message == UiText.Get("Unsaved changes")) _notification.Dismiss();
         _page = page; _renderedPage = null; _chosen = page == "Nodes" ? _app.State.SelectedNode?.ToString() : null; _chosenRule = null; _visibleTargets.Clear(); _rows.Reset(); _pageIndex = 0; _search.Text = ""; _pageActions.Children.Clear(); _removeSelectionButton = _moveUpButton = _moveDownButton = _closeSelectionButton = _cancelProviderSearch = _retryProviderSearch = null; _providerSearchFeedback = null; UiText.Set(_heading, TextBlock.TextProperty, page == "Nodes" ? "Subscriptions and nodes" : page);
         _count.IsVisible = page is not ("Overview" or "Settings");
         _multiSelect = _selectionManagement = false; _selectedMany.Clear(); _selectedRules.Clear(); _removalBubble = null; if (_chosen is not null) _selectedMany.Add(_chosen);

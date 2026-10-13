@@ -12,9 +12,11 @@ namespace Tizi.Desktop;
 internal static class Program
 {
     internal static string? PendingImportLink { get; private set; }
+    private static bool ImportLink(string value) => new[] { "clash://", "shadowrocket://", "clash-verge://", "tizi://" }.Any(prefix => value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.Contains("--activate-existing")) return SingleInstance.ActivateExisting(importLink: args.FirstOrDefault(ImportLink)) ? 0 : 1;
         if (args is ["--apply-update", var updateParent, var updateTicks, var updateFile, var updateHash, var updateTarget])
             return UpdateInstaller.Apply(int.Parse(updateParent), long.Parse(updateTicks), updateFile, updateHash, updateTarget);
         if (args is ["--desktop-qa", var desktopOutput]) { DesktopChecks.Prepare(desktopOutput); return Build(false).StartWithClassicDesktopLifetime(args); }
@@ -51,11 +53,24 @@ internal static class Program
             while (!check.IsCompleted) { Avalonia.Threading.Dispatcher.UIThread.RunJobs(); Thread.Sleep(10); }
             return check.GetAwaiter().GetResult();
         }
-        PendingImportLink = args.FirstOrDefault(a => new[] { "clash://", "shadowrocket://", "clash-verge://", "tizi://" }.Any(p => a.StartsWith(p, StringComparison.OrdinalIgnoreCase)));
+        PendingImportLink = args.FirstOrDefault(ImportLink);
         using var mutex = new Mutex(true, "Local\\TIZI-" + Environment.UserName, out var created);
         if (!created)
         {
-            if (!args.Contains("--elevated")) return SingleInstance.ActivateExisting(importLink: PendingImportLink) ? 0 : 1;
+            if (!args.Contains("--elevated"))
+            {
+                if (SingleInstance.ActivateExisting(importLink: PendingImportLink)) return 0;
+                // A medium-integrity launcher cannot write to an elevated app's pipe.
+                // Elevate only activation; do not wait for its lifetime mutex or start a second app.
+                try
+                {
+                    var activation = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = true, Verb = "runas" };
+                    activation.ArgumentList.Add("--activate-existing");
+                    if (PendingImportLink is not null) activation.ArgumentList.Add(PendingImportLink);
+                    using var existing = Process.Start(activation); return existing is null ? 1 : 0;
+                }
+                catch (System.ComponentModel.Win32Exception) { return 1; }
+            }
             try { if (!mutex.WaitOne(TimeSpan.FromSeconds(15))) return 1; }
             catch (AbandonedMutexException) { }
         }

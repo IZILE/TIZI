@@ -106,7 +106,7 @@ internal sealed class NavigationRail : Border
     private void Place() { var button = For(Selected); if (button.Bounds.Width > 0) Indicator.MoveTo(TargetBounds(Selected)); }
 }
 internal sealed record DisplayRow(string Id, string Title, string Subtitle, string Badge = "", string? Country = null, Tizi.Core.ProviderSite? Provider = null, bool Latency = false, Tizi.Core.ProviderPlan? PricePlan = null, bool Current = false);
-/// <summary>One continuous highlight for a bounded page of rows, no competing selected/hover fills.</summary>
+/// <summary>Rows share a moving selection; node tiles use independent hover outlines above stable card grounds.</summary>
 internal sealed class MovingRows : Grid
 {
     private readonly Panel _rows;
@@ -154,7 +154,7 @@ internal sealed class MovingRows : Grid
             _rows.Children.Clear(); _cardGrounds.Children.Clear(); _grounds.Clear(); _buttons.Clear(); _display.Clear();
             foreach (var entry in entries)
             {
-                Button button = entry.Provider is null && !_nodeGrid ? new Button() : new ProviderCardButton();
+                Button button = entry.Provider is null && !_nodeGrid ? new Button() : new ProviderCardButton(_nodeGrid);
                 button.MinHeight = _nodeGrid ? 82 : entry.Provider is null ? 76 : 164; button.Padding = _nodeGrid ? new Thickness(12, 10) : new Thickness(16, 14);
                 button.HorizontalAlignment = HorizontalAlignment.Stretch; button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                 button.Classes.Add("plain"); button.Classes.Add("selection-item"); button.CornerRadius = new(12);
@@ -165,6 +165,7 @@ internal sealed class MovingRows : Grid
                     _grounds.Add(entry.Id, ground); _cardGrounds.Children.Add(ground);
                 }
                 button.Classes.Set("provider-card", entry.Provider is not null || _nodeGrid);
+                button.Classes.Set("node-tile", _nodeGrid);
                 button.Click += (_, e) => { if (!ReferenceEquals(e.Source, button)) return; Select(entry.Id); Chosen?.Invoke(entry.Id); };
                 Ui.OnActivate(button, () => { Select(entry.Id); Chosen?.Invoke(entry.Id); Activated?.Invoke(entry.Id); });
                 Avalonia.Automation.AutomationProperties.SetHelpText(button, UiText.Get("Double-click or press Enter to open. Right-click for item actions."));
@@ -232,10 +233,12 @@ internal sealed class MovingRows : Grid
     internal void Select(string? id)
     {
         _multiple = null;
-        _selected = id; _indicator.IsVisible = id is not null && _buttons.ContainsKey(id);
+        _selected = id; _indicator.IsVisible = !_nodeGrid && id is not null && _buttons.ContainsKey(id);
         foreach (var (key, button) in _buttons)
         {
             button.Classes.Set("selected-card", key == id);
+            button.Classes.Set("node-multi-selected", false);
+            if(button is ProviderCardButton card)card.SetMultipleSelected(false);
             Avalonia.Automation.AutomationProperties.SetHelpText(button, string.Join(" · ", new[] { key == id ? UiText.Get("Selected") : "", _nodeGrid && _display.GetValueOrDefault(key)?.Current == true ? UiText.Get("Current node") : "" }.Where(t => t.Length > 0)));
         }
         Place();
@@ -246,6 +249,8 @@ internal sealed class MovingRows : Grid
         foreach (var (id,button) in _buttons)
         {
             button.Classes.Set("selected-card", ids.Contains(id));
+            button.Classes.Set("node-multi-selected", _nodeGrid && ids.Contains(id));
+            if(button is ProviderCardButton card)card.SetMultipleSelected(_nodeGrid&&ids.Contains(id));
             Avalonia.Automation.AutomationProperties.SetHelpText(button, string.Join(" · ", new[] { ids.Contains(id) ? UiText.Get("Selected") : "", _nodeGrid && _display.GetValueOrDefault(id)?.Current == true ? UiText.Get("Current node") : "" }.Where(t => t.Length > 0)));
             if (!_grounds.ContainsKey(id)) { var ground=new Border {CornerRadius=new(12),Tag=id};_grounds[id]=ground;_cardGrounds.Children.Add(ground); }
         }
@@ -258,8 +263,8 @@ internal sealed class MovingRows : Grid
         {
             var bounds = _buttons[id].Bounds; Canvas.SetLeft(ground, bounds.X); Canvas.SetTop(ground, bounds.Y);
             ground.Width = bounds.Width; ground.Height = bounds.Height;
-            ground.Background = _nodeGrid && _display.GetValueOrDefault(id)?.Current == true ? CurrentNodeBrush : _multiple?.Contains(id) == true ? Ui.SelectionBrush : _nodeGrid || _display.GetValueOrDefault(id)?.Provider is not null ? Skin.TabBack : Brushes.Transparent;
+            ground.Background = _nodeGrid ? _display.GetValueOrDefault(id)?.Current == true ? CurrentNodeBrush : Skin.TabBack : _multiple?.Contains(id) == true ? Ui.SelectionBrush : _display.GetValueOrDefault(id)?.Provider is not null ? Skin.TabBack : Brushes.Transparent;
         }
-        if (_multiple is null && _selected is { } selected && _buttons.TryGetValue(selected, out var button) && button.Bounds.Width > 0) _indicator.MoveTo(button.Bounds);
+        if (!_nodeGrid && _multiple is null && _selected is { } selected && _buttons.TryGetValue(selected, out var button) && button.Bounds.Width > 0) _indicator.MoveTo(button.Bounds);
     }
 }

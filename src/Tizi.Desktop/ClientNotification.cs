@@ -21,6 +21,7 @@ internal sealed class ClientNotification : Border
     private readonly Border _icon;
     private readonly TextBlock _glyph;
     internal bool IsError { get; private set; }
+    internal bool IsWarning { get; private set; }
     private readonly DispatcherTimer _expiry = new() { Interval = TimeSpan.FromSeconds(6) };
 
     internal ClientNotification()
@@ -47,11 +48,13 @@ internal sealed class ClientNotification : Border
         DetachedFromVisualTree += (_, _) => _expiry.Stop();
     }
 
-    internal void Show(string message, TimeSpan? duration = null, bool isError = true)
+    internal void Show(string message, TimeSpan? duration = null, bool isError = true, bool isWarning = false)
     {
         _expiry.Stop(); _expiry.Interval = duration ?? TimeSpan.FromSeconds(6);
         _message.Text = message; ToolTip.SetTip(_message, message); AutomationProperties.SetName(this, UiText.Get("Notice") + ": " + message);
-        IsError = isError; _glyph.Text = isError ? "!" : "i"; _icon.Background = isError ? new SolidColorBrush(Color.Parse("#D94250")) : Ui.DataAccent;
+        IsError = isError && !isWarning; IsWarning = isWarning; _glyph.Text = IsError ? "!" : "i";
+        _icon.Background = IsWarning ? new SolidColorBrush(Color.Parse("#F4C152")) : IsError ? new SolidColorBrush(Color.Parse("#D94250")) : Ui.DataAccent;
+        _glyph.Foreground = IsWarning ? Skin.ChromeBrush : Skin.LabelBrush;
         Showing = true; IsVisible = true; IsHitTestVisible = true;
         Motion.Set(this, ProgressProperty, 1); _expiry.Start();
     }

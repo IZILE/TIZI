@@ -408,13 +408,13 @@ internal sealed partial class AppController : IAsyncDisposable
                         await ApplyAsync(State with { Providers = [.. retained, .. remote.Where(p => !retainedUrls.Contains(SourceUpdates.Normalize(p.Url)))], CatalogUpdatedAt = DateTimeOffset.Now });
                     }
                 }
-                catch (Exception) when (!_lifetime.IsCancellationRequested) { Failure(UiText.Get("Directory update failed; previous entries kept.")); }
+                catch (Exception) when (!_lifetime.IsCancellationRequested) { Failure(UiText.Get("Directory update failed; previous entries kept."), notify: !automatic); }
             }
             var updated = new List<ProviderSite>();
             // Four probes at a time; do not hold up editing or generate a traffic burst.
             foreach (var batch in (providers ? State.Providers.ToArray() : []).Chunk(4)) updated.AddRange(await Task.WhenAll(batch.Select(p => sources.CheckAsync(p, _lifetime.Token))));
             var checkedSites = updated.ToDictionary(p => p.Id);
-            foreach (var site in updated.Where(p => p.Error is not null)) Failure(UiText.Format("Website {0}: {1}", site.Name, UiText.Get(site.Error!)));
+            foreach (var site in updated.Where(p => p.Error is not null)) Failure(UiText.Format("Website {0}: {1}", site.Name, UiText.Get(site.Error!)), notify: !automatic);
             if (checkedSites.Count > 0)
                 await ApplyAsync(State with { Providers = State.Providers.Select(p => checkedSites.TryGetValue(p.Id, out var found) ? p with { CheckedAt = found.CheckedAt, StatusCode = found.StatusCode, LatencyMs = found.LatencyMs, Error = null } : p).ToList() });
             if (subscriptions) _lastAuto = DateTimeOffset.Now;

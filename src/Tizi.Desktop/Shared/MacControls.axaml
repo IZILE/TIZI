@@ -80,7 +80,12 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Grid>
-          <Border Name="buttonFace" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" />
+          <Border Name="buttonFace" local:Motion.Background="{TemplateBinding Background}" local:Motion.BorderBrush="Transparent" CornerRadius="{TemplateBinding CornerRadius}">
+            <Border.Transitions><Transitions>
+              <BrushTransition Property="Background" Duration="0:0:0.12" Easing="0,0,0.58,1" />
+              <BrushTransition Property="BorderBrush" Duration="0:0:0.12" Easing="0,0,0.58,1" />
+            </Transitions></Border.Transitions>
+          </Border>
           <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             Padding="{TemplateBinding Padding}" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True" Opacity="1" />
