@@ -111,6 +111,7 @@ internal sealed class MovingRows : Grid
 {
     private readonly Panel _rows;
     private readonly bool _nodeGrid;
+    private bool _compactNodes;
     internal static readonly IBrush CurrentNodeBrush = new SolidColorBrush(Color.Parse("#2979F5"));
     private readonly Canvas _cardGrounds = new() { IsHitTestVisible = false };
     private readonly Dictionary<string, Border> _grounds = [];
@@ -146,16 +147,18 @@ internal sealed class MovingRows : Grid
         ClipToBounds = true; Children.Add(_cardGrounds); Children.Add(_backplate); Children.Add(_rows); Children.Add(_indicator);
         _rows.SizeChanged += (_, _) => Place();
     }
-    internal void SetRows(IEnumerable<DisplayRow> source, string? selected)
+    internal void SetRows(IEnumerable<DisplayRow> source, string? selected, int? nodeCount = null)
     {
         var entries = source.ToList(); var ids = entries.Select(e => e.Id).ToArray();
-        if (!_rows.Children.OfType<Button>().Select(b => (string)b.Tag!).SequenceEqual(ids))
+        var compact=_nodeGrid&&(nodeCount??entries.Count)<=3;var layoutChanged=_compactNodes!=compact;_compactNodes=compact;
+        var tileLayout=_nodeGrid&&!compact;if(_rows is NodeTilePanel nodePanel)nodePanel.SingleColumn=compact;
+        if (layoutChanged || !_rows.Children.OfType<Button>().Select(b => (string)b.Tag!).SequenceEqual(ids))
         {
             _rows.Children.Clear(); _cardGrounds.Children.Clear(); _grounds.Clear(); _buttons.Clear(); _display.Clear();
             foreach (var entry in entries)
             {
                 Button button = entry.Provider is null && !_nodeGrid ? new Button() : new ProviderCardButton(_nodeGrid);
-                button.MinHeight = _nodeGrid ? 82 : entry.Provider is null ? 76 : 164; button.Padding = _nodeGrid ? new Thickness(12, 10) : new Thickness(16, 14);
+                button.MinHeight = tileLayout ? 82 : entry.Provider is null ? 76 : 164; button.Padding = tileLayout ? new Thickness(12, 10) : new Thickness(16, 14);
                 button.HorizontalAlignment = HorizontalAlignment.Stretch; button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                 button.Classes.Add("plain"); button.Classes.Add("selection-item"); button.CornerRadius = new(12);
                 button.Background = Brushes.Transparent; button.Tag = entry.Id;
@@ -195,7 +198,7 @@ internal sealed class MovingRows : Grid
             badge.Tag = "row-badge";
             badge.Foreground = BadgeBrush(entry);
             var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,12,Auto"), Children = { caption, badge } }; Grid.SetColumn(caption, 1); Grid.SetColumn(badge, 3);
-            if (_nodeGrid)
+            if (tileLayout)
             {
                 row.ColumnDefinitions = new("Auto,8,*,Auto"); row.RowDefinitions = new("Auto,8,Auto");
                 row.Children.Remove(caption); caption.Children.Clear(); row.Children.Add(titleLine); row.Children.Add(subtitle);
@@ -203,7 +206,7 @@ internal sealed class MovingRows : Grid
                 Grid.SetColumn(subtitle, 0); Grid.SetColumnSpan(subtitle, 3); Grid.SetRow(subtitle, 2); Grid.SetRow(badge, 2);
                 subtitle.FontSize = 12; title.FontSize = 14; caption.Spacing = 5;
             }
-            if (entry.Country is not null) { var flag = FlagImages.Control(entry.Country); if (_nodeGrid) { flag.Width = 22; flag.Height = 16; flag.Margin = default; } else flag.Margin = new Thickness(0, 0, 14, 0); row.Children.Add(flag); }
+            if (entry.Country is not null) { var flag = FlagImages.Control(entry.Country); if (tileLayout) { flag.Width = 22; flag.Height = 16; flag.Margin = default; } else flag.Margin = new Thickness(0, 0, 14, 0); row.Children.Add(flag); }
             if (entry.Provider is { } provider)
             {
                 row.RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto");

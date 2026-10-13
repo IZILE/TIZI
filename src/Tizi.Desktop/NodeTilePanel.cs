@@ -8,10 +8,12 @@ internal sealed class NodeTilePanel : Panel
 {
     private const double MinimumWidth = 240, Gap = 10;
     internal int Columns { get; private set; } = 1;
+    private bool _singleColumn;
+    internal bool SingleColumn { get=>_singleColumn;set {if(_singleColumn==value)return;_singleColumn=value;InvalidateMeasure();} }
     protected override Size MeasureOverride(Size available)
     {
         var width = double.IsFinite(available.Width) ? available.Width : MinimumWidth;
-        Columns = Math.Max(1, (int)Math.Floor((width + Gap) / (MinimumWidth + Gap)));
+        Columns = SingleColumn ? 1 : Math.Max(1, (int)Math.Floor((width + Gap) / (MinimumWidth + Gap)));
         var cell = Math.Max(0, (width - Gap * (Columns - 1)) / Columns);
         var height = 0d;
         for (var i = 0; i < Children.Count; i += Columns)

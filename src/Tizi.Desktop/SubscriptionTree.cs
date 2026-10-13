@@ -168,7 +168,7 @@ internal sealed class SubscriptionTree : StackPanel
         private void Rows()
         {
             _page = Math.Clamp(_page, 0, Math.Max(0, (_source.Count - 1) / 100));
-            _nodes.SetRows(_source.Skip(_page * 100).Take(100).Select(n => new DisplayRow(n.Id.ToString(), n.Name, n.Type.ToUpperInvariant() + " · " + UiText.Get(NodeTransport.Summary(n)), _latencies.GetValueOrDefault(n.Id, "—"), n.CountryCode ?? NodeRegion.Match(n.Name), Latency: true, Current: n.Id == _activeNode)), _operationNode?.ToString());
+            _nodes.SetRows(_source.Skip(_page * 100).Take(100).Select(n => new DisplayRow(n.Id.ToString(), n.Name, n.Type.ToUpperInvariant() + " · " + UiText.Get(NodeTransport.Summary(n)), _latencies.GetValueOrDefault(n.Id, "—"), n.CountryCode ?? NodeRegion.Match(n.Name), Latency: true, Current: n.Id == _activeNode)), _operationNode?.ToString(), _source.Count);
             _previous.IsVisible = _next.IsVisible = _pageLabel.IsVisible = _source.Count > 100;
             _previous.IsEnabled = _page > 0; _next.IsEnabled = (_page + 1) * 100 < _source.Count;
             _pageLabel.Text = $"{_page + 1} / {Math.Max(1, (_source.Count + 99) / 100)}"; Animate();

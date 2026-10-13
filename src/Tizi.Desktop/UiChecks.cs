@@ -340,9 +340,9 @@ internal static class UiChecks
                         var point = header.TranslatePoint(default, window)!.Value;
                         Check(point.X >= window.Rail.Bounds.Right, $"{language}/{width}: page heading stays outside navigation ({point.X})");
                         var buttons = group.NodeRows.GetVisualDescendants().OfType<Button>().Where(b => b.Tag is string).ToArray();
-                        Check(buttons.Length == 2 && buttons.All(b => b.Bounds.Width >= 238 && b.Bounds.Width < group.NodeRows.Bounds.Width)
-                            && Math.Abs(buttons[0].Bounds.Y - buttons[1].Bounds.Y) < .1 && buttons[0].Bounds.Right + 8 <= buttons[1].Bounds.Left,
-                            $"{language}/{width}: subscription nodes share a responsive grid row with readable widths and separated cards ({string.Join(';',buttons.Select(b=>b.Bounds.ToString()))})");
+                        Check(buttons.Length == 2 && buttons.All(b => Math.Abs(b.Bounds.Width-group.NodeRows.Bounds.Width)<1)
+                            && buttons[1].Bounds.Y>=buttons[0].Bounds.Bottom+8,
+                            $"{language}/{width}: subscriptions with few nodes retain the original full-width horizontal rows ({string.Join(';',buttons.Select(b=>b.Bounds.ToString()))})");
                         var faces = buttons.Select(b => b.GetVisualDescendants().OfType<Border>().Single(face => face.Name == "buttonFace")).ToArray();
                         using(var visibleClock=new UiAnimationClock(group.Reveal)){visibleClock.Pulse(0);visibleClock.Pulse(300);Layout(window);}
                         using (var selectionClock = new UiAnimationClock(faces.Cast<Avalonia.Animation.Animatable>().Append(group.NodeRows.Indicator).Append(group.NodeRows.Indicator.Position).ToArray()))

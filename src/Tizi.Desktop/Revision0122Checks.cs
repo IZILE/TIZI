@@ -63,6 +63,14 @@ internal static class Revision0122Checks
         check(window.Controller.State.SelectedNode==nodes[0].Id&&window.Controller.State.Rules.Count==6,$"Bulk node removal affects exactly the chosen inactive nodes and preserves the active node and routing rules (active index: {nodes.FindIndex(n=>n.Id==window.Controller.State.SelectedNode)}, rules: {window.Controller.State.Rules.Count})");
         Click(window,window.GetVisualDescendants().OfType<Button>().Single(b=>b.Content is TextBlock t&&t.Text==UiText.Get("Undo")));await Until(()=>!window.Controller.Busy&&window.Controller.State.Nodes.Count==19);Layout(window);
         check(window.Controller.State.Nodes.Select(n=>n.Id).SequenceEqual(nodes.Select(n=>n.Id)),"Bulk removal can be undone in the original node order");
+        var beforeSmall=window.Controller.State;await window.Controller.ApplyAsync(beforeSmall with {Nodes=nodes.Take(3).Append(outside).ToList()});Layout(window);
+        group=window.SubscriptionView.Groups.Single(g=>g.Key==sub.Id.ToString());panel=group.NodeRows.GetVisualDescendants().OfType<NodeTilePanel>().Single();
+        var few=group.NodeRows.ItemIds.Select(group.NodeRows.For).ToArray();
+        check(panel.Columns==1&&few.Length==3&&few.All(b=>Math.Abs(b.Bounds.Width-group.NodeRows.Bounds.Width)<1)&&few.Skip(1).Zip(few).All(pair=>pair.First.Bounds.Y>=pair.Second.Bounds.Bottom+8),"Three nodes retain the original horizontal full-width list rather than sparse grid tiles");Capture(window,"nodes-small-list.png");
+        window.Width=1640;Layout(window);check(panel.Columns==1,"Widening a small subscription preserves its original list layout");window.Width=1032;
+        await window.Controller.ApplyAsync(beforeSmall with {Nodes=nodes.Take(4).Append(outside).ToList()});Layout(window);
+        check(group.NodeRows.GetVisualDescendants().OfType<NodeTilePanel>().Single().Columns>=3,"Adding a fourth node switches the same subscription to its responsive grid");
+        await window.Controller.ApplyAsync(beforeSmall);Layout(window);
         window.ShowPage("Rules");Layout(window);var rows=window.PageView.GetVisualDescendants().OfType<MovingRows>().Single();await LongPress(window,rows.For("0"));
         window.SelectionMenu!.Items.OfType<MenuItem>().Single(i=>i.Header?.ToString()==UiText.Get("Select all")).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));await Until(()=>window.SelectedItems.Count==6);Layout(window);
         check(rows.ItemIds.All(id=>rows.For(id).Classes.Contains("selected-card")),"Select all highlights every visible rule without opening an editor");
