@@ -30,6 +30,7 @@ internal static class OperationNotificationChecks
         check(!window.Notification.Showing && !window.PageView.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == UiText.Get("Connection failed")),
             "A legacy subscription failure never appears under the subscription card or as a stale startup notification");
         var errors = new List<string>(); window.Controller.Error += errors.Add;
+        var logs = new List<string>(); window.Controller.Logged += logs.Add;
         window.Controller.SourceHttpClientFactory = () => new(new FailureHandler());
         await window.Controller.ApplyAsync(window.Controller.State);
         var beforeFailure = File.ReadAllBytes(UserData.File("settings.dat"));
@@ -38,18 +39,24 @@ internal static class OperationNotificationChecks
             && window.Controller.State.Subscriptions.Single().LastError is null && window.Controller.State.Nodes.Single().Id == node.Id
             && window.Controller.State.Rules.SequenceEqual(state.Rules) && File.ReadAllBytes(UserData.File("settings.dat")).SequenceEqual(beforeFailure),
             "A synthetic manual subscription failure produces one named top notification and leaves nodes, rules and the encrypted profile unchanged");
-        window.Notification.Dismiss(); errors.Clear();
+        window.Notification.Dismiss(); errors.Clear(); logs.Clear();
         await window.Controller.RunAsync(() => window.Controller.UpdateAsync(automatic: true, subscriptions: true, providers: false)); Layout(window);
-        check(errors.Count == 1 && window.Notification.Showing && window.Controller.State.Subscriptions.Single().LastError is null
+        check(errors.Count == 0 && !window.Notification.Showing && logs.Count == 1 && logs[0].Contains(subscription.Name, StringComparison.Ordinal)
+            && window.Controller.State.Subscriptions.Single().LastError is null
             && File.ReadAllBytes(UserData.File("settings.dat")).SequenceEqual(beforeFailure),
-            "A synthetic automatic refresh failure uses the notification bar without writing a persistent card error");
+            "A synthetic automatic subscription failure is logged silently without a notification, persistent card error or profile change");
+        await window.Controller.RunAsync(() => window.Controller.UpdateAsync(subscriptions: true, providers: false)); Layout(window);
+        check(errors.Count == 1 && window.Notification.Showing && window.Notification.Message.Contains(subscription.Name, StringComparison.Ordinal)
+            && File.ReadAllBytes(UserData.File("settings.dat")).SequenceEqual(beforeFailure),
+            "Manually refreshing all subscriptions still reports the same failed subscription after a silent automatic refresh");
         await window.Controller.ApplyAsync(window.Controller.State with { CatalogUrl = "https://catalog.example/" });
         errors.Clear(); window.Notification.Dismiss(); window.ShowPage("Providers");
-        await window.Controller.RunAsync(() => window.Controller.UpdateAsync(automatic: true, subscriptions: false, providers: true)); Layout(window);
+        await window.Controller.RunAsync(() => window.Controller.UpdateAsync(automatic: true, subscriptions: true, providers: true)); Layout(window);
         check(errors.Count == 1 && window.Notification.Showing && window.Notification.Message.Contains(provider.Name, StringComparison.Ordinal)
+            && !window.Notification.Message.Contains(subscription.Name, StringComparison.Ordinal)
             && window.Controller.State.Providers.Single().Error is null && window.Controller.State.Providers.Single().CheckedAt is not null
             && vault.Read<AppState>("settings.dat")!.Providers.Single().Error is null,
-            "Directory and website failures are combined into one notification while retaining factual check metadata without saved error text");
+            "A combined automatic update does not leak silent subscription failures into directory and website notifications");
         check(!window.PageView.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text?.Contains(UiText.Get("Connection failed"), StringComparison.Ordinal) == true),
             "The airport page does not repeat operation failures inside its saved cards or result count");
         typeof(MainWindow).GetMethod("SearchProviders", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(window, null);

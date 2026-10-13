@@ -41,6 +41,11 @@ internal sealed class SubscriptionTree : StackPanel
         }
     }
     internal void UpdateLatencies(IReadOnlyDictionary<Guid, string> values) { foreach (var card in _groups.Values) card.NodeRows.UpdateBadges(values); }
+    internal void SelectItems(IReadOnlySet<string> ids)
+    {
+        foreach(var card in _groups.Values)
+        { var selected=ids.Contains("subscription:"+card.Key);card.SelectSubscription(selected);card.NodeRows.SelectMany(selected ? new HashSet<string>() : ids); }
+    }
     internal void SetState(AppState state, IReadOnlyDictionary<Guid, string> latencies, string query)
     {
         bool Match(ProxyNode n) => query.Length == 0 || (n.Name + " " + n.Type + " " + n.Server).Contains(query, StringComparison.OrdinalIgnoreCase);
@@ -80,7 +85,7 @@ internal sealed class SubscriptionTree : StackPanel
         private readonly ProgressBar _quota = new() { Height = 6, Minimum = 0, Maximum = 100, CornerRadius = new(3), Foreground = Skin.AccentBrush, IsHitTestVisible = false };
         private readonly RotateTransform _rotation = new();
         private readonly AnimatedReveal _reveal;
-        private readonly MovingRows _nodes = new();
+        private readonly MovingRows _nodes = new(nodeGrid: true);
         private readonly StackPanel _body = new() { Spacing = 10, Margin = new(0, 14, 0, 0) };
         private readonly Button _previous, _next;
         private List<ProxyNode> _source = [];
@@ -151,6 +156,7 @@ internal sealed class SubscriptionTree : StackPanel
             _expiry.Foreground = subscription?.Usage?.IsExpired(DateTimeOffset.Now) == true ? new SolidColorBrush(Color.Parse("#FFB5A5")) : Skin.SecondaryBrush;
             if (subscription?.Usage is { Used: { } used, Total: > 0 } usage) _quota.Value = Math.Clamp(used / (double)usage.Total.Value * 100, 0, 100);
             if (!_source.Select(n => n.Id).SequenceEqual(nodes.Select(n => n.Id))) _page = 0;
+            if (_activeNode != selected && nodes.Any(n => n.Id == selected)) _expanded = true;
             _source = nodes; _activeNode = selected; _latencies = latencies; _searching = searching; Rows();
         }
         internal void SelectNode(Guid? node) { _operationNode = node; _nodes.Select(node?.ToString()); }

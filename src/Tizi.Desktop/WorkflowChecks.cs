@@ -226,7 +226,7 @@ internal static class WorkflowChecks
             foreach (var nodeRow in window.SubscriptionView.GetVisualDescendants().OfType<Button>().Where(b => b.Tag is string tag && Guid.TryParse(tag, out _)))
             {
                 var id = Guid.Parse((string)nodeRow.Tag!); var value = expectedLatency[id];
-                var badge = ((Grid)nodeRow.Content!).Children.OfType<TextBlock>().Single();
+                var badge = ((Grid)nodeRow.Content!).Children.OfType<TextBlock>().Single(t=>t.Tag is "row-badge");
                 var expectedBrush = value == 35 ? LatencyTone.Good : value == 220 ? LatencyTone.Moderate : LatencyTone.Poor;
                 Check(badge.Text == (value < 0 ? UiText.Get("Timeout") : value + " ms") && badge.Foreground == expectedBrush,
                     "Completed offline latency workflow updates each result and its green, orange or red emphasis in place");
@@ -323,7 +323,7 @@ internal static class WorkflowChecks
             Check(headerWindow.NodeControl.Candidates.Count == 2 && headerWindow.NodeControl.Candidates.All(n => n.SubscriptionId == headerSubscription.Id), "Header candidate list excludes every other subscription and manual node");
             headerWindow.ShowPage("Nodes"); Layout(headerWindow); var selectedHeader = headerWindow.SubscriptionView.Groups.Single(g => g.Key == headerSubscription.Id.ToString()).Header;
             Button NodeAction(string tag) => headerWindow.GetVisualDescendants().OfType<Button>().Single(b => b.Tag is string value && value == tag);
-            Check(!headerWindow.GetVisualDescendants().OfType<Button>().Any(b => b.Tag is "edit-node") && NodeAction("remove-selection").IsEffectivelyEnabled && NodeAction("remove-selection").Content is TextBlock initialRemove && initialRemove.Text == UiText.Get("Remove node"), "Nodes keeps Remove visible and moves item-specific Edit into the right-click menu");
+            Check(!headerWindow.GetVisualDescendants().OfType<Button>().Any(b => b.Tag is "edit-node") && !NodeAction("remove-selection").IsEffectivelyVisible && NodeAction("remove-selection").Content is TextBlock initialRemove && initialRemove.Text == UiText.Get("Remove node"), "Normal node selection keeps the toolbar Remove hidden and retains item actions in the right-click menu");
             var initialGroup = headerWindow.SubscriptionView.Groups.Single(g => g.Key == headerSubscription.Id.ToString());
             var initialNodeRow = initialGroup.NodeRows.For(same[0].Id.ToString());
             RightClick(headerWindow, initialNodeRow); var nodeMenu = initialNodeRow.ContextMenu!;
@@ -362,14 +362,16 @@ internal static class WorkflowChecks
             Click(headerWindow, headerWindow.PageHeading);
             Check(!initialGroup.IsSelected && !selectedHeader.Classes.Contains("selected-card") && !NodeAction("remove-selection").IsEffectivelyEnabled && headerWindow.Controller.State.SelectedNode == same[0].Id, "Blank content click clears subscription selection without changing the connected-node choice");
             Click(headerWindow, selectedHeader);
-            Check(NodeAction("remove-selection").Content is TextBlock subscriptionRemove && subscriptionRemove.Text == UiText.Get("Remove subscription") && headerWindow.Controller.State.SelectedNode == same[0].Id && headerWindow.SubscriptionView.GetVisualDescendants().OfType<TextBlock>().Count(t => t.Tag is "current-node") == 1, "Subscription selection retargets Remove without changing the current node, which retains only a small checkmark");
+            Check(NodeAction("remove-selection").Content is TextBlock subscriptionRemove && subscriptionRemove.Text == UiText.Get("Remove subscription") && headerWindow.Controller.State.SelectedNode == same[0].Id && !headerWindow.SubscriptionView.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Tag is "current-node") && headerWindow.SubscriptionView.GetVisualDescendants().OfType<Canvas>().SelectMany(c => c.Children.OfType<Border>()).Count(b => b.Background == MovingRows.CurrentNodeBrush) == 1, "Subscription selection retargets Remove while the current node retains its blue background without a checkmark");
             var nodeGroup = headerWindow.SubscriptionView.Groups.Single(g => g.Key == headerSubscription.Id.ToString());
             using (var nodeRevealClock = new UiAnimationClock(nodeGroup.Reveal)) { nodeRevealClock.Pulse(0); nodeRevealClock.Pulse(300); Layout(headerWindow); }
             Click(headerWindow, nodeGroup.NodeRows.For(same[1].Id.ToString())); Layout(headerWindow);
             Check(headerWindow.Controller.State.SelectedNode == same[0].Id && new Vault(UserData.DirectoryPath).Read<AppState>("settings.dat")!.SelectedNode == same[0].Id && !headerWindow.Controller.Busy && !headerWindow.OwnedWindows.Any(), "Single node click selects an operation target without switching the current node, saving selection, or opening an editor");
             Check(headerWindow.SubscriptionView.GetVisualDescendants().OfType<Button>().Count(b => b.Classes.Contains("selected-card")) == 1 && !selectedHeader.Classes.Contains("selected-card") && !nodeGroup.IsSelected && NodeAction("remove-selection").Content is TextBlock nodeRemove && nodeRemove.Text == UiText.Get("Remove node"), "Choosing a node clears the whole subscription highlight and targets the visible Remove action");
             var beforeNodeRemoval = headerWindow.Controller.State;
-            Click(headerWindow, NodeAction("remove-selection")); await Until(() => !headerWindow.Controller.Busy && headerWindow.Controller.State.Nodes.Count == beforeNodeRemoval.Nodes.Count - 1); Layout(headerWindow);
+            var removalRow=nodeGroup.NodeRows.For(same[1].Id.ToString()); RightClick(headerWindow,removalRow); SettleMenu(removalRow.ContextMenu!);
+            removalRow.ContextMenu!.Items.OfType<MenuItem>().Single(i=>i.Header?.ToString()==UiText.Get("Remove node")).RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+            await Until(() => !headerWindow.Controller.Busy && headerWindow.Controller.State.Nodes.Count == beforeNodeRemoval.Nodes.Count - 1); Layout(headerWindow);
             Check(headerWindow.Controller.State.SelectedNode == same[0].Id && headerWindow.Controller.State.Nodes.All(n => n.Id != same[1].Id) && headerWindow.Controller.State.Nodes.SequenceEqual(beforeNodeRemoval.Nodes.Where(n => n.Id != same[1].Id)) && headerWindow.Controller.State.Subscriptions.SequenceEqual(beforeNodeRemoval.Subscriptions) && headerWindow.Controller.State.Rules.SequenceEqual(beforeNodeRemoval.Rules), "Visible Remove deletes the singly selected node without first switching to it and preserves the current node, subscription and rules");
             await headerWindow.Controller.ApplyAsync(headerState); headerWindow.ShowPage("Nodes"); Layout(headerWindow);
             nodeGroup = headerWindow.SubscriptionView.Groups.Single(g => g.Key == headerSubscription.Id.ToString());
@@ -531,6 +533,7 @@ internal static class WorkflowChecks
             await ProviderSearchChecks.RunAsync(output, Check);
             await InteractionRevisionChecks.RunAsync(output, Check);
             await OperationNotificationChecks.RunAsync(output, Check);
+            await Revision0122Checks.RunAsync(output, Check);
             ProviderCardChecks.Run(output, Check);
             var proxyAfter = new WindowsProxyRegistry().Read(); Check(proxyBefore.All(p => p.Value is null ? proxyAfter[p.Key] is null : p.Value.Same(proxyAfter[p.Key])), "All workflow checks leave Windows proxy settings unchanged");
             File.WriteAllText(Path.Combine(output, "workflow-checks.json"), JsonSerializer.Serialize(new { passed = checks.Count, checks, syntheticData = true, nativeTaskbarVerified = false, userNodeConnected = false }, new JsonSerializerOptions { WriteIndented = true })); return 0;

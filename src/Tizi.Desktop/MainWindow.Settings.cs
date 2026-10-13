@@ -70,6 +70,7 @@ internal sealed partial class MainWindow
         var general = Card("General", "Language");
         var language = _settingsLanguage = Choice(["简体中文", "English"], UiText.Language == "en" ? "English" : "简体中文");
         language.SelectionChanged += (_, _) => { var next = language.SelectedIndex == 1 ? "en" : "zh-CN"; if (!_syncing && UiText.Language != next) SetLanguage(next); }; general.Children.Add(language);
+        general.Children.Add(Ui.Text("Version updates", size: 19)); general.Children.Add(Ui.Value("TIZI " + AppVersion, true)); general.Children.Add(Ui.Button("Check for updates", ShowUpdates));
         var startup = Card("General", "Startup and closing");
         var login = Option("Start TIZI when I sign in", state.StartAtLogin); startup.Children.Add(login);
         var hidden = Option("Start in the tray", state.StartHidden); startup.Children.Add(hidden);

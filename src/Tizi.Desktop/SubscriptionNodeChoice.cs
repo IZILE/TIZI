@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Tizi.Core;
 
 namespace Tizi.Desktop;
@@ -14,9 +15,12 @@ internal sealed class SubscriptionNodeChoice : ComboBox
     private sealed record Option(ProxyNode Node, string SubscriptionName) { public override string ToString() => Node.Name; }
     private bool _refreshing;
     private ProxyNode[] _candidates = [];
+    private readonly Dictionary<TextBlock, Guid> _badges = [];
+    private IReadOnlyDictionary<Guid, string> _latencies = new Dictionary<Guid, string>();
     internal IReadOnlyList<ProxyNode> Candidates => _candidates;
     internal bool CanSwitch => _candidates.Length > 1;
     internal event Action<Guid>? NodeChosen;
+    internal event Action<bool>? DropDownVisibilityChanged;
     protected override Type StyleKeyOverride => typeof(ComboBox);
 
     internal SubscriptionNodeChoice()
@@ -36,14 +40,30 @@ internal sealed class SubscriptionNodeChoice : ComboBox
             details.Foreground = new SolidColorBrush(Color.Parse("#BCC0C7")); details.Margin = new(0, 3, 0, 0);
             details.TextTrimming = TextTrimming.CharacterEllipsis; details.TextAlignment = TextAlignment.Left; details.Tag = "header-node-details";
             // Both captions share the same text column. The flag never shifts their left edge.
-            var content = new Grid { ColumnDefinitions = new("36,10,*"), RowDefinitions = new("Auto,Auto"), VerticalAlignment = VerticalAlignment.Center, Children = { flag, name, details }, Tag = "header-node-title" };
+            var badge = Ui.Value("—", true, 12); badge.Tag = "header-node-latency"; badge.IsVisible = false;
+            var content = new Grid { ColumnDefinitions = new("36,10,*,0,Auto"), RowDefinitions = new("Auto,Auto"), VerticalAlignment = VerticalAlignment.Center, Children = { flag, name, details, badge }, Tag = "header-node-title" };
             Grid.SetRowSpan(flag, 2); Grid.SetColumn(name, 2); Grid.SetColumn(details, 2); Grid.SetRow(details, 1);
+            Grid.SetColumn(badge, 4); Grid.SetRowSpan(badge, 2);
+            content.AttachedToVisualTree += (_, _) =>
+            {
+                badge.IsVisible = content.GetVisualAncestors().OfType<ComboBoxItem>().Any();
+                content.ColumnDefinitions[3].Width = new(badge.IsVisible ? 8 : 0);
+                if (badge.IsVisible) { _badges[badge] = node.Id; UpdateLatencies(_latencies); }
+            };
+            content.DetachedFromVisualTree += (_, _) => _badges.Remove(badge);
             ToolTip.SetTip(content, node.Name + "\n" + details.Text); return content;
         });
         SelectionChanged += (_, _) =>
         {
             if (!_refreshing && CanSwitch && SelectedItem is Option option && _candidates.Any(n => n.Id == option.Node.Id)) NodeChosen?.Invoke(option.Node.Id);
         };
+        PropertyChanged += (_, e) => { if (e.Property == IsDropDownOpenProperty) DropDownVisibilityChanged?.Invoke(IsDropDownOpen); };
+    }
+    internal void UpdateLatencies(IReadOnlyDictionary<Guid, string> values)
+    {
+        _latencies = values;
+        foreach (var (badge, id) in _badges)
+        { badge.Text = values.GetValueOrDefault(id, "—"); badge.Foreground = LatencyTone.For(badge.Text); }
     }
 
     protected override void PrepareContainerForItemOverride(Control container, object? item, int index)

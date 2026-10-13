@@ -15,6 +15,8 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args is ["--apply-update", var updateParent, var updateTicks, var updateFile, var updateHash, var updateTarget])
+            return UpdateInstaller.Apply(int.Parse(updateParent), long.Parse(updateTicks), updateFile, updateHash, updateTarget);
         if (args is ["--desktop-qa", var desktopOutput]) { DesktopChecks.Prepare(desktopOutput); return Build(false).StartWithClassicDesktopLifetime(args); }
         if (args is ["--verify-wireguard-sample", var qr1, var qr2, var userData, var searchVault, var importReport]) return ImportChecks.WireGuardSample(qr1, qr2, userData, searchVault, importReport);
         if (args is ["--import-ikuuu-cache", var ikuuuData, var ikuuuReport]) return ImportChecks.IKuuuCache(ikuuuData, ikuuuReport);

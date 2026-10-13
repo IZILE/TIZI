@@ -120,7 +120,7 @@ internal sealed partial class MainWindow : Window
         WindowDecorations = WindowDecorations.BorderOnly;
         ExtendClientAreaToDecorationsHint = true;
         ExtendClientAreaTitleBarHeightHint = 32;
-        Width = 1240; Height = 860; MinWidth = 880; MinHeight = 620; Background = Skin.ChromeBrush; ShowInTaskbar = true;
+        Width = 1032; Height = 722; MinWidth = 880; MinHeight = 620; Background = Skin.ChromeBrush; ShowInTaskbar = true;
         PropertyChanged += (_, change) => { if (change.Property == WindowStateProperty && WindowState != WindowState.Minimized) _restoreState = WindowState; };
         using var icon = typeof(MainWindow).Assembly.GetManifestResourceStream("Tizi.Desktop.AppIcon.ico"); if (icon is not null) Icon = new WindowIcon(icon);
         UiText.WireChoices(this);
@@ -171,27 +171,34 @@ internal sealed partial class MainWindow : Window
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         PropertyChanged += (_, change) => { if (change.Property == WindowStateProperty) Dispatcher.UIThread.Post(Responsive, DispatcherPriority.Loaded); };
         _rail.Chosen += page => ShowPage(page);
+        AttachSelectionGestures();
         _rows.ContextActions = ContextActionsFor;
         _rows.Chosen += ChooseItem;
         _rows.Activated += id =>
         {
+            if (_multiSelect) return;
             if (_page == "Nodes" && Guid.TryParse(id, out var guid) && _app.State.Nodes.FirstOrDefault(n => n.Id == guid) is { } node) Run(() => _app.SelectAsync(node));
             else if (_page == "Providers") _ = OpenProviderDetailsAsync(id);
             else if (_page == "Rules" && int.TryParse(id, out var index)) EditRule(index);
             else if (_page == "Connections") OpenConnectionDetails();
         };
         _rows.SourceRequested += OpenUrl;
-        _subscriptionTree.NodeChosen += id => { ChooseItem(id.ToString()); _subscriptionTree.SelectItem(_chosen); };
-        _subscriptionTree.NodeActivated += id => { if (_app.State.Nodes.FirstOrDefault(n => n.Id == id) is { } node) Run(() => _app.SelectAsync(node)); };
+        _subscriptionTree.NodeChosen += id => { ChooseItem(id.ToString()); if (_multiSelect) ApplyMultipleSelectionVisuals(); else _subscriptionTree.SelectItem(_chosen); };
+        _subscriptionTree.NodeActivated += id => { if (!_multiSelect && _app.State.Nodes.FirstOrDefault(n => n.Id == id) is { } node) Run(() => _app.SelectAsync(node)); };
         _subscriptionTree.NodeActionRequested += (id, action) => { ChooseItem(id.ToString()); if (action == "edit") EditNode(); else if (action == "remove") RemoveSelected(); };
         _subscriptionTree.SubscriptionActionRequested += (id, action) => { ChooseItem("subscription:" + id); if (action == "edit") EditSubscription(id); else if (action == "settings") SubscriptionSettings(); else if (action == "remove") RemoveSelected(); };
-        _subscriptionTree.SubscriptionChosen += id => { ChooseItem("subscription:" + id); _subscriptionTree.SelectItem(_chosen); };
+        _subscriptionTree.SubscriptionChosen += id => { ChooseItem("subscription:" + id); if (_multiSelect) ApplyMultipleSelectionVisuals(); else _subscriptionTree.SelectItem(_chosen); };
         _subscriptionTree.VisibleItemsChanged += () => Dispatcher.UIThread.Post(() => { if (_page == "Nodes") ValidateSelection(); });
         _subscriptionTree.UrlRequested += ShowSubscriptionUrl;
         _subscriptionTree.UpdateRequested += id => Run(() => _app.UpdateSubscriptionAsync(id));
         _search.TextChanged += (_, _) => { _pageIndex = 0; RefreshRows(); };
         _connect.Click += (_, _) => Connect();
         _nodeChoice.NodeChosen += id => { if (!_app.Busy && _app.State.Nodes.FirstOrDefault(n => n.Id == id) is { } node) Run(() => _app.SelectAsync(node)); };
+        _nodeChoice.DropDownVisibilityChanged += open =>
+        {
+            _nodeChoice.UpdateLatencies(_latencies);
+            if (open) StartHeaderLatencyTest(); else _headerLatencyStop?.Cancel();
+        };
         _mode.Changed += index => { if (!_syncing) Run(() => _app.ModeAsync((RouteMode)index)); };
         _capture.SelectionChanged += (_, _) =>
         {
@@ -233,7 +240,7 @@ internal sealed partial class MainWindow : Window
                 finally { _askingDiscardSettings = false; }
                 return;
             }
-            e.Cancel = true; if (_shutdown) return; _shutdown = true; _latencyStop?.Cancel(); _probeStop?.Cancel(); _poll.Stop(); IsEnabled = false;
+            e.Cancel = true; if (_shutdown) return; _shutdown = true; _latencyStop?.Cancel(); _headerLatencyStop?.Cancel(); _probeStop?.Cancel(); _poll.Stop(); IsEnabled = false;
             try { if (_latencyTask is { } latency) await latency; if (_probeTask is { } probe) await probe; await PersistActivityLogAsync(); await _app.DisposeAsync(); DisposeTray(); _allowClose = true; Close(); }
             catch (Exception error) { IsEnabled = true; _shutdown = false; ShowError(error.Message); }
         };
@@ -267,7 +274,7 @@ internal sealed partial class MainWindow : Window
             Group("File", Item("Import nodes…", ImportText), Item("Import file…", ImportFile), Item("From clipboard", ImportClipboard), Item("Add subscription…", AddSubscription), Item("Export…", ExportNodes), new Separator(), Item("Exit", Exit)),
             Group("Connection", Item("Connect / Disconnect", Connect), Item("Test latency", TestLatency), Item("Close all connections", () => Run(() => _app.Engine.CloseConnectionsAsync()))),
             Group("View", NavigationRail.Pages.Select(page => Item(page, () => { _rail.Select(page); ShowPage(page); })).ToArray()),
-            Group("Help", Group("Language", Item("简体中文", () => SetLanguage("zh-CN")), Item("English", () => SetLanguage("en"))), Item("About TIZI", About)),
+            Group("Help", Item("Check for updates", ShowUpdates), Group("Language", Item("简体中文", () => SetLanguage("zh-CN")), Item("English", () => SetLanguage("en"))), Item("About TIZI", About)),
         } };
     }
     private Grid BuildCaption()
@@ -336,6 +343,7 @@ internal sealed partial class MainWindow : Window
         if (page == "Subscriptions") page = "Nodes";
         _page = page; _renderedPage = null; _chosen = page == "Nodes" ? _app.State.SelectedNode?.ToString() : null; _chosenRule = null; _visibleTargets.Clear(); _rows.Reset(); _pageIndex = 0; _search.Text = ""; _pageActions.Children.Clear(); _removeSelectionButton = _moveUpButton = _moveDownButton = _closeSelectionButton = _cancelProviderSearch = _retryProviderSearch = null; _providerSearchFeedback = null; UiText.Set(_heading, TextBlock.TextProperty, page == "Nodes" ? "Subscriptions and nodes" : page);
         _count.IsVisible = page is not ("Overview" or "Settings");
+        _multiSelect = _selectionManagement = false; _selectedMany.Clear(); _selectedRules.Clear(); _removalBubble = null; if (_chosen is not null) _selectedMany.Add(_chosen);
         _paging.IsVisible = _previous.IsVisible = _next.IsVisible = _pagination.IsVisible = false;
         _search.IsVisible = page is "Nodes" or "Providers" or "Rules" or "Connections";
         _search.PlaceholderText = UiText.Get(page switch { "Nodes" => "Search saved nodes", "Providers" => "Filter saved providers", "Rules" => "Search rules", _ => "Search connections" });
@@ -362,6 +370,7 @@ internal sealed partial class MainWindow : Window
             case "Connections": _closeSelectionButton = Ui.Button("Close selected", CloseSelectedConnection); _pageActions.Children.Add(_closeSelectionButton); Action("Close all", () => Run(() => _app.Engine.CloseConnectionsAsync())); break;
             case "Logs": _pageActions.Children.Add(_logFilter); Action("Clear current category", () => { _logs.Clear(SelectedLogCategory); _ = PersistActivityLogAsync(); RefreshLog(true); }); Action("Copy", CopyVisibleLog); Action("Log settings", LogOptions); break;
         }
+        if (_removalBubble is not null) _pageActions.Children.Insert(_pageActions.Children.OfType<Button>().Select(b => _pageActions.Children.IndexOf(b)).DefaultIfEmpty(-1).Max()+1, _removalBubble);
         _pageActionsHost.IsVisible = _pageActions.Children.Count > 0;
         if (page == "Overview") _pageHost.Content = _overviewScroll;
         else if (page == "Settings") _pageHost.Content = BuildSettings();
@@ -371,15 +380,18 @@ internal sealed partial class MainWindow : Window
     }
     private void AddRemoveAction()
     {
-        _removeSelectionButton = Ui.Button("Remove", RemoveSelected); _removeSelectionButton.Tag = "remove-selection"; _pageActions.Children.Add(_removeSelectionButton);
+        _removeSelectionButton = Ui.Button("Remove", RemoveSelected); _removeSelectionButton.Tag = "remove-selection";
+        _removeSelectionButton.Background = new SolidColorBrush(Color.Parse("#D74756")); _removeSelectionButton.BorderThickness = default;
+        _removalBubble = new RemovalBubble(_removeSelectionButton);
     }
     private void UpdateSelectionActions()
     {
+        if (_multiSelect) ApplyMultipleSelectionVisuals();
         var visible = IsVisibleTarget(_chosen);
         var nodeSelected = visible && Guid.TryParse(_chosen, out var id) && _app.State.Nodes.Any(n => n.Id == id);
         var ruleIndex = SelectedRuleIndex;
-        if (_moveUpButton is { } up) up.IsEnabled = visible && ruleIndex > 0;
-        if (_moveDownButton is { } down) down.IsEnabled = visible && ruleIndex is { } at && at + 1 < _app.State.Rules.Count;
+        if (_moveUpButton is { } up) up.IsEnabled = !_multiSelect && visible && ruleIndex > 0;
+        if (_moveDownButton is { } down) down.IsEnabled = !_multiSelect && visible && ruleIndex is { } at && at + 1 < _app.State.Rules.Count;
         if (_closeSelectionButton is { } close) close.IsEnabled = visible && _snapshot.Connections.Any(c => c.Id == _chosen);
         if (_removeSelectionButton is not { } remove) return;
         remove.IsEnabled = _page switch
@@ -390,6 +402,8 @@ internal sealed partial class MainWindow : Window
             _ => false
         };
         remove.Content = Ui.Text(_page == "Nodes" ? SelectedSubscriptionId is not null ? "Remove subscription" : "Remove node" : "Remove");
+        if (_multiSelect && _selectedMany.Count > 1) remove.Content = Ui.Value(UiText.Format("Remove selected ({0})", _selectedMany.Count));
+        _removalBubble?.SetOpen(_selectionManagement && remove.IsEnabled);
     }
     internal async Task ShowMoreActionsAsync(string context, params (string Label, Action Action)[] entries)
     {
@@ -608,6 +622,7 @@ internal sealed partial class MainWindow : Window
     });
     private async void RemoveSelected()
     {
+        if (_multiSelect && _selectedMany.Count > 1) { RemoveMultipleItems(); return; }
         if (_preview || !IsVisibleTarget(_chosen) || _chosen is not { } target) return;
         var page = _page; var subscriptionId = SelectedSubscriptionId;
         if (page == "Nodes" && subscriptionId is { } sid && _app.State.Subscriptions.FirstOrDefault(s => s.Id == sid) is { } sub)
@@ -660,22 +675,35 @@ internal sealed partial class MainWindow : Window
     private Task? _latencyTask, _probeTask;
     private CancellationTokenSource? _probeStop;
     private void TestLatency() { if (_latencyStop is not null) _latencyStop.Cancel(); else _latencyTask = TestLatencyAsync(); }
+    private CancellationTokenSource? _headerLatencyStop;
+    internal Func<ProxyNode, CancellationToken, Task<int>>? HeaderLatencyFixture { get; set; }
+    private async void StartHeaderLatencyTest()
+    {
+        if (_shutdown || _latencyStop is not null || _headerLatencyStop is not null || _preview && HeaderLatencyFixture is null) return;
+        using var stop = new CancellationTokenSource(); _headerLatencyStop = stop;
+        try { _latencyTask = TestLatencyAsync(HeaderLatencyFixture, _nodeChoice.Candidates.ToArray(), stop.Token); await _latencyTask; }
+        finally
+        {
+            _headerLatencyStop = null;
+            if (stop.IsCancellationRequested && _nodeChoice.IsDropDownOpen && !_shutdown) StartHeaderLatencyTest();
+        }
+    }
     internal bool TestingLatency => _latencyStop is not null;
-    internal async Task TestLatencyAsync(Func<ProxyNode, CancellationToken, Task<int>>? fixture = null)
+    internal async Task TestLatencyAsync(Func<ProxyNode, CancellationToken, Task<int>>? fixture = null, ProxyNode[]? requestedNodes = null, CancellationToken extraCancellation = default)
     {
         if (_shutdown || _latencyStop is not null) return;
         if (DesktopChecks.Active && fixture is null) { ShowError("Desktop verification mode: node connections are disabled."); return; }
-        var nodes = _app.State.Nodes.ToArray(); if (nodes.Length == 0) { ShowError(UiText.Get("Import a subscription or add a node")); return; }
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_app.Cancellation); _latencyStop = cancellation;
+        var nodes = requestedNodes ?? _app.State.Nodes.ToArray(); if (nodes.Length == 0) { ShowError(UiText.Get("Import a subscription or add a node")); return; }
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_app.Cancellation, extraCancellation); _latencyStop = cancellation;
         var options = _app.State.Latency; using var limit = new SemaphoreSlim(options.Concurrency); _latencyDone = 0; _latencyTotal = nodes.Length;
         var state = _app.State; var url = state.DelayUrl;
         var refresh = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
-        refresh.Tick += (_, _) => { if (_page == "Nodes") { _subscriptionTree.UpdateLatencies(_latencies); UpdateLatencyProgress(); } };
+        refresh.Tick += (_, _) => { _nodeChoice.UpdateLatencies(_latencies); if (_page == "Nodes") { _subscriptionTree.UpdateLatencies(_latencies); UpdateLatencyProgress(); } };
         refresh.Start(); UpdateLatencyProgress();
         try
         {
             await using var probe = options.Method == "HTTP" && !_app.Connected && fixture is null
-                ? await NodeLatencyProbe.StartAsync(state, Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "engine", "mihomo.exe")), Path.Combine(UserData.DirectoryPath, "latency"), cancellation.Token) : null;
+                ? await NodeLatencyProbe.StartAsync(state with { Nodes = nodes.ToList() }, Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "engine", "mihomo.exe")), Path.Combine(UserData.DirectoryPath, "latency"), cancellation.Token) : null;
             await Task.WhenAll(nodes.Select(async node =>
         {
             await limit.WaitAsync(cancellation.Token); string value;
@@ -691,7 +719,7 @@ internal sealed partial class MainWindow : Window
         catch (Exception error) { ShowError(error.Message); }
         finally
         {
-            refresh.Stop(); _latencyStop = null;
+            refresh.Stop(); _latencyStop = null; _nodeChoice.UpdateLatencies(_latencies);
             if (!_shutdown && _page == "Nodes") { _subscriptionTree.UpdateLatencies(_latencies); UpdateLatencyProgress(); RefreshInspector(); }
         }
     }

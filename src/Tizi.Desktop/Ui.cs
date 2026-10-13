@@ -19,8 +19,22 @@ internal static class Ui
         && (source as Button ?? source.GetVisualAncestors().OfType<Button>().FirstOrDefault()) == button;
     internal static void OnActivate(Button button, Action action)
     {
+        var pendingDoubleTap = false; long pressedAt = 0; Point origin = default;
+        button.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
+        {
+            if (!OwnButtonEvent(button, e) || e.GetCurrentPoint(button).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
+            pressedAt = System.Diagnostics.Stopwatch.GetTimestamp(); origin = e.GetPosition(button);
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
         button.AddHandler(InputElement.DoubleTappedEvent, (_, e) =>
-        { if (OwnButtonEvent(button, e)) { action(); e.Handled = true; } }, handledEventsToo: true);
+        { if (OwnButtonEvent(button, e)) { pendingDoubleTap = true; e.Handled = true; } }, handledEventsToo: true);
+        button.AddHandler(InputElement.PointerReleasedEvent, (_, e) =>
+        {
+            var activate = pendingDoubleTap; pendingDoubleTap = false; var delta = e.GetPosition(button) - origin;
+            if (activate && OwnButtonEvent(button, e) && e.InitialPressMouseButton == MouseButton.Left
+                && System.Diagnostics.Stopwatch.GetElapsedTime(pressedAt).TotalMilliseconds < 450 && delta.X * delta.X + delta.Y * delta.Y <= 64)
+            { action(); e.Handled = true; }
+        }, handledEventsToo: true);
+        button.PointerCaptureLost += (_, _) => pendingDoubleTap = false;
         button.AddHandler(InputElement.KeyDownEvent, (_, e) =>
         {
             if (e.Key == Key.Enter && OwnButtonEvent(button, e)) { action(); e.Handled = true; }
@@ -95,7 +109,9 @@ internal sealed record DisplayRow(string Id, string Title, string Subtitle, stri
 /// <summary>One continuous highlight for a bounded page of rows, no competing selected/hover fills.</summary>
 internal sealed class MovingRows : Grid
 {
-    private readonly StackPanel _rows = new() { Spacing = 6 };
+    private readonly Panel _rows;
+    private readonly bool _nodeGrid;
+    internal static readonly IBrush CurrentNodeBrush = new SolidColorBrush(Color.Parse("#2979F5"));
     private readonly Canvas _cardGrounds = new() { IsHitTestVisible = false };
     private readonly Dictionary<string, Border> _grounds = [];
     private readonly SelectionIndicator _indicator = new() { CornerRadius = new CornerRadius(12), Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
@@ -103,6 +119,8 @@ internal sealed class MovingRows : Grid
     private readonly Dictionary<string, Button> _buttons = [];
     private readonly Dictionary<string, DisplayRow> _display = [];
     private string? _selected;
+    private IReadOnlySet<string>? _multiple;
+    internal IEnumerable<string> ItemIds => _rows.Children.OfType<Button>().Select(b => (string)b.Tag!);
     internal event Action<string>? Chosen;
     internal event Action<string>? Activated;
     internal event Action<string>? SourceRequested;
@@ -112,8 +130,10 @@ internal sealed class MovingRows : Grid
     internal Button For(string id) => _buttons[id];
     internal bool Contains(string? id) => id is not null && _buttons.ContainsKey(id);
     internal void Reset() { _rows.Children.Clear(); _cardGrounds.Children.Clear(); _grounds.Clear(); _buttons.Clear(); _display.Clear(); Select(null); }
-    internal MovingRows()
+    internal MovingRows(bool nodeGrid = false)
     {
+        _nodeGrid = nodeGrid;
+        _rows = nodeGrid ? new NodeTilePanel() : new StackPanel { Spacing = 6 };
         _backplate = new Border
         {
             HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
@@ -134,17 +154,17 @@ internal sealed class MovingRows : Grid
             _rows.Children.Clear(); _cardGrounds.Children.Clear(); _grounds.Clear(); _buttons.Clear(); _display.Clear();
             foreach (var entry in entries)
             {
-                Button button = entry.Provider is null ? new Button() : new ProviderCardButton();
-                button.MinHeight = entry.Provider is null ? 76 : 164; button.Padding = new Thickness(16, 14);
+                Button button = entry.Provider is null && !_nodeGrid ? new Button() : new ProviderCardButton();
+                button.MinHeight = _nodeGrid ? 82 : entry.Provider is null ? 76 : 164; button.Padding = _nodeGrid ? new Thickness(12, 10) : new Thickness(16, 14);
                 button.HorizontalAlignment = HorizontalAlignment.Stretch; button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                 button.Classes.Add("plain"); button.Classes.Add("selection-item"); button.CornerRadius = new(12);
                 button.Background = Brushes.Transparent; button.Tag = entry.Id;
-                if (entry.Provider is not null)
+                if (entry.Provider is not null || _nodeGrid)
                 {
-                    var ground = new Border { Background = Skin.TabBack, CornerRadius = new(12) };
+                    var ground = new Border { Background = Skin.TabBack, CornerRadius = new(12), Tag = entry.Id };
                     _grounds.Add(entry.Id, ground); _cardGrounds.Children.Add(ground);
                 }
-                button.Classes.Set("provider-card", entry.Provider is not null);
+                button.Classes.Set("provider-card", entry.Provider is not null || _nodeGrid);
                 button.Click += (_, e) => { if (!ReferenceEquals(e.Source, button)) return; Select(entry.Id); Chosen?.Invoke(entry.Id); };
                 Ui.OnActivate(button, () => { Select(entry.Id); Chosen?.Invoke(entry.Id); Activated?.Invoke(entry.Id); });
                 Avalonia.Automation.AutomationProperties.SetHelpText(button, UiText.Get("Double-click or press Enter to open. Right-click for item actions."));
@@ -156,13 +176,14 @@ internal sealed class MovingRows : Grid
             if (ContextActions is { } actions && _buttons[entry.Id].ContextMenu?.IsOpen != true)
                 _buttons[entry.Id].ContextMenu = ItemContextMenu.Create(_buttons[entry.Id], () => { Select(entry.Id); Chosen?.Invoke(entry.Id); }, actions(entry.Id));
             if (_display.TryGetValue(entry.Id, out var old) && old == entry) continue;
-            if (old is not null && old with { Badge = entry.Badge } == entry && _buttons[entry.Id].Content is Grid existing && existing.Children.OfType<TextBlock>().FirstOrDefault() is { } value)
+            if (old is not null && old with { Badge = entry.Badge } == entry && _buttons[entry.Id].Content is Grid existing && existing.Children.OfType<TextBlock>().FirstOrDefault(t=>t.Tag is "row-badge") is { } value)
             { value.Text = entry.Badge; value.Foreground = BadgeBrush(entry); _display[entry.Id] = entry; continue; }
             _display[entry.Id] = entry;
             var title = Ui.Value(entry.Country is null ? entry.Title : Tizi.Core.NodeRegion.StripFlag(entry.Title), size: 15); title.FontWeight = FontWeight.Medium;
             var subtitle = Ui.Value(entry.Subtitle, true, 13); ToolTip.SetTip(title, entry.Title); ToolTip.SetTip(subtitle, entry.Subtitle);
+            if (_nodeGrid && entry.Current) subtitle.Foreground = new SolidColorBrush(Color.Parse("#E3EDFF"));
             var titleLine = new Grid { ColumnDefinitions = new("*,8,Auto"), Children = { title } };
-            if (entry.Current)
+            if (entry.Current && !_nodeGrid)
             {
                 var current = Ui.Value("✓", size: 13); current.Tag = "current-node";
                 ToolTip.SetTip(current, UiText.Get("Current node")); Avalonia.Automation.AutomationProperties.SetName(current, UiText.Get("Current node"));
@@ -170,9 +191,18 @@ internal sealed class MovingRows : Grid
             }
             var caption = new StackPanel { Spacing = 7, Children = { titleLine, subtitle } };
             var badge = Ui.Value(entry.Badge, true, 13); badge.HorizontalAlignment = HorizontalAlignment.Right;
+            badge.Tag = "row-badge";
             badge.Foreground = BadgeBrush(entry);
             var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,12,Auto"), Children = { caption, badge } }; Grid.SetColumn(caption, 1); Grid.SetColumn(badge, 3);
-            if (entry.Country is not null) { var flag = FlagImages.Control(entry.Country); flag.Margin = new Thickness(0, 0, 14, 0); row.Children.Add(flag); }
+            if (_nodeGrid)
+            {
+                row.ColumnDefinitions = new("Auto,8,*,Auto"); row.RowDefinitions = new("Auto,8,Auto");
+                row.Children.Remove(caption); caption.Children.Clear(); row.Children.Add(titleLine); row.Children.Add(subtitle);
+                Grid.SetColumn(titleLine, 2); Grid.SetColumnSpan(titleLine, 2);
+                Grid.SetColumn(subtitle, 0); Grid.SetColumnSpan(subtitle, 3); Grid.SetRow(subtitle, 2); Grid.SetRow(badge, 2);
+                subtitle.FontSize = 12; title.FontSize = 14; caption.Spacing = 5;
+            }
+            if (entry.Country is not null) { var flag = FlagImages.Control(entry.Country); if (_nodeGrid) { flag.Width = 22; flag.Height = 16; flag.Margin = default; } else flag.Margin = new Thickness(0, 0, 14, 0); row.Children.Add(flag); }
             if (entry.Provider is { } provider)
             {
                 row.RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto");
@@ -196,26 +226,40 @@ internal sealed class MovingRows : Grid
     internal void UpdateBadges(IReadOnlyDictionary<Guid, string> values)
     {
         foreach (var (id, button) in _buttons)
-            if (Guid.TryParse(id, out var key) && values.TryGetValue(key, out var text) && _display.TryGetValue(id, out var entry) && button.Content is Grid row && row.Children.OfType<TextBlock>().FirstOrDefault() is { } badge)
+            if (Guid.TryParse(id, out var key) && values.TryGetValue(key, out var text) && _display.TryGetValue(id, out var entry) && button.Content is Grid row && row.Children.OfType<TextBlock>().FirstOrDefault(t=>t.Tag is "row-badge") is { } badge)
             { badge.Text = text; badge.Foreground = BadgeBrush(entry with { Badge = text }); _display[id] = entry with { Badge = text }; }
     }
     internal void Select(string? id)
     {
+        _multiple = null;
         _selected = id; _indicator.IsVisible = id is not null && _buttons.ContainsKey(id);
         foreach (var (key, button) in _buttons)
         {
             button.Classes.Set("selected-card", key == id);
-            Avalonia.Automation.AutomationProperties.SetHelpText(button, key == id ? UiText.Get("Selected") : "");
+            Avalonia.Automation.AutomationProperties.SetHelpText(button, string.Join(" · ", new[] { key == id ? UiText.Get("Selected") : "", _nodeGrid && _display.GetValueOrDefault(key)?.Current == true ? UiText.Get("Current node") : "" }.Where(t => t.Length > 0)));
+        }
+        Place();
+    }
+    internal void SelectMany(IReadOnlySet<string> ids)
+    {
+        _multiple = ids; _indicator.IsVisible = false;
+        foreach (var (id,button) in _buttons)
+        {
+            button.Classes.Set("selected-card", ids.Contains(id));
+            Avalonia.Automation.AutomationProperties.SetHelpText(button, string.Join(" · ", new[] { ids.Contains(id) ? UiText.Get("Selected") : "", _nodeGrid && _display.GetValueOrDefault(id)?.Current == true ? UiText.Get("Current node") : "" }.Where(t => t.Length > 0)));
+            if (!_grounds.ContainsKey(id)) { var ground=new Border {CornerRadius=new(12),Tag=id};_grounds[id]=ground;_cardGrounds.Children.Add(ground); }
         }
         Place();
     }
     private void Place()
     {
+        _backplate.Background = _nodeGrid && _selected is { } active && _display.GetValueOrDefault(active)?.Current == true ? CurrentNodeBrush : Ui.SelectionBrush;
         foreach (var (id, ground) in _grounds)
         {
             var bounds = _buttons[id].Bounds; Canvas.SetLeft(ground, bounds.X); Canvas.SetTop(ground, bounds.Y);
             ground.Width = bounds.Width; ground.Height = bounds.Height;
+            ground.Background = _nodeGrid && _display.GetValueOrDefault(id)?.Current == true ? CurrentNodeBrush : _multiple?.Contains(id) == true ? Ui.SelectionBrush : _nodeGrid || _display.GetValueOrDefault(id)?.Provider is not null ? Skin.TabBack : Brushes.Transparent;
         }
-        if (_selected is { } selected && _buttons.TryGetValue(selected, out var button) && button.Bounds.Width > 0) _indicator.MoveTo(button.Bounds);
+        if (_multiple is null && _selected is { } selected && _buttons.TryGetValue(selected, out var button) && button.Bounds.Width > 0) _indicator.MoveTo(button.Bounds);
     }
 }

@@ -377,8 +377,8 @@ internal sealed partial class AppController : IAsyncDisposable
     {
         if (_closing || !await _updates.WaitAsync(0)) return;
         Updating = true; Changed?.Invoke();
-        var failures = new List<string>();
-        void Failure(string message) { failures.Add(message); Logged?.Invoke(message); }
+        var notifications = new List<string>();
+        void Failure(string message, bool notify = true) { if (notify) notifications.Add(message); Logged?.Invoke(message); }
         try
         {
             using var fixtureHttp = SourceHttpClientFactory?.Invoke();
@@ -394,7 +394,7 @@ internal sealed partial class AppController : IAsyncDisposable
                     var selected = all.Any(n => n.Id == State.SelectedNode) ? State.SelectedNode : all.FirstOrDefault()?.Id;
                     await ApplyAsync(State with { Nodes = all, SelectedNode = selected, Subscriptions = State.Subscriptions.Select(s => s.Id == subscription.Id ? refresh.Subscription : s).ToList() }, true);
                 }
-                catch (Exception e) when (!_lifetime.IsCancellationRequested) { Failure(SubscriptionUpdateFailure(subscription, e)); }
+                catch (Exception e) when (!_lifetime.IsCancellationRequested) { Failure(SubscriptionUpdateFailure(subscription, e), notify: !automatic); }
             }
             if (providers && !string.IsNullOrWhiteSpace(State.CatalogUrl))
             {
@@ -423,8 +423,8 @@ internal sealed partial class AppController : IAsyncDisposable
         finally
         {
             Updating = false; Changed?.Invoke(); _updates.Release();
-            if (!_closing && failures.Count > 0)
-                Error?.Invoke(string.Join('\n', failures.Take(5)) + (failures.Count > 5 ? "\n" + UiText.Format("{0} additional failures. See Logs.", failures.Count - 5) : ""));
+            if (!_closing && notifications.Count > 0)
+                Error?.Invoke(string.Join('\n', notifications.Take(5)) + (notifications.Count > 5 ? "\n" + UiText.Format("{0} additional failures. See Logs.", notifications.Count - 5) : ""));
         }
     }
     private async Task AutoUpdateAsync()

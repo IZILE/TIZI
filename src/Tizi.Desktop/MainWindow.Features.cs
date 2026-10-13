@@ -207,8 +207,12 @@ internal sealed partial class MainWindow
         session.BeginCommit();
         await _app.ApplyAsync(_app.State with { Providers = ProviderDirectory.Merge(_app.State.Providers, imported) });
     }, "Import");
-    private void ConfigureSearch() => Dialog("Web search settings", [new("key", "OpenAI API key", _app.State.Discovery.ApiKey, Secret: true), new("model", "Search model", _app.State.Discovery.Model)], async values =>
-    { await _app.ApplyAsync(_app.State with { Discovery = _app.State.Discovery with { ApiKey = values["key"], Model = values["model"] } }); });
+    private void ConfigureSearch()
+    {
+        if (_preview) return;
+        var dialog = new AiSearchSettingsDialog(_app.State.Discovery, settings => _app.ApplyAsync(_app.State with { Discovery = settings }));
+        dialog.Icon = Icon; _ = dialog.ShowDialog(this);
+    }
     private void ShowProtocols()
     {
         if (_preview) return;

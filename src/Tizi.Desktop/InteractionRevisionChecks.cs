@@ -76,7 +76,10 @@ internal static class InteractionRevisionChecks
         var exported = export.GetVisualDescendants().OfType<TextBox>().Single(t => t.Tag is "export-output").Text!;
         var exportedNodes = NodeImport.Parse(exported);
         check(exportedNodes.Count == 1 && exportedNodes[0].Server == inactive.Server, "Selected-node export uses the operation target instead of the currently connected node"); export.Close();
-        Click(window, Button(window, "Remove node")); await Until(() => !window.Controller.Busy); Layout(window);
+        var removalRow=group.NodeRows.For(inactive.Id.ToString()); var removalPoint=removalRow.TranslatePoint(new Point(removalRow.Bounds.Width/2,removalRow.Bounds.Height/2),window)!.Value;
+        window.MouseMove(removalPoint); window.MouseDown(removalPoint,MouseButton.Right); window.MouseUp(removalPoint,MouseButton.Right); Layout(window);
+        removalRow.ContextMenu!.Items.OfType<MenuItem>().Single(i=>i.Header?.ToString()==UiText.Get("Remove node")).RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+        await Until(() => !window.Controller.Busy && window.Controller.State.Nodes.All(n=>n.Id!=inactive.Id)); Layout(window);
         check(window.Controller.State.Nodes.All(n => n.Id != inactive.Id) && window.Controller.State.SelectedNode == active.Id, "Removing an inactive selected node keeps the active node unchanged");
         await window.Controller.ExecuteAsync(() => window.Controller.ApplyAsync(window.Controller.State with { MixedPort = 17898 }));
         Click(window, Button(window, "Undo")); await Until(() => !window.Controller.Busy); Layout(window);

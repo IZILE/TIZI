@@ -62,11 +62,16 @@ public sealed record ProviderProfile(string Description, List<ProviderPlan> Plan
 public sealed record ProviderReview(string Title, string Url, string? Date, string Summary, int? Rank);
 public sealed record DiscoverySettings
 {
+    public string Provider { get; init; } = "OpenAI";
+    public string Protocol { get; init; } = "responses";
+    public string Endpoint { get; init; } = "";
+    public Dictionary<string, AiApiProfile> Profiles { get; init; } = new();
     public string ApiKey { get; init; } = "";
     public string Model { get; init; } = "gpt-5.4-mini";
     public string Query { get; init; } = "查找面向个人日常上网、提供 Shadowsocks / Trojan / VLESS / WireGuard 或 Clash 订阅的机场服务，比较官网价格、流量额度、地区与退款政策。排除面向爬虫或企业数据采集的住宅代理池。";
     public ProviderSearchOptions Search { get; init; } = new();
 }
+public sealed record AiApiProfile(string Protocol, string Endpoint, string Model, string ApiKey);
 public sealed record RoutingRule(string Type, string Value, string Action)
 {
     public bool NoResolve { get; init; }

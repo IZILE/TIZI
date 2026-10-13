@@ -76,6 +76,15 @@ internal static class UiChecks
             foreach (var message in new uint[] { 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6 }) Check(NativeCaption.Suppress(message, 3), "Caption icon mouse shortcut suppressed");
             foreach (var hit in new nint[] { 2, 8, 9, 20 }) Check(!NativeCaption.Suppress(0xA1, hit), "Caption drag and native caption buttons retained");
             Check(!NativeCaption.Suppress(0x112, 0xF100), "Keyboard system menu retained");
+            var defaultWindow = new MainWindow(true, state); defaultWindow.Show(); Layout(defaultWindow);
+            Capture(defaultWindow, "overview-default.png");
+            defaultWindow.OverviewMonitor.Update(1_000_000, 2_500_000, 0, true, latency: "45 ms", duration: TimeSpan.FromSeconds(4982));
+            Capture(defaultWindow, "overview-default-sample.png");
+            var gridNodes = nodes.Concat(Enumerable.Range(1, 16).Select(i => nodes[0] with { Id = Guid.NewGuid(), Name = $"日本 {i:00} | IEPL · Example", SubscriptionId = subscription.Id })).ToList();
+            defaultWindow.Controller.SetPreview(state with { Nodes = gridNodes }); defaultWindow.ShowPage("Nodes"); Layout(defaultWindow);
+            Capture(defaultWindow, "nodes-grid-default.png");
+            defaultWindow.Width = 880; Layout(defaultWindow); Capture(defaultWindow, "nodes-grid-narrow.png");
+            defaultWindow.Width = 1640; Layout(defaultWindow); Capture(defaultWindow, "nodes-grid-wide.png"); defaultWindow.Close();
             foreach (var language in new[] { "zh-CN", "en" })
             foreach (var width in new[] { 880d, 1180d, 1640d, 1920d })
             {
@@ -331,7 +340,9 @@ internal static class UiChecks
                         var point = header.TranslatePoint(default, window)!.Value;
                         Check(point.X >= window.Rail.Bounds.Right, $"{language}/{width}: page heading stays outside navigation ({point.X})");
                         var buttons = group.NodeRows.GetVisualDescendants().OfType<Button>().Where(b => b.Tag is string).ToArray();
-                        Check(buttons.Length == 2 && buttons.All(b => b.Bounds.Width > group.Bounds.Width - 60), $"{language}/{width}: node rows fill their subscription card ({group.Bounds.Width}; {group.NodeRows.Bounds}; {string.Join(';', buttons.Select(b => b.Bounds.ToString()))})");
+                        Check(buttons.Length == 2 && buttons.All(b => b.Bounds.Width >= 238 && b.Bounds.Width < group.NodeRows.Bounds.Width)
+                            && Math.Abs(buttons[0].Bounds.Y - buttons[1].Bounds.Y) < .1 && buttons[0].Bounds.Right + 8 <= buttons[1].Bounds.Left,
+                            $"{language}/{width}: subscription nodes share a responsive grid row with readable widths and separated cards ({string.Join(';',buttons.Select(b=>b.Bounds.ToString()))})");
                         var faces = buttons.Select(b => b.GetVisualDescendants().OfType<Border>().Single(face => face.Name == "buttonFace")).ToArray();
                         using (var selectionClock = new UiAnimationClock(faces.Cast<Avalonia.Animation.Animatable>().Append(group.NodeRows.Indicator).Append(group.NodeRows.Indicator.Position).ToArray()))
                         {

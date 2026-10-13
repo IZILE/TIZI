@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 namespace Tizi.Core;
 
 /// <summary>Manual, bounded web research. Imported text is data; it cannot change settings or connect a node.</summary>
-public sealed class ProviderDiscovery(HttpClient http, Action<string>? inspectResponse = null)
+public sealed class ProviderDiscovery(HttpClient http, Action<string>? inspectResponse = null, IWebResearch? research = null)
 {
     public const int ResultsPerSearch = 15;
     public static JsonObject Request(DiscoverySettings settings, string query, int limit = ResultsPerSearch)
@@ -46,12 +46,13 @@ public sealed class ProviderDiscovery(HttpClient http, Action<string>? inspectRe
     }
     public async Task<List<ProviderSite>> SearchAsync(DiscoverySettings settings, string query, int limit = ResultsPerSearch, CancellationToken cancellation = default)
     {
-        if (string.IsNullOrWhiteSpace(settings.ApiKey)) throw new InvalidOperationException("Configure an OpenAI API key in Settings first.");
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation); timeout.CancelAfter(TimeSpan.FromSeconds(100));
-        using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses") { Content = new StringContent(Request(settings, query, limit).ToJsonString(), Encoding.UTF8, "application/json") };
+        if (string.IsNullOrWhiteSpace(settings.ApiKey)) throw new InvalidOperationException("Configure an AI API key in Settings first.");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation); timeout.CancelAfter(TimeSpan.FromSeconds(settings.Protocol=="responses"?100:240));
+        if (settings.Protocol != "responses") return await CompatibleAiDiscovery.SearchAsync(http,settings,query,limit,research,timeout.Token);
+        using var request = new HttpRequestMessage(HttpMethod.Post, AiApiProfiles.Endpoint(settings)) { Content = new StringContent(Request(settings, query, limit).ToJsonString(), Encoding.UTF8, "application/json") };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey.Trim());
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode) throw new HttpRequestException($"OpenAI HTTP {(int)response.StatusCode}. Check API access, model and billing in Settings.");
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException($"AI API HTTP {(int)response.StatusCode}. Check API access, model and billing in Settings.");
         await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token); using var bytes = new MemoryStream(); var buffer = new byte[16384]; int count;
         while ((count = await stream.ReadAsync(buffer, timeout.Token)) > 0) { if (bytes.Length + count > 2 * 1024 * 1024) throw new InvalidDataException("Search response is too large."); bytes.Write(buffer, 0, count); }
         var json = Encoding.UTF8.GetString(bytes.ToArray()); inspectResponse?.Invoke(json);

@@ -18,6 +18,12 @@ internal sealed partial class MainWindow
     private bool IsVisibleTarget(string? id) => _page == "Nodes" ? _subscriptionTree.ContainsVisible(id) : id is not null && _visibleTargets.Contains(id);
     private void ChooseItem(string id)
     {
+        if (_suppressSelectionClick == id) { _suppressSelectionClick = null; return; }
+        if (_multiSelect && _contextSelection)
+        { if (!_selectedMany.Contains(id)) BeginMultipleSelection(id, false, _selectionManagement); else { _chosen = id; UpdateSelectionActions(); } return; }
+        if (_multiSelect || _selectionModifiers.HasFlag(KeyModifiers.Control) || _selectionModifiers.HasFlag(KeyModifiers.Shift))
+        { _multiSelect = true; SelectMultipleItem(id); return; }
+        _selectedMany.Clear(); _selectedMany.Add(id); _selectionAnchor = id; _selectionModifiers = KeyModifiers.None;
         if (_chosen == id) return;
         _chosen = id;
         _chosenRule = _page == "Rules" && int.TryParse(id, out var index) && index >= 0 && index < _app.State.Rules.Count ? _app.State.Rules[index] : null;
@@ -30,16 +36,18 @@ internal sealed partial class MainWindow
             || e.Source is not Visual source) return;
         var ancestors = source.GetVisualAncestors().Prepend(source).ToArray();
         if (!ancestors.Contains(_contentSurface) || ancestors.Any(v => v is Button or TextBox or ComboBox
-            or Avalonia.Controls.Primitives.ScrollBar or SubscriptionTree.GroupCard)) return;
+            or Avalonia.Controls.Primitives.ScrollBar)) return;
         ClearSelection();
     }
     private void ClearSelection()
     {
+        _selectedMany.Clear(); _selectedRules.Clear(); _multiSelect = _selectionManagement = false; _selectionAnchor = null;
         _chosen = null; _chosenRule = null; _rows.Select(null); _subscriptionTree.SelectItem(null);
         UpdateSelectionActions(); if (_page == "Connections") RefreshInspector();
     }
     private void ValidateSelection()
     {
+        if (_multiSelect) { ValidateMultipleSelection(); return; }
         if (_chosen is null) return;
         if (!IsVisibleTarget(_chosen))
         { _chosen = null; _chosenRule = null; _rows.Select(null); _subscriptionTree.SelectItem(null); UpdateSelectionActions(); RefreshInspector(); }
@@ -76,7 +84,8 @@ internal sealed partial class MainWindow
     private void CloseSelectedConnection()
     {
         if (_page != "Connections" || !IsVisibleTarget(_chosen) || _chosen is not { } id) return;
-        Run(() => _app.Engine.CloseConnectionsAsync(id));
+        var ids = _multiSelect ? _selectedMany.Where(IsVisibleTarget).ToArray() : [id];
+        Run(async () => { foreach (var target in ids) if (_snapshot.Connections.Any(c => c.Id == target)) await _app.Engine.CloseConnectionsAsync(target); });
     }
     private void OpenConnectionDetails()
     {
