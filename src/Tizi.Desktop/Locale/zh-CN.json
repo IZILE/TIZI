@@ -1241,6 +1241,7 @@
   "Connection cancelled.": "连接已取消。",
   "Subscription {0}: {1}": "订阅“{0}”：{1}",
   "Website {0}: {1}": "网站“{0}”：{1}",
+  "Website access check {0}: {1}": "官网访问检查“{0}”：{1}",
   "{0} additional failures. See Logs.": "另有 {0} 项失败，详情见日志。",
   "Multi-select": "多选",
   "Select all": "全选",

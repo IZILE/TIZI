@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using System.Runtime.CompilerServices;
 using System.ComponentModel;
 using System.Reflection;
+using Avalonia.VisualTree;
 
 namespace Tizi.Desktop;
 
@@ -24,6 +25,15 @@ internal sealed class PopupMotion : AvaloniaObject
     });
     public static bool GetEnabled(Popup popup) => popup.GetValue(EnabledProperty);
     public static void SetEnabled(Popup popup, bool enabled) => popup.SetValue(EnabledProperty, enabled);
+    internal static void CloseImmediately(ComboBox choice)
+    {
+        var popup = choice.GetVisualDescendants().OfType<Popup>().FirstOrDefault();
+        if (popup is not null)
+        {
+            if (States.TryGetValue(popup, out var state)) state.CloseImmediately(); else popup.Close();
+        }
+        choice.SetCurrentValue(ComboBox.IsDropDownOpenProperty, false);
+    }
 
     private sealed class State
     {
@@ -65,6 +75,11 @@ internal sealed class PopupMotion : AvaloniaObject
             await Task.Delay(240);
             if (generation != _generation || !_closing) return;
             _allowClose = true;
+            try { _popup.Close(); } finally { _allowClose = false; }
+        }
+        internal void CloseImmediately()
+        {
+            ++_generation; _allowClose = true;
             try { _popup.Close(); } finally { _allowClose = false; }
         }
         private void Position(PopupRevealSurface reveal)

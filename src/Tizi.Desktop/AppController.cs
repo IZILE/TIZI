@@ -301,7 +301,7 @@ internal sealed partial class AppController : IAsyncDisposable
         if (_closing) throw new InvalidOperationException(UiText.Get("Application is closing."));
         if (!Ready) throw new InvalidOperationException(UiText.Get("Loading saved settings…"));
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, cancellation);
-        await CommitSearchAsync(state => state with { Discovery = state.Discovery with { Search = options } }, linked.Token);
+        await CommitLatestAsync(state => state with { Discovery = state.Discovery with { Search = options } }, linked.Token);
     }
     internal Task RetrySearchAsync()
     {
@@ -328,12 +328,12 @@ internal sealed partial class AppController : IAsyncDisposable
         try
         {
             Changed?.Invoke();
-            var requestState = await CommitSearchAsync(state => state with { Discovery = state.Discovery with { Search = options }, ProviderSearchError = null }, token);
+            var requestState = await CommitLatestAsync(state => state with { Discovery = state.Discovery with { Search = options }, ProviderSearchError = null }, token);
             token.ThrowIfCancellationRequested();
             using var http = SearchHttpClientFactory?.Invoke() ?? new HttpClient(new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(12) }) { Timeout = Timeout.InfiniteTimeSpan };
             // No controller operation lock is held while the remote search is pending.
             var found = await new ProviderDiscovery(http).SearchAsync(requestState.Discovery, query, cancellation: token);
-            await CommitSearchAsync(state => ProviderDirectory.CacheSearch(state, found, options, DateTimeOffset.Now)
+            await CommitLatestAsync(state => ProviderDirectory.CacheSearch(state, found, options, DateTimeOffset.Now)
                 with { Discovery = state.Discovery with { Query = query } }, token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { cancelled = true; }
@@ -360,16 +360,17 @@ internal sealed partial class AppController : IAsyncDisposable
         }
         else completion.TrySetResult();
     }
-    private async Task<AppState> CommitSearchAsync(Func<AppState, AppState> edit, CancellationToken cancellation)
+    private async Task<AppState> CommitLatestAsync(Func<AppState, AppState?> edit, CancellationToken cancellation, bool reload = false)
     {
         await _operation.WaitAsync(cancellation);
         try
         {
             cancellation.ThrowIfCancellationRequested();
             if (_closing) throw new OperationCanceledException(cancellation);
+            // Read State after acquiring the gate; never write a pre-request snapshot over later edits.
+            var next = edit(State); if (next is null) return State;
             Busy = true; Changed?.Invoke();
-            // Read State after acquiring the gate: a connection, edit or import may have finished during the search.
-            var next = edit(State); await ApplyAsync(next); return next;
+            await ApplyAsync(next, reload); return next;
         }
         finally { Busy = false; _operation.Release(); if (!_closing) Changed?.Invoke(); }
     }
@@ -379,6 +380,11 @@ internal sealed partial class AppController : IAsyncDisposable
         Updating = true; Changed?.Invoke();
         var notifications = new List<string>();
         void Failure(string message, bool notify = true) { if (notify) notifications.Add(message); Logged?.Invoke(message); }
+        async Task ApplyUpdateAsync(Func<AppState, AppState?> edit, bool reload = false)
+        {
+            if (automatic) await CommitLatestAsync(edit, _lifetime.Token, reload);
+            else if (edit(State) is { } next) await ApplyAsync(next, reload);
+        }
         try
         {
             using var fixtureHttp = SourceHttpClientFactory?.Invoke();
@@ -387,12 +393,17 @@ internal sealed partial class AppController : IAsyncDisposable
             {
                 try
                 {
-                    var refresh = await sources.RefreshSubscriptionAsync(subscription, State.Nodes, _lifetime.Token); var nodes = refresh.Nodes;
-                    if (!State.Subscriptions.Any(s => s.Id == subscription.Id)) continue;
-                    var all = State.Nodes.Where(n => n.SubscriptionId != subscription.Id).Concat(nodes).ToList();
-                    if (all.Count > NodeImport.MaxNodes) throw new FormatException("Maximum 3000 nodes.");
-                    var selected = all.Any(n => n.Id == State.SelectedNode) ? State.SelectedNode : all.FirstOrDefault()?.Id;
-                    await ApplyAsync(State with { Nodes = all, SelectedNode = selected, Subscriptions = State.Subscriptions.Select(s => s.Id == subscription.Id ? refresh.Subscription : s).ToList() }, true);
+                    var previous = State.Nodes.Where(n => n.SubscriptionId == subscription.Id).ToArray();
+                    var refresh = await sources.RefreshSubscriptionAsync(subscription, previous, _lifetime.Token);
+                    await ApplyUpdateAsync(latest =>
+                    {
+                        // Removing or editing this subscription while HTTP is pending invalidates that response.
+                        if (!latest.Subscriptions.Contains(subscription) || !latest.Nodes.Where(n => n.SubscriptionId == subscription.Id).SequenceEqual(previous)) return null;
+                        var all = latest.Nodes.Where(n => n.SubscriptionId != subscription.Id).Concat(refresh.Nodes).ToList();
+                        if (all.Count > NodeImport.MaxNodes) throw new FormatException("Maximum 3000 nodes.");
+                        var selected = all.Any(n => n.Id == latest.SelectedNode) ? latest.SelectedNode : all.FirstOrDefault()?.Id;
+                        return latest with { Nodes = all, SelectedNode = selected, Subscriptions = latest.Subscriptions.Select(s => s.Id == subscription.Id ? refresh.Subscription : s).ToList() };
+                    }, reload: true);
                 }
                 catch (Exception e) when (!_lifetime.IsCancellationRequested) { Failure(SubscriptionUpdateFailure(subscription, e), notify: !automatic); }
             }
@@ -401,12 +412,14 @@ internal sealed partial class AppController : IAsyncDisposable
                 try
                 {
                     var url = State.CatalogUrl;
+                    var previous = State.Providers.Where(p => p.Source == url).ToArray();
                     var remote = await sources.CatalogAsync(url, State.Providers, _lifetime.Token);
-                    if (url == State.CatalogUrl)
+                    await ApplyUpdateAsync(latest =>
                     {
-                        var retained = State.Providers.Where(p => p.Source != url).ToList(); var retainedUrls = retained.Select(p => SourceUpdates.Normalize(p.Url)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                        await ApplyAsync(State with { Providers = [.. retained, .. remote.Where(p => !retainedUrls.Contains(SourceUpdates.Normalize(p.Url)))], CatalogUpdatedAt = DateTimeOffset.Now });
-                    }
+                        if (url != latest.CatalogUrl || !latest.Providers.Where(p => p.Source == url).SequenceEqual(previous)) return null;
+                        var retained = latest.Providers.Where(p => p.Source != url).ToList(); var retainedUrls = retained.Select(p => SourceUpdates.Normalize(p.Url)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        return latest with { Providers = [.. retained, .. remote.Where(p => !retainedUrls.Contains(SourceUpdates.Normalize(p.Url)))], CatalogUpdatedAt = DateTimeOffset.Now };
+                    });
                 }
                 catch (Exception) when (!_lifetime.IsCancellationRequested) { Failure(UiText.Get("Directory update failed; previous entries kept."), notify: !automatic); }
             }
@@ -414,9 +427,9 @@ internal sealed partial class AppController : IAsyncDisposable
             // Four probes at a time; do not hold up editing or generate a traffic burst.
             foreach (var batch in (providers ? State.Providers.ToArray() : []).Chunk(4)) updated.AddRange(await Task.WhenAll(batch.Select(p => sources.CheckAsync(p, _lifetime.Token))));
             var checkedSites = updated.ToDictionary(p => p.Id);
-            foreach (var site in updated.Where(p => p.Error is not null)) Failure(UiText.Format("Website {0}: {1}", site.Name, UiText.Get(site.Error!)), notify: !automatic);
+            foreach (var site in updated.Where(p => p.Error is not null)) Failure(UiText.Format("Website access check {0}: {1}", site.Name, UiText.Get(site.Error!)), notify: !automatic);
             if (checkedSites.Count > 0)
-                await ApplyAsync(State with { Providers = State.Providers.Select(p => checkedSites.TryGetValue(p.Id, out var found) ? p with { CheckedAt = found.CheckedAt, StatusCode = found.StatusCode, LatencyMs = found.LatencyMs, Error = null } : p).ToList() });
+                await ApplyUpdateAsync(latest => latest with { Providers = latest.Providers.Select(p => checkedSites.TryGetValue(p.Id, out var found) && p.Url == found.Url ? p with { CheckedAt = found.CheckedAt, StatusCode = found.StatusCode, LatencyMs = found.LatencyMs, Error = null } : p).ToList() });
             if (subscriptions) _lastAuto = DateTimeOffset.Now;
             if (providers) _lastProviderAuto = DateTimeOffset.Now;
         }
@@ -431,8 +444,12 @@ internal sealed partial class AppController : IAsyncDisposable
     {
         if (_closing || !Ready || Busy || Updating) return;
         var subscriptions = State.AutoUpdate && DateTimeOffset.Now - _lastAuto >= TimeSpan.FromMinutes(Math.Clamp(State.UpdateMinutes, 5, 1440));
-        var providers = State.AutoUpdateProviders && DateTimeOffset.Now - _lastProviderAuto >= TimeSpan.FromMinutes(Math.Clamp(State.ProviderUpdateMinutes, 5, 1440));
-        if (subscriptions || providers) await RunAsync(() => UpdateAsync(true, subscriptions, providers));
+        var providers = State.AutomaticWebsiteChecksOptIn && State.AutoUpdateProviders && DateTimeOffset.Now - _lastProviderAuto >= TimeSpan.FromMinutes(Math.Clamp(State.ProviderUpdateMinutes, 5, 1440));
+        // HTTP waits are background work. Only their short atomic commits acquire the operation gate.
+        if (subscriptions || providers)
+            try { await UpdateAsync(true, subscriptions, providers); }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+            catch (Exception error) when (!_closing) { Logged?.Invoke(error.Message); }
     }
     private void StartWatchdog()
     {

@@ -1,5 +1,11 @@
 <Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:Tizi.Desktop">
   <Styles.Resources>
+  <!-- Keep native caption styles for DWM animations while the main window draws its own caption. -->
+  <ControlTheme x:Key="TiziWindowDecorations" TargetType="WindowDrawnDecorations">
+    <Setter Property="Template">
+      <WindowDrawnDecorationsTemplate><WindowDrawnDecorationsContent /></WindowDrawnDecorationsTemplate>
+    </Setter>
+  </ControlTheme>
   <StreamGeometry x:Key="MacChevronGeometry">M 0,0 L 4,4 L 8,0</StreamGeometry>
   <ControlTheme x:Key="MacChevronTheme" TargetType="Path">
     <Setter Property="Data" Value="{StaticResource MacChevronGeometry}" />

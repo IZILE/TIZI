@@ -9,10 +9,19 @@ namespace Tizi.Desktop;
 /// <summary>Select the operation target first; dispatch after the menu has finished retracting.</summary>
 internal static class ItemContextMenu
 {
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ContextMenu, Action> ImmediateClosers = new();
+    internal static void CloseImmediately(ContextMenu menu) { if (ImmediateClosers.TryGetValue(menu, out var close)) close(); else menu.Close(); }
     internal static ContextMenu Create(Control owner, Action select, IEnumerable<(string Label, Action Action)> actions)
     {
         var menu = new ContextMenu();
         var closing = false; var allowClose = false; var generation = 0; Action? pending = null;
+        ImmediateClosers.Add(menu, () =>
+        {
+            if (!closing && !menu.IsOpen) return;
+            ++generation; pending = null; allowClose = true;
+            try { if (menu.FindLogicalAncestorOfType<Popup>() is { } popup) popup.Close(); else menu.Close(); }
+            finally { allowClose = false; }
+        });
         PopupRevealSurface? Surface() => menu.GetVisualDescendants().OfType<PopupRevealSurface>().FirstOrDefault();
         foreach (var (label, action) in actions)
         {

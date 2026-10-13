@@ -10,6 +10,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Tizi.Core;
@@ -117,7 +118,8 @@ internal sealed partial class MainWindow : Window
         _count.TextWrapping = TextWrapping.Wrap; _count.TextTrimming = TextTrimming.None;
         if (state is not null) _app.SetPreview(state);
         Title = ""; Avalonia.Automation.AutomationProperties.SetName(this, "TIZI");
-        WindowDecorations = WindowDecorations.BorderOnly;
+        WindowDecorations = WindowDecorations.Full;
+        WindowDecorationsTheme = (ControlTheme)Application.Current!.FindResource("TiziWindowDecorations")!;
         ExtendClientAreaToDecorationsHint = true;
         ExtendClientAreaTitleBarHeightHint = 32;
         Width = 1032; Height = 722; MinWidth = 880; MinHeight = 620; Background = Skin.ChromeBrush; ShowInTaskbar = true;
@@ -163,6 +165,13 @@ internal sealed partial class MainWindow : Window
             if (enabled) { _lastProbe = DateTimeOffset.MinValue; _probeTask = ProbeSelectedAsync(); }
         };
         Content = _clientSurface = new Grid { ClipToBounds = true, Children = { root, _notification } }; SizeChanged += (_, _) => Responsive();
+        Deactivated += (_, _) =>
+        {
+            ActiveMoreSheet?.DismissImmediately();
+            foreach (var choice in this.GetVisualDescendants().OfType<ComboBox>()) PopupMotion.CloseImmediately(choice);
+            if (SelectionMenu is { } selectionMenu) ItemContextMenu.CloseImmediately(selectionMenu);
+            foreach (var menu in this.GetVisualDescendants().OfType<Control>().Select(c => c.ContextMenu).OfType<ContextMenu>().Distinct()) ItemContextMenu.CloseImmediately(menu);
+        };
         AddHandler(PointerPressedEvent, (_, e) =>
         {
             if (_search.IsKeyboardFocusWithin && e.Source is Visual source && !ReferenceEquals(source, _search)
@@ -418,7 +427,7 @@ internal sealed partial class MainWindow : Window
         ActiveMoreSheet = sheet; _clientSurface.Children.Add(sheet); UpdateLayout(); sheet.Open();
         int? chosen;
         try { chosen = await sheet.Completion; }
-        finally { _clientSurface.Children.Remove(sheet); if (ReferenceEquals(ActiveMoreSheet, sheet)) { ActiveMoreSheet = null; trigger.Focus(); } }
+        finally { _clientSurface.Children.Remove(sheet); if (ReferenceEquals(ActiveMoreSheet, sheet)) { ActiveMoreSheet = null; if (IsActive) trigger.Focus(); } }
         // Remove the overlay before dispatching an action that may open an editor or file picker.
         if (!_shutdown && chosen is int index && index >= 0 && index < entries.Length) entries[index].Action();
     }

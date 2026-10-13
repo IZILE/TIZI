@@ -96,7 +96,8 @@ public sealed record AppState
     public int MixedPort { get; init; } = 7897;
     public string OutboundInterface { get; init; } = "";
     public bool AutoUpdate { get; init; } = true;
-    public bool AutoUpdateProviders { get; init; } = true;
+    public bool AutoUpdateProviders { get; init; }
+    public bool AutomaticWebsiteChecksOptIn { get; init; }
     public int ProviderUpdateMinutes { get; init; } = 30;
     public int UpdateMinutes { get; init; } = 30;
     public string CatalogUrl { get; init; } = "";

@@ -164,7 +164,8 @@ internal sealed class MovingRows : Grid
                 button.Background = Brushes.Transparent; button.Tag = entry.Id;
                 if (entry.Provider is not null || _nodeGrid)
                 {
-                    var ground = new Border { Background = Skin.TabBack, CornerRadius = new(12), Tag = entry.Id };
+                    Border ground = _nodeGrid ? new NodeCardGround { Tag = entry.Id }
+                        : new Border { Background = Skin.TabBack, CornerRadius = new(12), Tag = entry.Id };
                     _grounds.Add(entry.Id, ground); _cardGrounds.Children.Add(ground);
                 }
                 button.Classes.Set("provider-card", entry.Provider is not null || _nodeGrid);
@@ -180,12 +181,23 @@ internal sealed class MovingRows : Grid
             if (ContextActions is { } actions && _buttons[entry.Id].ContextMenu?.IsOpen != true)
                 _buttons[entry.Id].ContextMenu = ItemContextMenu.Create(_buttons[entry.Id], () => { Select(entry.Id); Chosen?.Invoke(entry.Id); }, actions(entry.Id));
             if (_display.TryGetValue(entry.Id, out var old) && old == entry) continue;
-            if (old is not null && old with { Badge = entry.Badge } == entry && _buttons[entry.Id].Content is Grid existing && existing.Children.OfType<TextBlock>().FirstOrDefault(t=>t.Tag is "row-badge") is { } value)
-            { value.Text = entry.Badge; value.Foreground = BadgeBrush(entry); _display[entry.Id] = entry; continue; }
+            if (old is not null && old with { Badge = entry.Badge, Current = entry.Current } == entry && _buttons[entry.Id].Content is Grid existing && existing.Children.OfType<TextBlock>().FirstOrDefault(t=>t.Tag is "row-badge") is { } value)
+            {
+                value.Text = entry.Badge; value.Foreground = BadgeBrush(entry);
+                if (_nodeGrid && existing.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Tag is "row-subtitle") is { } existingSubtitle)
+                    Motion.Set(existingSubtitle, TextBlock.ForegroundProperty, entry.Current ? CurrentSubtitleBrush : Skin.SecondaryBrush);
+                _display[entry.Id] = entry; continue;
+            }
             _display[entry.Id] = entry;
             var title = Ui.Value(entry.Country is null ? entry.Title : Tizi.Core.NodeRegion.StripFlag(entry.Title), size: 15); title.FontWeight = FontWeight.Medium;
             var subtitle = Ui.Value(entry.Subtitle, true, 13); ToolTip.SetTip(title, entry.Title); ToolTip.SetTip(subtitle, entry.Subtitle);
-            if (_nodeGrid && entry.Current) subtitle.Foreground = new SolidColorBrush(Color.Parse("#E3EDFF"));
+            subtitle.Tag = "row-subtitle";
+            if (_nodeGrid)
+            {
+                subtitle.Foreground = entry.Current ? CurrentSubtitleBrush : Skin.SecondaryBrush;
+                subtitle.Transitions = new Transitions { new BrushTransition { Property = TextBlock.ForegroundProperty,
+                    Duration = TimeSpan.FromMilliseconds(SelectionIndicator.DurationMilliseconds), Easing = new SplineEasing(0, 0, .58, 1) } };
+            }
             var titleLine = new Grid { ColumnDefinitions = new("*,8,Auto"), Children = { title } };
             if (entry.Current && !_nodeGrid)
             {
@@ -227,6 +239,7 @@ internal sealed class MovingRows : Grid
     }
     private static IBrush BadgeBrush(DisplayRow entry) => entry.Latency ? LatencyTone.For(entry.Badge)
         : entry.PricePlan is { Price: not null } ? Ui.DataAccent : Skin.SecondaryBrush;
+    private static readonly IBrush CurrentSubtitleBrush = new SolidColorBrush(Color.Parse("#E3EDFF"));
     internal void UpdateBadges(IReadOnlyDictionary<Guid, string> values)
     {
         foreach (var (id, button) in _buttons)
@@ -266,8 +279,34 @@ internal sealed class MovingRows : Grid
         {
             var bounds = _buttons[id].Bounds; Canvas.SetLeft(ground, bounds.X); Canvas.SetTop(ground, bounds.Y);
             ground.Width = bounds.Width; ground.Height = bounds.Height;
-            ground.Background = _nodeGrid ? _display.GetValueOrDefault(id)?.Current == true ? CurrentNodeBrush : Skin.TabBack : _multiple?.Contains(id) == true ? Ui.SelectionBrush : _display.GetValueOrDefault(id)?.Provider is not null ? Skin.TabBack : Brushes.Transparent;
+            if (ground is NodeCardGround nodeGround) nodeGround.SetCurrent(_display.GetValueOrDefault(id)?.Current == true);
+            else ground.Background = _multiple?.Contains(id) == true ? Ui.SelectionBrush : _display.GetValueOrDefault(id)?.Provider is not null ? Skin.TabBack : Brushes.Transparent;
         }
         if (!_nodeGrid && _multiple is null && _selected is { } selected && _buttons.TryGetValue(selected, out var button) && button.Bounds.Width > 0) _indicator.MoveTo(button.Bounds);
+    }
+}
+
+// Fade one opaque surface between gray and blue. RGB interpolation cannot brighten past either endpoint.
+internal sealed class NodeCardGround : Border
+{
+    internal static readonly StyledProperty<double> SelectionProperty = AvaloniaProperty.Register<NodeCardGround, double>(nameof(Selection));
+    internal double Selection { get => GetValue(SelectionProperty); set => SetValue(SelectionProperty, value); }
+    internal NodeCardGround()
+    {
+        Background = Skin.TabBack; CornerRadius = new(12);
+        Transitions = new Transitions { new DoubleTransition { Property = SelectionProperty,
+            Duration = TimeSpan.FromMilliseconds(SelectionIndicator.DurationMilliseconds), Easing = new SplineEasing(0, 0, .58, 1) } };
+    }
+    internal void SetCurrent(bool current) => Motion.Set(this, SelectionProperty, current ? 1d : 0d);
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property != SelectionProperty) return;
+        var amount = Math.Clamp(Selection, 0, 1);
+        if (amount == 0) { Background = Skin.TabBack; return; }
+        if (amount == 1) { Background = MovingRows.CurrentNodeBrush; return; }
+        var gray = ((ISolidColorBrush)Skin.TabBack).Color; var blue = ((ISolidColorBrush)MovingRows.CurrentNodeBrush).Color;
+        byte Mix(byte from, byte to) => (byte)Math.Round(from + (to - from) * amount);
+        Background = new SolidColorBrush(Color.FromRgb(Mix(gray.R, blue.R), Mix(gray.G, blue.G), Mix(gray.B, blue.B)));
     }
 }

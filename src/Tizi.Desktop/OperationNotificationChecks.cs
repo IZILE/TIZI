@@ -40,7 +40,7 @@ internal static class OperationNotificationChecks
             && window.Controller.State.Rules.SequenceEqual(state.Rules) && File.ReadAllBytes(UserData.File("settings.dat")).SequenceEqual(beforeFailure),
             "A synthetic manual subscription failure produces one named top notification and leaves nodes, rules and the encrypted profile unchanged");
         window.Notification.Dismiss(); errors.Clear(); logs.Clear();
-        await window.Controller.RunAsync(() => window.Controller.UpdateAsync(automatic: true, subscriptions: true, providers: false)); Layout(window);
+        await window.Controller.UpdateAsync(automatic: true, subscriptions: true, providers: false); Layout(window);
         check(errors.Count == 0 && !window.Notification.Showing && logs.Count == 1 && logs[0].Contains(subscription.Name, StringComparison.Ordinal)
             && window.Controller.State.Subscriptions.Single().LastError is null
             && File.ReadAllBytes(UserData.File("settings.dat")).SequenceEqual(beforeFailure),
@@ -51,7 +51,7 @@ internal static class OperationNotificationChecks
             "Manually refreshing all subscriptions still reports the same failed subscription after a silent automatic refresh");
         await window.Controller.ApplyAsync(window.Controller.State with { CatalogUrl = "https://catalog.example/" });
         errors.Clear(); window.Notification.Dismiss(); window.ShowPage("Providers");
-        await window.Controller.RunAsync(() => window.Controller.UpdateAsync(automatic: true, subscriptions: true, providers: true)); Layout(window);
+        await window.Controller.UpdateAsync(automatic: true, subscriptions: true, providers: true); Layout(window);
         check(errors.Count == 0 && !window.Notification.Showing && logs.Any(l=>l.Contains(provider.Name,StringComparison.Ordinal))
             && window.Controller.State.Providers.Single().Error is null && window.Controller.State.Providers.Single().CheckedAt is not null
             && vault.Read<AppState>("settings.dat")!.Providers.Single().Error is null,

@@ -94,8 +94,8 @@ internal sealed partial class MainWindow
     }
     private void DirectorySettings()
     {
-        var enabled = Option("Automatically check website status", _app.State.AutoUpdateProviders); var minutes = Number(_app.State.ProviderUpdateMinutes, 5, 1440);
-        OptionsDialog("Directory settings", new StackPanel { Children = { enabled, Labeled("Update interval (min)", minutes) } }, () => _app.ApplyAsync(_app.State with { AutoUpdateProviders = enabled.IsChecked == true, ProviderUpdateMinutes = (int)(minutes.Value ?? 30) }));
+        var enabled = Option("Automatically check website status", _app.State.AutoUpdateProviders && _app.State.AutomaticWebsiteChecksOptIn); var minutes = Number(_app.State.ProviderUpdateMinutes, 5, 1440);
+        OptionsDialog("Directory settings", new StackPanel { Children = { enabled, Labeled("Update interval (min)", minutes) } }, () => _app.ApplyAsync(_app.State with { AutoUpdateProviders = enabled.IsChecked == true, AutomaticWebsiteChecksOptIn = enabled.IsChecked == true, ProviderUpdateMinutes = (int)(minutes.Value ?? 30) }));
     }
     private void LogOptions()
     {

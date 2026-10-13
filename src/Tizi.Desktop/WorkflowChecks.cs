@@ -47,6 +47,7 @@ internal static class WorkflowChecks
         try
         {
             UiText.Language = "zh-CN";
+            await Revision0124Checks.RunAsync(output, Check);
             var rules = Enumerable.Range(0, 9233).Select(i => new RoutingRule("DOMAIN", $"fixture{i}.example", "DIRECT")).ToList();
             var node = NodeImport.Parse("ss://YWVzLTEyOC1nY206ZGVtby1wYXNzd29yZA@jp.example.net:443#Japan%20fixture")[0];
             var state = new AppState { Nodes = [node], SelectedNode = node.Id, Rules = rules, AutoUpdate = false, AutoUpdateProviders = false, StartHidden = false };

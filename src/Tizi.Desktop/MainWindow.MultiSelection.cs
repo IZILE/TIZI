@@ -56,6 +56,7 @@ internal sealed partial class MainWindow
             { BeginMultipleSelection(_chosen, true, _selectionManagement); e.Handled = true; }
         };
         Closed += (_, _) => Stop();
+        Deactivated += (_, _) => { Stop(); _suppressSelectionClick = null; _selectionModifiers = KeyModifiers.None; _contextSelection = false; };
     }
     private List<string> VisibleSelectionItems() => _page == "Nodes"
         ? _subscriptionTree.Groups.SelectMany(g => g.NodesShown ? g.NodeRows.ItemIds : g.Key == "manual" ? [] : new[] { "subscription:" + g.Key }).Where(IsVisibleTarget).ToList()
