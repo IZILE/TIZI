@@ -44,10 +44,20 @@ internal static class Revision0124Checks
                 var blue = ((ISolidColorBrush)MovingRows.CurrentNodeBrush).Color; var gray = ((ISolidColorBrush)Skin.TabBack).Color;
                 bool Intermediate(Border ground) => ground.Background is ISolidColorBrush brush && brush.Color != blue && brush.Color != gray;
                 check(Intermediate(oldGround) && Intermediate(newGround), "Changing a grid node fades the outgoing blue background and incoming blue background through intermediate colors");
-                bool Bounded(Border ground) => ground.Background is ISolidColorBrush brush && brush.Color.A == 255
-                    && brush.Color.R >= Math.Min(blue.R, gray.R) && brush.Color.R <= Math.Max(blue.R, gray.R)
-                    && brush.Color.G >= Math.Min(blue.G, gray.G) && brush.Color.G <= Math.Max(blue.G, gray.G)
-                    && brush.Color.B >= Math.Min(blue.B, gray.B) && brush.Color.B <= Math.Max(blue.B, gray.B);
+                Color Composite(Color color)
+                {
+                    var baseColor = ((ISolidColorBrush)Skin.ChromeBrush).Color; var alpha = color.A / 255d;
+                    return Color.FromRgb((byte)Math.Round(color.R * alpha + baseColor.R * (1 - alpha)), (byte)Math.Round(color.G * alpha + baseColor.G * (1 - alpha)), (byte)Math.Round(color.B * alpha + baseColor.B * (1 - alpha)));
+                }
+                var neutral = Composite(gray);
+                bool Bounded(Border ground)
+                {
+                    if (ground.Background is not ISolidColorBrush brush) return false;
+                    var displayed = Composite(brush.Color);
+                    return displayed.R >= Math.Min(blue.R, neutral.R) - 1 && displayed.R <= Math.Max(blue.R, neutral.R) + 1
+                        && displayed.G >= Math.Min(blue.G, neutral.G) - 1 && displayed.G <= Math.Max(blue.G, neutral.G) + 1
+                        && displayed.B >= Math.Min(blue.B, neutral.B) - 1 && displayed.B <= Math.Max(blue.B, neutral.B) + 1;
+                }
                 check(Bounded(oldGround) && Bounded(newGround), "Node selection fade stays between the original gray and blue without a bright intermediate tint");
                 check(rows.ItemIds.Select(id => rows.For(id).Content).SequenceEqual(contents), "Changing the active grid node retains the original card content trees without fading or rebuilding their text");
                 Capture(window, "nodes-switch-middle.png");

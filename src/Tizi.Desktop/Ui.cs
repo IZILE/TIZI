@@ -286,7 +286,7 @@ internal sealed class MovingRows : Grid
     }
 }
 
-// Fade one opaque surface between gray and blue. RGB interpolation cannot brighten past either endpoint.
+// Fade the translucent neutral brush into blue using premultiplied channels, avoiding a white flash.
 internal sealed class NodeCardGround : Border
 {
     internal static readonly StyledProperty<double> SelectionProperty = AvaloniaProperty.Register<NodeCardGround, double>(nameof(Selection));
@@ -306,7 +306,9 @@ internal sealed class NodeCardGround : Border
         if (amount == 0) { Background = Skin.TabBack; return; }
         if (amount == 1) { Background = MovingRows.CurrentNodeBrush; return; }
         var gray = ((ISolidColorBrush)Skin.TabBack).Color; var blue = ((ISolidColorBrush)MovingRows.CurrentNodeBrush).Color;
-        byte Mix(byte from, byte to) => (byte)Math.Round(from + (to - from) * amount);
-        Background = new SolidColorBrush(Color.FromRgb(Mix(gray.R, blue.R), Mix(gray.G, blue.G), Mix(gray.B, blue.B)));
+        var alpha = gray.A + (blue.A - gray.A) * amount;
+        byte Mix(byte from, byte to) => alpha <= 0 ? (byte)0
+            : (byte)Math.Round((from * gray.A * (1 - amount) + to * blue.A * amount) / alpha);
+        Background = new SolidColorBrush(Color.FromArgb((byte)Math.Round(alpha), Mix(gray.R, blue.R), Mix(gray.G, blue.G), Mix(gray.B, blue.B)));
     }
 }
