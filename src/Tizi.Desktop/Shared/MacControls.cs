@@ -129,7 +129,7 @@ internal static class MacControls
         return Row(label, amounts, labelWidth);
     }
 
-    internal static void StyleNumericFields(Window window)
+    internal static void StyleNumericFields(Control window)
     {
         foreach (var field in window.GetLogicalDescendants().Concat(window.GetVisualDescendants()).OfType<TextBox>().Distinct())
         {

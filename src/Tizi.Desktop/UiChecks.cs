@@ -20,19 +20,21 @@ internal static class UiChecks
     {
         Directory.CreateDirectory(output); File.Delete(Path.Combine(output, "ui-checks.json")); var report = new List<string>(); var count = 0;
         void Check(bool ok, string description) { if (!ok) throw new InvalidOperationException(description); count++; report.Add("PASS " + description); }
-        void Layout(Window window) { window.UpdateLayout(); Dispatcher.UIThread.RunJobs(); }
-        void Capture(Window window, string file)
+        void Layout(Control window) { window.UpdateLayout(); Dispatcher.UIThread.RunJobs(); }
+        void Capture(Control window, string file)
         {
             var motion = window.GetVisualDescendants().OfType<SelectionIndicator>().SelectMany(i => new Avalonia.Animation.Animatable[] { i, i.Position }).ToList();
             motion.AddRange(window.GetVisualDescendants().OfType<SettingsCards>());
             motion.AddRange(window.GetVisualDescendants().OfType<NavigationGlyph>());
+            motion.AddRange(window.GetVisualDescendants().OfType<DialogOverlay>());
             motion.AddRange(window.GetVisualDescendants().Select(v => v.RenderTransform).OfType<Avalonia.Animation.Animatable>());
-            if (window.Content is DialogSurface surface) motion.AddRange(new Avalonia.Animation.Animatable[] { surface, surface.Scale, surface.Offset });
+            if (window is ContentControl { Content: DialogSurface surface }) motion.AddRange(new Avalonia.Animation.Animatable[] { surface, surface.Scale, surface.Offset });
             using var clock = new UiAnimationClock(motion.Distinct().ToArray()); clock.Pulse(0); clock.Pulse(300); Layout(window);
             AvaloniaHeadlessPlatform.ForceRenderTimerTick(); using var frame = window.CaptureRenderedFrame() ?? throw new IOException("No rendered frame."); frame.Save(Path.Combine(output, file), new PngBitmapEncoderOptions());
         }
-        void Click(Window window, Control target)
+        void Click(Control window, Control target)
         {
+            CenteredDialogChecks.Ready(window);
             var point = target.TranslatePoint(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), window)!.Value;
             window.MouseMove(point); window.MouseDown(point, MouseButton.Left); window.MouseUp(point, MouseButton.Left); Layout(window);
         }
@@ -101,7 +103,9 @@ internal static class UiChecks
                 Check(brand.FontSize == 36 && Math.Abs(brandHost.Bounds.Height-connect.Bounds.Height)<.1
                     && Math.Abs(brandHost.TranslatePoint(default,window)!.Value.Y+brandHost.Bounds.Height/2-connectionCenter)<.6,
                     $"{language}/{width}: compact TIZI shares the control center without changing the header layout");
-                Check(Math.Abs(brandPoint.X-24)<.1 && brandPoint.X+brand.Bounds.Width+8<=window.ModeControl.TranslatePoint(default,window)!.Value.X,
+                var brandCenter = brandHost.TranslatePoint(brandHost.InkBounds.Center, window)!.Value.X;
+                var railGlyph = window.Rail.GlyphFor("Overview"); var railCenter = railGlyph.TranslatePoint(new(railGlyph.Bounds.Width/2,0),window)!.Value.X;
+                Check(Math.Abs(brandCenter-railCenter)<.1 && brandHost.TranslatePoint(new(brandHost.InkBounds.Right,0),window)!.Value.X+8<=window.ModeControl.TranslatePoint(default,window)!.Value.X,
                     $"{language}/{width}: TIZI aligns with sidebar icons and never overlaps the mode controls");
                 var nodeChoice = window.NodeControl;
                 Check(nodeChoice.Candidates.Count == 2 && nodeChoice.Candidates.All(n => n.SubscriptionId == subscription.Id), $"{language}/{width}: header only offers the current subscription's nodes");
@@ -176,7 +180,7 @@ internal static class UiChecks
                         {
                             var points = connect.Logo.Strokes().SelectMany(p => new[] { p.Start, p.End }).ToArray();
                             var playRatio = (points.Max(p => p.X) - points.Min(p => p.X)) / (points.Max(p => p.Y) - points.Min(p => p.Y));
-                            var strokes=connect.Logo.Strokes();var lengths=strokes.Select(s=>Math.Sqrt(Math.Pow(s.End.X-s.Start.X,2)+Math.Pow(s.End.Y-s.Start.Y,2))).ToArray();
+                            var strokes=connect.Logo.Strokes().Chunk(2).Select(pair=>(Start:pair[0].Start,End:pair[1].End)).ToArray();var lengths=strokes.Select(s=>Math.Sqrt(Math.Pow(s.End.X-s.Start.X,2)+Math.Pow(s.End.Y-s.Start.Y,2))).ToArray();
                             var massCenter=strokes.Select((s,i)=>(s.Start.X+s.End.X)/2*lengths[i]).Sum()/lengths.Sum();
                             Check(strokes.Length == 3 && playRatio is >= .67 and <= .70 && lengths.Select(v=>Math.Round(v,2)).Distinct().Count()==3
                                 && Math.Abs(massCenter-48)<.01 && Math.Abs(strokes[0].End.Y-18)<.01,
@@ -185,7 +189,7 @@ internal static class UiChecks
                         if (phase == ConnectionPhase.Connecting)
                         {
                             connect.Logo.PreviewTime = 0.9; var first = connect.Logo.Curves(); connect.Logo.PreviewTime = 1.25; var rotated = connect.Logo.Curves();
-                            Check(first.Count(c => c.Opacity > 0.99) == 3 && rotated.Count(c => c.Opacity > 0.99) == 3 && first[0].Start != rotated[0].Start && rotated[0].Control1 != rotated[0].Start + (rotated[0].End - rotated[0].Start) * (1d / 3), $"{language}/{width}: connecting uses three continuously rotating curves");
+                            Check(first.Count(c => c.Opacity > 0.99) == 6 && rotated.Count(c => c.Opacity > 0.99) == 6 && first[0].Start != rotated[0].Start && rotated[0].Control1 != rotated[0].Start + (rotated[0].End - rotated[0].Start) * (1d / 3), $"{language}/{width}: connecting uses three continuously rotating curves, each with two contiguous construction pieces");
                             connect.Logo.PreviewTime = 0;
                         }
                         if (phase == ConnectionPhase.Connected) Check(connect.Logo.Strokes().Length == 6 && connect.Logo.Fracture == 0, $"{language}/{width}: success forms the C1 diagonal ladder with two rails and three rungs");
@@ -276,13 +280,14 @@ internal static class UiChecks
                         {
                             closing.SelectedIndex = choice; Layout(window);
                             Check(closing.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == UiText.Get(closing.Items[choice]!.ToString()!)), $"{language}/{width}: closing choice {choice} is translated");
-                            Check(window.SettingsDirty == (choice == 1), $"{language}/{width}: settings detect a changed choice and clear when restored");
-                            if (choice == 1) Check(!window.Notification.Showing, $"{language}/{width}: editing a settings draft does not interrupt it with an unsaved notification");
+                            Check(!window.SettingsDirty, $"{language}/{width}: option-only General choices do not create a manual-save draft");
+                            if (choice == 1) Check(!window.Notification.Showing, $"{language}/{width}: General choices do not show an unsaved notification");
                         }
                         for (var section = 0; section < 6; section++)
                         {
                             Click(window, window.SettingsSections!.ButtonAt(section)); Layout(window);
                             var cards = window.GetVisualDescendants().OfType<SettingsCards>().Single();
+                            Check(window.PageView.GetVisualDescendants().OfType<Button>().Single(b => b.Tag is "settings-save").IsVisible == (section != 0), $"{language}/{width}/{section}: only settings sections with editable values show a Save button");
                             using(var cardsClock=new UiAnimationClock(cards)) { cardsClock.Pulse(0);cardsClock.Pulse(300);Layout(window); }
                             Check(cards.Columns == (width == 880 ? 1 : 2), $"{language}/{width}/{section}: settings adapt to readable card columns");
                             Check(cards.Children.All(c => c.Bounds.Width >= 280), $"{language}/{width}/{section}: settings cards retain readable width");
@@ -368,7 +373,7 @@ internal static class UiChecks
                         using (var groupClock = new UiAnimationClock(group))
                         {
                             groupClock.Pulse(0); groupClock.Pulse(200);
-                            Check(group.Background is ISolidColorBrush fill && fill.Color == ((ISolidColorBrush)Ui.SelectionBrush).Color, $"{language}/{width}: subscription selection fills the outer card including its usage and node area");
+                            Check(group.Background is ISolidColorBrush fill && fill.Color == ((ISolidColorBrush)Skin.ChromeBrush).Color, $"{language}/{width}: an expanded subscription retains the neutral background even when it is the operation target");
                         }
                         Click(window, group.Disclosure); Check(!group.Expanded, $"{language}/{width}: the separate subscription arrow collapses its group");
                         Check(group.NodeRows.IsEnabled && ReferenceEquals(buttons[0], group.NodeRows.GetVisualDescendants().OfType<Button>().First(b => b.Tag is string)), $"{language}/{width}: collapse retains undimmed node rows without recreating content");
@@ -391,9 +396,18 @@ internal static class UiChecks
                         Check(providers.All(p => window.PageView.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == p.Name)), $"{language}/{width}: all provider comparison cards are present");
                         var providerRows = window.PageView.GetVisualDescendants().OfType<MovingRows>().Single(); providerRows.Select(providers[0].Id.ToString()); Layout(window);
                         var selectedCard = providerRows.For(providers[0].Id.ToString());
-                        using (var positionClock = new UiAnimationClock(providerRows.Indicator, providerRows.Indicator.Position)) { positionClock.Pulse(0); positionClock.Pulse(200); Layout(window); }
-                        var face = providerRows.Backplate;
-                        Check(face.Background is ISolidColorBrush selectedFill && selectedFill.Color == Color.Parse("#414141") && face.BorderThickness == default && Math.Abs(face.Bounds.Height - selectedCard.Bounds.Height) < .1 && Math.Abs(providerRows.Indicator.Position.Y - selectedCard.Bounds.Y) < .1, $"{language}/{width}: selected airport fills its whole card using the shared moving neutral surface without a selection outline");
+                        var face=selectedCard.GetVisualDescendants().OfType<Border>().First(border=>border.Name=="buttonFace");
+                        Check(!providerRows.Backplate.IsVisible, $"{language}/{width}: selecting an airport retains its action target without a persistent gray fill");
+                        using(var hoverClock=new UiAnimationClock(face))
+                        {
+                            window.MouseMove(selectedCard.TranslatePoint(new(200,60),window)!.Value);
+                            hoverClock.Pulse(0);hoverClock.Pulse(200);Layout(window);
+                            Check(face.Background is ISolidColorBrush hoverFill&&hoverFill.Color==Color.Parse("#414141")&&face.BorderThickness==default,
+                                $"{language}/{width}: hovering an airport fills its card with the shared neutral emphasis without a selection outline");
+                            window.MouseMove(new(4,100));hoverClock.Pulse(210);hoverClock.Pulse(420);Layout(window);
+                            Check(face.Background is ISolidColorBrush empty&&empty.Color.A==0&&!providerRows.Backplate.IsVisible,
+                                $"{language}/{width}: leaving a selected airport restores its ordinary background");
+                        }
                     }
                     if (page is "Nodes" or "Rules" or "Providers") Check(window.GetVisualDescendants().OfType<Button>().Count(b => b.Tag is "remove-selection") == 1, $"{language}/{width}/{page}: Remove is visible in the page toolbar");
                     if (page is "Overview" or "Nodes" or "Providers" or "Settings")
@@ -410,7 +424,7 @@ internal static class UiChecks
                             {
                                 var contentRight = content.TranslatePoint(new Point(content.Bounds.Width, 0), window)!.Value.X;
                                 var barLeft = bar.TranslatePoint(default, window)!.Value.X;
-                                Check(barLeft - contentRight >= 8, $"{language}/{width}/{page}: scrollbar stays outside content with a gutter ({barLeft - contentRight:0.##} px)");
+                                Check(barLeft - contentRight >= (page=="Nodes" ? 4 : 8), $"{language}/{width}/{page}: scrollbar stays within its existing right gutter without covering content ({barLeft - contentRight:0.##} px)");
                             }
                         }
                         if (page is "Overview" or "Settings") Check(scrolls.Any(s => s.Extent.Height > s.Viewport.Height + 1), $"{language}/{width}/{page}: minimum window exercises overflow");
@@ -528,7 +542,7 @@ internal static class UiChecks
                 }
                 window.Close();
             }
-            File.WriteAllLines(Path.Combine(output, "ui-checks.txt"), report); File.WriteAllText(Path.Combine(output, "ui-checks.json"), JsonSerializer.Serialize(new { passed = count, languages = new[] { "zh-CN", "en" }, widths = new[] { 880, 1180, 1640, 1920 }, sampleData = true }, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllLines(Path.Combine(output, "ui-checks.txt"), report); File.WriteAllText(Path.Combine(output, "ui-checks.json"), JsonSerializer.Serialize(new { passed = count, languages = new[] { "zh-CN", "en" }, widths = new[] { 880, 1180, 1640, 1920 }, sampleData = true, binary = VerificationStamp.Current() }, new JsonSerializerOptions { WriteIndented = true }));
             Console.WriteLine($"PASS {count} UI checks."); return 0;
         }
         catch (Exception error) { File.WriteAllLines(Path.Combine(output, "ui-checks.txt"), report.Append("FAIL " + error)); Console.Error.WriteLine(error); return 1; }

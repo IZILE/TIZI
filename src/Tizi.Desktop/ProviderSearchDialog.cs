@@ -8,7 +8,7 @@ using Tizi.Core;
 
 namespace Tizi.Desktop;
 
-internal sealed class ProviderSearchDialog : Window
+internal sealed class ProviderSearchDialog : CenteredDialog
 {
     internal StableChoice Mode { get; } = new() { ItemsSource = ProviderSearchModes.All.Select(m => m.Name).ToArray() };
     internal NumericUpDown Budget { get; } = new() { Minimum = 0, Maximum = 100000, Increment = 10, FormatString = "0.##", Width = 170 };
@@ -46,7 +46,7 @@ internal sealed class ProviderSearchDialog : Window
         Cancellation = _windowCancellation.Token; _cancelSearch = cancelSearch;
         saved = ProviderSearchModes.Validate(saved);
         Title = UiText.Get("Search latest providers"); Width = 720; Height = 760; MinWidth = 500; MinHeight = 520;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false; Background = Skin.ChromeBrush; UiText.WireChoices(this);
+        Background = Skin.ChromeBrush; UiText.WireChoices(this);
         Mode.SelectedIndex = Array.FindIndex(ProviderSearchModes.All, m => m.Id == saved.ModeId); Budget.Value = saved.MonthlyBudget;
         Currency.SelectedItem = saved.Currency; Regions.Text = saved.Regions; Trial.IsChecked = saved.RequireTrial; Extra.Text = saved.ExtraRequirements;
         var description = Ui.Text(ProviderSearchModes.All[Mode.SelectedIndex].Description, true); description.TextWrapping = TextWrapping.Wrap;

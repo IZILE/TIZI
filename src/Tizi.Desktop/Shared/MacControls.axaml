@@ -55,6 +55,7 @@
     <Style Selector="^.material-swatch:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="local:Motion.Opacity" Value="0.92" /></Style>
     <Style Selector="^.material-swatch:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="local:Motion.Opacity" Value="0.75" /></Style>
     <Style Selector="^.accent"><Setter Property="Background" Value="#2979F5" /><Setter Property="BorderBrush" Value="#8069A1FF" /></Style>
+    <Style Selector="^.fission-part /template/ Border#buttonFace"><Setter Property="IsVisible" Value="False" /></Style>
     <Style Selector="^.accent.connection-error"><Setter Property="Background" Value="#DF3D4B" /><Setter Property="BorderBrush" Value="#A0FF929B" /></Style>
     <Style Selector="^.connection-action /template/ Border#buttonFace"><Setter Property="Transitions"><Transitions>
       <BrushTransition Property="Background" Duration="0:0:0.9" Easing="0.22,0.7,0.2,1" />

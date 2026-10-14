@@ -18,6 +18,7 @@ internal sealed partial class MainWindow
     internal bool SettingsDirty { get; private set; }
     private StableChoice? _settingsLanguage;
     private Control? _settingsView;
+    private Action? _syncGeneralOptions;
     private string? _settingsFingerprint;
     private NumericUpDown? _settingsPort;
     private StableChoice? _settingsOutbound;
@@ -26,11 +27,15 @@ internal sealed partial class MainWindow
     private string? _settingsStatusKey;
     private bool _settingsSaving, _settingsRuntimeSubscribed;
     private bool _askingDiscardSettings, _discardSettingsOnExit;
-    private Window? _settingsDiscardDialog;
+    private bool _closeAgainAfterSettingsPrompt;
+    private Task _settingsAutoSaveTask = Task.CompletedTask;
+    private bool _awaitingAutoSaveOnExit;
+    internal bool GeneralSettingsSaving => !_settingsAutoSaveTask.IsCompleted;
+    private CenteredDialog? _settingsDiscardDialog;
     private async Task<bool> ConfirmDiscardSettingsAsync()
     {
         RestoreFromBackground();
-        var dialog = _settingsDiscardDialog = new Window { Title = UiText.Get("Unsaved settings"), Tag = "discard-settings", Width = 480, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Skin.ChromeBrush, ShowInTaskbar = false };
+        var dialog = _settingsDiscardDialog = new CenteredDialog { Title = UiText.Get("Unsaved settings"), Tag = "discard-settings", Width = 480, SizeToContent = SizeToContent.Height, Background = Skin.ChromeBrush };
         var message = Ui.Text("Your settings have not been saved. Return to keep editing, or discard them and exit."); message.TextWrapping = TextWrapping.Wrap;
         var buttons = Ui.Horizontal(Ui.Button("Return to editing", () => dialog.Close(false)), Ui.Button("Discard and exit", () => dialog.Close(true))); buttons.HorizontalAlignment = HorizontalAlignment.Right;
         dialog.Content = new StackPanel { Margin = new(24), Spacing = 22, Children = { message, buttons } };
@@ -41,7 +46,6 @@ internal sealed partial class MainWindow
     private string SettingsFingerprint() => JsonSerializer.Serialize(new
     {
         _app.State.MixedPort, _app.State.OutboundInterface, _app.State.DelayUrl,
-        _app.State.StartAtLogin, _app.State.StartHidden, _app.State.CloseToTray, _app.State.RestoreConnection,
         _app.State.Tunnel, _app.State.Transport, _app.State.Dns, _app.State.Latency
     });
     private Control BuildSettingsCards()
@@ -51,8 +55,9 @@ internal sealed partial class MainWindow
         var fingerprint = SettingsFingerprint();
         // A draft belongs to the editor, not to the connection phase or another save.
         // Keep its controls and selected section until the user explicitly saves it.
-        if (_settingsView is not null && (SettingsDirty || _settingsFingerprint == fingerprint))
+        if (_settingsView is not null && (SettingsDirty || GeneralSettingsSaving || _settingsFingerprint == fingerprint))
         {
+            if (!GeneralSettingsSaving) _syncGeneralOptions?.Invoke();
             if (_settingsLanguage is not null) _settingsLanguage.SelectedIndex = UiText.Language == "en" ? 1 : 0;
             RefreshSettingsRuntimeState();
             return _settingsView;
@@ -120,11 +125,51 @@ internal sealed partial class MainWindow
         var parallel = Number(state.Latency.Concurrency, 1, 16); Field(tests, "Concurrent tests", parallel);
         var probeInterval = Number(state.Latency.CurveIntervalSeconds, 1, 300); Field(tests, "Curve interval (seconds)", probeInterval);
         var tools = Card("Diagnostics", "Tools");
+        var ipTools=Card("Diagnostics","IP detection");
+        var automaticIp=new CheckBox { Content=Ui.Text("Inspect exit IP after connecting"),IsChecked=state.IpQuality.Enabled };
+        automaticIp.IsCheckedChanged+=async (_,_)=>
+        {
+            var enabled=automaticIp.IsChecked==true;if(enabled==_app.State.IpQuality.Enabled)return;
+            try { await _app.ExecuteAsync(()=>_app.ApplyAsync(_app.State with { IpQuality=_app.State.IpQuality with { Enabled=enabled } })); }
+            catch(Exception failure) { automaticIp.IsChecked=_app.State.IpQuality.Enabled;ShowError(failure.Message); }
+        };
+        ipTools.Children.Add(automaticIp);ipTools.Children.Add(Ui.Button("IP detection services",ConfigureIpQuality));
         tools.Children.Add(new WrapPanel { ItemSpacing = 10, LineSpacing = 10, Children = { Ui.Button("DNS lookup", DnsLookup), Ui.Button("Open data folder", () => Process.Start(new ProcessStartInfo(EnsureDataFolder()) { UseShellExecute = true })), Ui.Button("Recover saved data", RecoverSavedData) } });
         _settingsDataSummary = Ui.Value(UiText.Format("{0} subscriptions · {1} nodes · {2} rules", state.Subscriptions.Count, state.Nodes.Count, state.Rules.Count), true, 13);
         _settingsDataSummary.TextWrapping = TextWrapping.Wrap; tools.Children.Add(_settingsDataSummary);
         static List<string> Lines(TextBox input) => (input.Text ?? "").Split(['\r', '\n', ','], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
-        Control[] inputs = [login, hidden, restore, close, stack, mtu, strict, hijack, routes, port, outbound, ipv6, concurrent, keepalive, idle, keepInterval, udp, udpTimeout, dnsMode, dns6, respect, servers, proxyDns, bootstrap, hosts, method, delay, timeout, parallel, probeInterval];
+        var syncingGeneral = false; var generalGeneration = 0;
+        _syncGeneralOptions = () =>
+        {
+            var saved = _app.State;
+            syncingGeneral = true;
+            try { login.IsChecked = saved.StartAtLogin; hidden.IsChecked = saved.StartHidden; restore.IsChecked = saved.RestoreConnection; close.SelectedIndex = saved.CloseToTray ? 1 : 0; }
+            finally { syncingGeneral = false; }
+        };
+        async Task SaveGeneralAsync(Task previousSave, GeneralPreferences preferences, int generation)
+        {
+            await previousSave;
+            try { await _app.UpdateGeneralPreferencesAsync(preferences); }
+            catch (Exception failure)
+            {
+                if (generation == generalGeneration)
+                {
+                    _syncGeneralOptions();
+                }
+                ShowError(failure.Message);
+            }
+            finally
+            {
+                Dispatcher.UIThread.Post(RefreshSettingsRuntimeState);
+            }
+        }
+        foreach (var input in new Control[] { login, hidden, restore, close }) input.PropertyChanged += (_, change) =>
+        {
+            if (_preview || syncingGeneral || (change.Property != ToggleButton.IsCheckedProperty && change.Property != SelectingItemsControl.SelectedIndexProperty)) return;
+            var preferences = new GeneralPreferences(login.IsChecked == true, hidden.IsChecked == true, restore.IsChecked == true, close.SelectedIndex == 1);
+            _settingsAutoSaveTask = SaveGeneralAsync(_settingsAutoSaveTask, preferences, ++generalGeneration);
+        };
+        Control[] inputs = [stack, mtu, strict, hijack, routes, port, outbound, ipv6, concurrent, keepalive, idle, keepInterval, udp, udpTimeout, dnsMode, dns6, respect, servers, proxyDns, bootstrap, hosts, method, delay, timeout, parallel, probeInterval];
         string Draft() => JsonSerializer.Serialize(inputs.Select<Control, object?>(input => input switch
         {
             TextBox text => text.Text ?? "", NumericUpDown number => number.Value,
@@ -159,7 +204,6 @@ internal sealed partial class MainWindow
             var next = previous with
             {
                 MixedPort = (int)(port.Value ?? 7897), OutboundInterface = outbound.SelectedIndex > 0 ? interfaces[outbound.SelectedIndex] : "", DelayUrl = delay.Text ?? "",
-                StartAtLogin = login.IsChecked == true, StartHidden = hidden.IsChecked == true, CloseToTray = close.SelectedIndex == 1, RestoreConnection = restore.IsChecked == true,
                 Tunnel = previous.Tunnel with { Stack = stack.SelectedItem?.ToString() ?? "gvisor", Mtu = (int)(mtu.Value ?? 1500), StrictRoute = strict.IsChecked == true, HijackDns = hijack.IsChecked == true, UdpTimeout = (int)(udpTimeout.Value ?? 300), ExcludedRoutes = Lines(routes) },
                 Transport = previous.Transport with { Ipv6 = ipv6.IsChecked == true, TcpConcurrent = concurrent.IsChecked == true, KeepAlive = keepalive.IsChecked == true, KeepAliveIdle = (int)(idle.Value ?? 15), KeepAliveInterval = (int)(keepInterval.Value ?? 15), Udp = udp.IsChecked == true },
                 Dns = previous.Dns with { Mode = dnsMode.SelectedItem?.ToString() ?? "automatic", Ipv6 = dns6.IsChecked == true, RespectRules = respect.IsChecked == true, Servers = Lines(servers), ProxyServers = Lines(proxyDns), BootstrapServers = Lines(bootstrap), Hosts = JsonSerializer.Deserialize<Dictionary<string, string>>(hosts.Text ?? "{}") ?? [] },
@@ -171,10 +215,7 @@ internal sealed partial class MainWindow
             if (_app.Connected && (next.MixedPort != previous.MixedPort || next.OutboundInterface != previous.OutboundInterface))
                 throw new InvalidOperationException(UiText.Get("Disconnect before changing the local port or outbound interface."));
             AdvancedValidation.Check(next);
-            var executable = Environment.ProcessPath ?? throw new IOException("Application path unavailable.");
-            if (next.StartAtLogin != previous.StartAtLogin || next.StartHidden != previous.StartHidden) LoginStartup.Set(next.StartAtLogin, executable, next.StartHidden);
-            try { await _app.ApplyAsync(next, reload: _app.Connected); }
-            catch { if (next.StartAtLogin != previous.StartAtLogin || next.StartHidden != previous.StartHidden) LoginStartup.Set(previous.StartAtLogin, executable, previous.StartHidden); throw; }
+            await _app.ApplyAsync(next, reload: _app.Connected);
             savedDraft = submittedDraft; ClearError(); UpdateDirty(); _settingsFingerprint = SettingsFingerprint();
             ShowNotice(SettingsDirty ? "Settings saved. Newer changes are still unsaved." : "Settings saved");
             }
@@ -192,6 +233,7 @@ internal sealed partial class MainWindow
             var next = groups[sections[index]];
             if (selected.Content is SettingsCards previous && !ReferenceEquals(previous,next)) next.ContinueFrom(previous);
             selected.Content = next;
+            RefreshSettingsRuntimeState();
         }; selected.Content = groups[sections[0]];
         SettingsSections.SelectedIndex = Math.Clamp(selectedSection, 0, sections.Length - 1);
         selected.Content = groups[sections[SettingsSections.SelectedIndex]];
@@ -215,10 +257,11 @@ internal sealed partial class MainWindow
         if (_settingsOutbound is { } outbound) outbound.IsEnabled = canEditListener;
         if (_settingsConnectionHint is { } hint) hint.IsVisible = _app.Connected;
         if (_settingsDataSummary is { } summary) summary.Text = UiText.Format("{0} subscriptions · {1} nodes · {2} rules", _app.State.Subscriptions.Count, _app.State.Nodes.Count, _app.State.Rules.Count);
-        if (_settingsSave is { } save) save.IsEnabled = _app.Ready && !_app.Busy && !_settingsSaving;
+        var optionOnly = SettingsSections?.SelectedIndex == 0;
+        if (_settingsSave is { } save) { save.IsVisible = !optionOnly; save.IsEnabled = _app.Ready && !_app.Busy && !_settingsSaving && !GeneralSettingsSaving; }
         if (_settingsDraftStatus is not { } status) return;
         var key = _settingsSaving ? "Saving settings…" : SettingsDirty ? "Unsaved changes" : null;
-        status.IsVisible = key is not null;
+        status.IsVisible = !optionOnly && key is not null;
         if (key is not null && key != _settingsStatusKey) { _settingsStatusKey = key; UiText.Set(status, TextBlock.TextProperty, key); }
     }
     private void DnsLookup() => Dialog("DNS lookup", [new("host", "Domain", "example.com")], async values =>

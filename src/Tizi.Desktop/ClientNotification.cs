@@ -19,7 +19,7 @@ internal sealed class ClientNotification : Border
     internal string Message => _message.Text ?? "";
     private readonly TextBlock _message = Ui.Value("", size: 13);
     private readonly Border _icon;
-    private readonly TextBlock _glyph;
+    internal NavigationGlyph Glyph => (NavigationGlyph)_icon.Child!;
     internal bool IsError { get; private set; }
     internal bool IsWarning { get; private set; }
     private readonly DispatcherTimer _expiry = new() { Interval = TimeSpan.FromSeconds(6) };
@@ -32,14 +32,13 @@ internal sealed class ClientNotification : Border
         Background = new SolidColorBrush(Color.Parse("#F2313134")); BorderBrush = new SolidColorBrush(Color.Parse("#35FFFFFF"));
         BoxShadow = new BoxShadows(new BoxShadow { OffsetY = 8, Blur = 24, Color = Color.Parse("#50000000") });
         RenderTransform = Offset; Opacity = 0; IsVisible = false; IsHitTestVisible = false;
-        var title = Ui.Text("Notice", size: 14); title.FontWeight = FontWeight.SemiBold;
+        var title = Ui.Text("Notice", size: 14); title.FontWeight = FontWeight.SemiBold; title.VerticalAlignment = VerticalAlignment.Center;
         _message.TextWrapping = TextWrapping.Wrap; _message.LineHeight = 21;
-        var dismiss = new Button { Content = "×", Width = 24, Height = 24, MinHeight = 0, Padding = new(0), Classes = { "plain" }, VerticalAlignment = VerticalAlignment.Top };
+        var dismiss = new Button { Content = "×", Width = 24, Height = 24, MinHeight = 0, Padding = new(0), Classes = { "plain" }, VerticalAlignment = VerticalAlignment.Center };
         dismiss.Click += (_, _) => Dismiss(); AutomationProperties.SetName(dismiss, UiText.Get("Dismiss"));
-        var copy = new StackPanel { Spacing = 4, Children = { title, _message } };
-        _glyph = Ui.Value("!", size: 16); _glyph.FontWeight = FontWeight.Bold; _glyph.HorizontalAlignment = HorizontalAlignment.Center; _glyph.VerticalAlignment = VerticalAlignment.Center;
-        _icon = new Border { Width = 24, Height = 24, CornerRadius = new(12), Background = new SolidColorBrush(Color.Parse("#D94250")), Child = _glyph, VerticalAlignment = VerticalAlignment.Top, Margin = new(0, 2, 0, 0) };
-        var row = new Grid { ColumnDefinitions = new("24,12,*,8,24"), Children = { _icon, copy, dismiss } }; Grid.SetColumn(copy, 2); Grid.SetColumn(dismiss, 4); Child = row;
+        _icon = new Border { Width = 24, Height = 24, Child = new NavigationGlyph("Notice", Ui.DataAccent), VerticalAlignment = VerticalAlignment.Center };
+        var row = new Grid { ColumnDefinitions = new("24,12,*,8,24"), RowDefinitions = new("Auto,4,Auto"), Children = { _icon, title, _message, dismiss } };
+        Grid.SetColumn(title, 2); Grid.SetColumn(_message, 2); Grid.SetRow(_message, 2); Grid.SetColumn(dismiss, 4); Child = row;
         Transitions = new() { new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(340), Easing = new SplineEasing(0.18, 0.8, 0.25, 1) } };
         PropertyChanged += (_, change) => { if (change.Property == ProgressProperty || change.Property == BoundsProperty) Place(); };
         _expiry.Tick += (_, _) => Dismiss();
@@ -52,9 +51,9 @@ internal sealed class ClientNotification : Border
     {
         _expiry.Stop(); _expiry.Interval = duration ?? TimeSpan.FromSeconds(6);
         _message.Text = message; ToolTip.SetTip(_message, message); AutomationProperties.SetName(this, UiText.Get("Notice") + ": " + message);
-        IsError = isError && !isWarning; IsWarning = isWarning; _glyph.Text = IsError ? "!" : "i";
-        _icon.Background = IsWarning ? new SolidColorBrush(Color.Parse("#F4C152")) : IsError ? new SolidColorBrush(Color.Parse("#D94250")) : Ui.DataAccent;
-        _glyph.Foreground = IsWarning ? Skin.ChromeBrush : Skin.LabelBrush;
+        IsError = isError && !isWarning; IsWarning = isWarning;
+        var tone = IsWarning ? new SolidColorBrush(Color.Parse("#F4C152")) : IsError ? new SolidColorBrush(Color.Parse("#FF8A94")) : Ui.DataAccent;
+        _icon.Child = new NavigationGlyph(IsWarning ? "Warning" : IsError ? "Error" : "Notice", tone);
         Showing = true; IsVisible = true; IsHitTestVisible = true;
         Motion.Set(this, ProgressProperty, 1); _expiry.Start();
     }

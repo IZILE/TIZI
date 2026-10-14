@@ -9,7 +9,7 @@ namespace Tizi.Desktop;
 
 internal sealed record EditorField(string Key, string Label, string Value = "", bool Multiline = false, bool Secret = false);
 internal sealed class ImportReviewCancelledException : Exception;
-internal sealed class EditorDialog : Window
+internal sealed class EditorDialog : CenteredDialog
 {
     private readonly Dictionary<string, TextBox> _fields = [];
     private Func<Task> _submit = null!;
@@ -28,9 +28,8 @@ internal sealed class EditorDialog : Window
         string action = "Save", CancellationToken cancellationToken = default)
     {
         Session = new EditorSession(cancellationToken);
-        Title = UiText.Get(title); Width = 620; MaxHeight = 760; MinWidth = 460; SizeToContent = SizeToContent.Height; WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Background = Skin.ChromeBrush; Padding = new Thickness(22); ShowInTaskbar = false;
-        using var icon = typeof(MainWindow).Assembly.GetManifestResourceStream("Tizi.Desktop.AppIcon.ico"); if (icon is not null) Icon = new WindowIcon(icon);
+        Title = UiText.Get(title); Width = 620; MaxHeight = 760; MinWidth = 460; SizeToContent = SizeToContent.Height; 
+        Background = Skin.ChromeBrush; Padding = new Thickness(22); 
         var content = new StackPanel { Spacing = 14 };
         foreach (var field in fields)
         {
@@ -98,7 +97,7 @@ internal sealed class EditorDialog : Window
                 // applied. A completed atomic commit is authoritative even if the
                 // application lifetime was cancelled while it was finishing.
                 if (!Session.IsCommitting) Session.ThrowIfCancellationRequested();
-                ErrorText = null; error.IsVisible = false; Applied = true; _allowClose = true; Close();
+                ErrorText = null; error.IsVisible = false; Applied = true; _allowClose = true; await CloseSheetAsync();
             }
             catch (ImportReviewCancelledException) { error.IsVisible = false; }
             catch (OperationCanceledException) when (Session.IsCancellationRequested) { _closingRequested = true; }
@@ -107,7 +106,7 @@ internal sealed class EditorDialog : Window
             finally
             {
                 Session.FinishAttempt(); _submitting = false; UpdateState();
-                if (!_closed && _closingRequested) { _allowClose = true; Close(); }
+                if (!_closed && _closingRequested) { _allowClose = true; await CloseSheetAsync(); }
             }
         }
         _submit = Save;

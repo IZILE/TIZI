@@ -16,6 +16,8 @@ internal sealed partial class MainWindow
     private readonly Border _undoHost = new() { IsVisible = false, Margin = new(0, 12, 0, 0), Padding = new(12), Background = Skin.ChromeBrush, CornerRadius = new(12) };
     private Func<AppState, AppState>? _undoRemoval;
     private bool IsVisibleTarget(string? id) => _page == "Nodes" ? _subscriptionTree.ContainsVisible(id) : id is not null && _visibleTargets.Contains(id);
+    private static IEnumerable<ProxyNode> ManualNodes(AppState state)
+    { var known = state.Subscriptions.Select(s => s.Id).ToHashSet(); return state.Nodes.Where(n => n.SubscriptionId is null || !known.Contains(n.SubscriptionId.Value)); }
     private void ChooseItem(string id)
     {
         if (_suppressSelectionClick == id) { _suppressSelectionClick = null; ApplyMultipleSelectionVisuals(); return; }
@@ -90,7 +92,7 @@ internal sealed partial class MainWindow
     private void OpenConnectionDetails()
     {
         if (_snapshot.Connections.FirstOrDefault(c => c.Id == _chosen) is not { } connection) return;
-        var dialog = new Window { Title = UiText.Get("Connection details"), Width = 620, MaxHeight = 680, SizeToContent = SizeToContent.Height, Background = Skin.ChromeBrush, WindowStartupLocation = WindowStartupLocation.CenterOwner, Icon = Icon, ShowInTaskbar = false };
+        var dialog = new CenteredDialog { Title = UiText.Get("Connection details"), Width = 620, MaxHeight = 680, SizeToContent = SizeToContent.Height, Background = Skin.ChromeBrush };
         var details = new StackPanel { Spacing = 16, Margin = new(24) };
         void Detail(string label, string value)
         {
@@ -114,11 +116,11 @@ internal sealed partial class MainWindow
         }));
         _undoHost.Child = Ui.Horizontal(Ui.Text("Item removed", true, 13), button); _undoHost.IsVisible = true;
     }
-    private async Task<bool> ConfirmRemovalAsync(string name, int nodes)
+    private async Task<bool> ConfirmRemovalAsync(string name, int nodes, bool manual = false)
     {
-        var dialog = new Window { Title = UiText.Get("Remove subscription"), Width = 500, SizeToContent = SizeToContent.Height, Background = Skin.ChromeBrush, WindowStartupLocation = WindowStartupLocation.CenterOwner, Icon = Icon, ShowInTaskbar = false };
+        var dialog = new CenteredDialog { Title = UiText.Get(manual ? "Remove manual nodes" : "Remove subscription"), Width = 500, SizeToContent = SizeToContent.Height, Background = Skin.ChromeBrush };
         var prompt = Ui.Value(UiText.Format("Remove {0} and its {1} nodes? Routing rules will be kept.", name, nodes)); prompt.TextWrapping = TextWrapping.Wrap;
-        var buttons = Ui.Horizontal(Ui.Button("Cancel", () => dialog.Close(false)), Ui.Button("Remove subscription", () => dialog.Close(true))); buttons.HorizontalAlignment = HorizontalAlignment.Right;
+        var buttons = Ui.Horizontal(Ui.Button("Cancel", () => dialog.Close(false)), Ui.Button(manual ? "Remove manual nodes" : "Remove subscription", () => dialog.Close(true))); buttons.HorizontalAlignment = HorizontalAlignment.Right;
         dialog.Content = new StackPanel { Spacing = 20, Margin = new(24), Children = { prompt, buttons } };
         dialog.KeyDown += (_, e) => { if (e.Key == Key.Escape) { dialog.Close(false); e.Handled = true; } };
         return await dialog.ShowDialog<bool>(this);

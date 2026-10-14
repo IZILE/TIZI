@@ -31,7 +31,7 @@ internal sealed partial class MainWindow
             if (!ancestors.Contains(_contentSurface)) return;
             var button = ancestors.OfType<Button>().FirstOrDefault(); if (button is null) return;
             var id = button.Tag as string;
-            if (!IsVisibleTarget(id)) id = _subscriptionTree.Groups.FirstOrDefault(g => ReferenceEquals(g.Header, button) && g.Key != "manual") is { } group ? "subscription:" + group.Key : null;
+            if (!IsVisibleTarget(id)) id = _subscriptionTree.Groups.FirstOrDefault(g => ReferenceEquals(g.Header, button)) is { } group ? group.Key == "manual" ? "manual" : "subscription:" + group.Key : null;
             if (!IsVisibleTarget(id)) return; origin = e.GetPosition(this); var itemId = id!;
             timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
             timer.Tick += (_, _) =>
@@ -64,7 +64,7 @@ internal sealed partial class MainWindow
         Deactivated += (_, _) => { Stop(); _suppressSelectionClick = null; _selectionModifiers = KeyModifiers.None; _contextSelection = false; };
     }
     private List<string> VisibleSelectionItems() => _page == "Nodes"
-        ? _subscriptionTree.Groups.SelectMany(g => g.NodesShown ? g.NodeRows.ItemIds : g.Key == "manual" ? [] : new[] { "subscription:" + g.Key }).Where(IsVisibleTarget).ToList()
+        ? _subscriptionTree.Groups.SelectMany(g => g.NodesShown ? g.NodeRows.ItemIds : new[] { g.Key == "manual" ? "manual" : "subscription:" + g.Key }).Where(IsVisibleTarget).ToList()
         : _visibleTargets.ToList();
     private void BeginMultipleSelection(string? id, bool management)
     {
@@ -88,8 +88,10 @@ internal sealed partial class MainWindow
         _selectionModifiers = KeyModifiers.None;
         if (_page == "Nodes" && _selectedMany.Contains(id))
         {
-            if (id.StartsWith("subscription:") && Guid.TryParse(id[13..], out var sub)) _selectedMany.ExceptWith(_app.State.Nodes.Where(n=>n.SubscriptionId==sub).Select(n=>n.Id.ToString()));
-            else if (Guid.TryParse(id, out var node) && _app.State.Nodes.FirstOrDefault(n=>n.Id==node)?.SubscriptionId is { } owner) _selectedMany.Remove("subscription:"+owner);
+            if (id == "manual") _selectedMany.ExceptWith(ManualNodes(_app.State).Select(n => n.Id.ToString()));
+            else if (id.StartsWith("subscription:") && Guid.TryParse(id[13..], out var sub)) _selectedMany.ExceptWith(_app.State.Nodes.Where(n=>n.SubscriptionId==sub).Select(n=>n.Id.ToString()));
+            else if (Guid.TryParse(id, out var node) && _app.State.Nodes.FirstOrDefault(n=>n.Id==node) is { } selected)
+            { if (selected.SubscriptionId is { } owner && _app.State.Subscriptions.Any(s => s.Id == owner)) _selectedMany.Remove("subscription:"+owner); else _selectedMany.Remove("manual"); }
         }
         _chosen = _selectedMany.Contains(id) ? id : _selectedMany.FirstOrDefault(); _selectionAnchor ??= id;
         RememberSelectedRules(); _chosenRule = _selectedRules.FirstOrDefault(); UpdateSelectionActions(); ApplyMultipleSelectionVisuals();
@@ -114,9 +116,10 @@ internal sealed partial class MainWindow
         if (_preview || _selectedMany.Count == 0) return;
         var ids = _selectedMany.Where(IsVisibleTarget).ToHashSet(); var page=_page; var before=_app.State;
         var subIds=ids.Where(id=>id.StartsWith("subscription:")).Select(id=>Guid.Parse(id[13..])).ToHashSet();
-        var nodeIds=before.Nodes.Where(n=>ids.Contains(n.Id.ToString()) || n.SubscriptionId is { } owner && subIds.Contains(owner)).Select(n=>n.Id).ToHashSet();
+        var includeManual = ids.Contains("manual"); var manualIds = includeManual ? ManualNodes(before).Select(n => n.Id).ToHashSet() : [];
+        var nodeIds=before.Nodes.Where(n=>ids.Contains(n.Id.ToString()) || manualIds.Contains(n.Id) || n.SubscriptionId is { } owner && subIds.Contains(owner)).Select(n=>n.Id).ToHashSet();
         var removedRules=_selectedRules.ToArray();
-        if(page=="Nodes" && subIds.Count>0 && !await ConfirmRemovalAsync(UiText.Format("{0} subscriptions", subIds.Count),nodeIds.Count))return;
+        if(page=="Nodes" && (subIds.Count>0 || includeManual) && !await ConfirmRemovalAsync(UiText.Format("{0} node groups", subIds.Count + (includeManual ? 1 : 0)),nodeIds.Count, includeManual && subIds.Count == 0))return;
         if (_page != page || !ids.SetEquals(_selectedMany.Where(IsVisibleTarget))) return;
         Run(async ()=>
         {

@@ -15,16 +15,16 @@ internal static class Revision0122Checks
 {
     internal static async Task RunAsync(string output,Action<bool,string> check)
     {
-        void Layout(TopLevel window){window.UpdateLayout();Dispatcher.UIThread.RunJobs();}
-        void Click(Window window,Control control,MouseButton button=MouseButton.Left)
+        void Layout(Control window){window.UpdateLayout();Dispatcher.UIThread.RunJobs();}
+        void Click(Control window,Control control,MouseButton button=MouseButton.Left)
         {Layout(window);var point=control.TranslatePoint(new Point(control.Bounds.Width/2,control.Bounds.Height/2),window)!.Value;window.MouseMove(point);window.MouseDown(point,button);window.MouseUp(point,button);Layout(window);}
         async Task Until(Func<bool> done){using var stop=new CancellationTokenSource(8000);while(!done())await Task.Delay(10,stop.Token);}
-        async Task LongPress(Window window,Control control)
+        async Task LongPress(Control window,Control control)
         {
             Layout(window);var point=control.TranslatePoint(new Point(control.Bounds.Width/2,control.Bounds.Height/2),window)!.Value;
             window.MouseMove(point);window.MouseDown(point,MouseButton.Left);await Task.Delay(500);Layout(window);window.MouseUp(point,MouseButton.Left);Layout(window);
         }
-        void Capture(Window window,string file)
+        void Capture(Control window,string file)
         {Layout(window);AvaloniaHeadlessPlatform.ForceRenderTimerTick();using var frame=window.CaptureRenderedFrame();frame?.Save(Path.Combine(output,file),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());}
         var sub=new Subscription{Name="Grid fixture",Url="https://subscription.example/"};var other=new Subscription{Name="Other fixture",Url="https://other.example/"};
         var template=NodeImport.Parse("ss://YWVzLTEyOC1nY206Zml4dHVyZQ@node.example:443#Fixture")[0];
@@ -55,7 +55,7 @@ internal static class Revision0122Checks
             "Holding a node directly selects it in multiple-selection mode without a chooser menu or switching the active node");
         var bubble=window.GetVisualDescendants().OfType<RemovalBubble>().Single();await Until(()=>bubble.IsVisible);Layout(window);
         bubble.SetOpen(false);
-        using(var clock=new UiAnimationClock(bubble)){clock.Pulse(0);bubble.SetOpen(true);clock.Pulse(1);clock.Pulse(101);check(bubble.Progress>0&&bubble.Progress<1,"The red removal bubble exposes an intermediate opening frame");clock.Pulse(300);Layout(window);}
+        using(var clock=new UiAnimationClock(bubble)){clock.Pulse(0);bubble.SetOpen(true);clock.Pulse(1);clock.Pulse(101);check(bubble.Progress>0&&bubble.Progress<1,"The red removal bubble exposes an intermediate opening frame");clock.Pulse(700);Layout(window);}
         Click(window,group.NodeRows.For(nodes[2].Id.ToString()));
         check(window.SelectedItems.Count==2&&remove.IsEffectivelyVisible&&remove.Background is ISolidColorBrush brush&&brush.Color==Color.Parse("#D74756"),"Long-press selection mode allows additional cards and reveals one red bulk Remove after the last action");Capture(window,"nodes-multiple-selection.png");
         await LongPress(window,group.NodeRows.For(nodes[3].Id.ToString()));
@@ -85,6 +85,7 @@ internal static class Revision0122Checks
         typeof(MainWindow).GetMethod("Exit",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.Invoke(window,null);await Until(()=>!window.IsVisible);
         DiscoverySettings? saved=null;var original=new DiscoverySettings{ApiKey="synthetic-key-never-sent"};
         var api=new AiSearchSettingsDialog(original,value=>{saved=value;return Task.CompletedTask;});api.Show();Layout(api);
+        CenteredDialogChecks.Ready(api);
         if(api.Content is DialogSurface surface){using var clock=new UiAnimationClock(surface,surface.Scale,surface.Offset);surface.Reveal();clock.Pulse(0);clock.Pulse(220);Layout(api);}
         api.ProviderChoice.SelectedItem="DeepSeek";Layout(api);
         check(api.KeyField.Text==""&&api.EndpointField.Text?.Contains("deepseek.com")==true,"Switching AI providers uses the provider endpoint and does not reuse another provider's secret");

@@ -39,6 +39,7 @@ internal sealed partial class AppController : IAsyncDisposable
     // A supplied transport lets isolated checks exercise the real search workflow without an API call.
     internal Func<HttpClient>? SearchHttpClientFactory { private get; set; }
     internal Func<HttpClient>? SourceHttpClientFactory { private get; set; }
+    internal Action<bool, string, bool> LoginStartupWriter { private get; set; } = LoginStartup.Set;
     internal bool Connected => _connectionReady && Engine.IsRunning;
     private long? _connectedTimestamp;
     internal TimeSpan? ConnectedDuration => Connected && _connectedTimestamp is { } started ? System.Diagnostics.Stopwatch.GetElapsedTime(started) : null;
@@ -52,6 +53,7 @@ internal sealed partial class AppController : IAsyncDisposable
     internal event Action<string>? Error;
     internal AppController(bool preview = false)
     {
+        _qualityPreview=preview;
         Ready = preview;
         _vault = new Vault(UserData.DirectoryPath); _lease = new ProxyLease(new WindowsProxyRegistry(), _vault);
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) }; _timer.Tick += async (_, _) => await AutoUpdateAsync();
@@ -74,14 +76,14 @@ internal sealed partial class AppController : IAsyncDisposable
         {
             ProfileExists = _vault.Exists("settings.dat");
             var loaded = await Task.Run(() => { _lease.Restore(); return _vault.Read<AppState>("settings.dat"); });
-            if (loaded is not null) State = OperationFeedback.ClearSavedErrors(loaded);
+            if (loaded is not null) State = OperationFeedback.ClearSavedErrors(loaded with { IpQuality=IpQualitySettings.Normalize(loaded.IpQuality) });
             LoadFailure = null;
-            Ready = true; Changed?.Invoke();
+            Ready = true; NotifyChanged();
         }
         catch (Exception e)
         {
             LoadFailure = UiText.Get("Saved settings could not be opened. The original file has been kept.");
-            Logged?.Invoke(LoadFailure + " " + e.GetType().Name); Changed?.Invoke(); Error?.Invoke(LoadFailure); return;
+            Logged?.Invoke(LoadFailure + " " + e.GetType().Name); NotifyChanged(); Error?.Invoke(LoadFailure); return;
         }
         try
         {
@@ -103,14 +105,14 @@ internal sealed partial class AppController : IAsyncDisposable
         if (_closing) throw new InvalidOperationException(UiText.Get("Application is closing."));
         if (!Ready) throw new InvalidOperationException(UiText.Get("Loading saved settings…"));
         if (!await _operation.WaitAsync(0)) throw new InvalidOperationException(UiText.Get("Another operation is in progress."));
-        Busy = true; Changed?.Invoke();
+        Busy = true; NotifyChanged();
         try { await action(); }
-        finally { Busy = false; Changed?.Invoke(); _operation.Release(); }
+        finally { Busy = false; NotifyChanged(); _operation.Release(); }
     }
     internal async Task ApplyAsync(AppState state, bool reload = false)
     {
         if (_closing) return;
-        state = OperationFeedback.ClearSavedErrors(state);
+        state = OperationFeedback.ClearSavedErrors(state with { IpQuality=IpQualitySettings.Normalize(state.IpQuality) });
         if (Connected && (state.MixedPort != State.MixedPort || state.OutboundInterface != State.OutboundInterface))
             throw new InvalidOperationException(UiText.Get("Disconnect before changing the local port or outbound interface."));
         ModelValidation.Rules(state.Rules);
@@ -121,7 +123,32 @@ internal sealed partial class AppController : IAsyncDisposable
             await Engine.ReloadAsync(NetworkEnvironment.ConnectionSettings(state), _lifetime.Token);
         }
         // Keep the visible state on the last durable profile if a write fails.
-        await SaveStateAsync(state); State = state; Changed?.Invoke();
+        await SaveStateAsync(state); State = state; NotifyChanged();
+    }
+    internal async Task UpdateGeneralPreferencesAsync(GeneralPreferences preferences)
+    {
+        // Read the current profile after obtaining the operation gate, so a quick
+        // series of choices cannot overwrite another completed import or edit.
+        await _operation.WaitAsync(_lifetime.Token);
+        try
+        {
+            if (_closing) throw new InvalidOperationException(UiText.Get("Application is closing."));
+            if (!Ready) throw new InvalidOperationException(UiText.Get("Loading saved settings…"));
+            var previous = State;
+            if (preferences == GeneralPreferences.From(previous)) return;
+            Busy = true; NotifyChanged();
+            var next = previous with { StartAtLogin = preferences.StartAtLogin, StartHidden = preferences.StartHidden, RestoreConnection = preferences.RestoreConnection, CloseToTray = preferences.CloseToTray };
+            var startupChanged = next.StartAtLogin != previous.StartAtLogin || next.StartHidden != previous.StartHidden;
+            var executable = Environment.ProcessPath ?? throw new IOException("Application path unavailable.");
+            if (startupChanged) LoginStartupWriter(next.StartAtLogin, executable, next.StartHidden);
+            try { await ApplyAsync(next); }
+            catch
+            {
+                if (startupChanged) LoginStartupWriter(previous.StartAtLogin, executable, previous.StartHidden);
+                throw;
+            }
+        }
+        finally { Busy = false; NotifyChanged(); _operation.Release(); }
     }
     private async Task SaveAsync()
     {
@@ -140,7 +167,7 @@ internal sealed partial class AppController : IAsyncDisposable
         _connectionCancellation = cancellation;
         ConnectionFailure = null;
         _connectionTransition = Connected ? ConnectionPhase.Disconnecting : ConnectionPhase.Connecting;
-        Changed?.Invoke();
+        NotifyChanged();
         try { await ToggleConnectionAsync(cancellation?.Token ?? _lifetime.Token); }
         catch (OperationCanceledException) when (cancellation?.IsCancellationRequested == true)
         {
@@ -152,14 +179,14 @@ internal sealed partial class AppController : IAsyncDisposable
             }
         }
         catch (Exception error) { if (!_closing) ConnectionFailure = UiText.Get(error.Message); throw; }
-        finally { _connectionCancellation = null; _connectionTransition = null; Changed?.Invoke(); }
+        finally { _connectionCancellation = null; _connectionTransition = null; NotifyChanged(); }
     }
     internal bool CancelConnection()
     {
         // Cancellation must bypass the operation gate held by the connect task.
         if (_closing || _connectionTransition != ConnectionPhase.Connecting || _connectionCancellation is not { } cancellation) return false;
         _connectionTransition = ConnectionPhase.Cancelling;
-        cancellation.Cancel(); Changed?.Invoke(); return true;
+        cancellation.Cancel(); NotifyChanged(); return true;
     }
     private async Task ToggleConnectionAsync(CancellationToken cancellation)
     {
@@ -320,14 +347,14 @@ internal sealed partial class AppController : IAsyncDisposable
         }
         // Completion can dispose the source between leaving the gate and this call.
         try { cancellation.Cancel(); } catch (ObjectDisposedException) { }
-        if (!_closing) Changed?.Invoke();
+        if (!_closing) NotifyChanged();
     }
     private async Task DiscoverCoreAsync(ProviderSearchOptions options, string query, CancellationTokenSource cancellation, TaskCompletionSource completion)
     {
         var token = cancellation.Token; Exception? failure = null; var cancelled = false;
         try
         {
-            Changed?.Invoke();
+            NotifyChanged();
             var requestState = await CommitLatestAsync(state => state with { Discovery = state.Discovery with { Search = options }, ProviderSearchError = null }, token);
             token.ThrowIfCancellationRequested();
             using var http = SearchHttpClientFactory?.Invoke() ?? new HttpClient(new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(12) }) { Timeout = Timeout.InfiniteTimeSpan };
@@ -350,7 +377,7 @@ internal sealed partial class AppController : IAsyncDisposable
                 SearchBusy = SearchCancelling = false; SearchCancelled = cancelled;
             }
             cancellation.Dispose();
-            if (!_closing) Changed?.Invoke();
+            if (!_closing) NotifyChanged();
         }
         if (cancelled) completion.TrySetCanceled(token);
         else if (failure is not null)
@@ -369,15 +396,15 @@ internal sealed partial class AppController : IAsyncDisposable
             if (_closing) throw new OperationCanceledException(cancellation);
             // Read State after acquiring the gate; never write a pre-request snapshot over later edits.
             var next = edit(State); if (next is null) return State;
-            Busy = true; Changed?.Invoke();
+            Busy = true; NotifyChanged();
             await ApplyAsync(next, reload); return next;
         }
-        finally { Busy = false; _operation.Release(); if (!_closing) Changed?.Invoke(); }
+        finally { Busy = false; _operation.Release(); if (!_closing) NotifyChanged(); }
     }
     internal async Task UpdateAsync(bool automatic = false, bool subscriptions = true, bool providers = true)
     {
         if (_closing || !await _updates.WaitAsync(0)) return;
-        Updating = true; Changed?.Invoke();
+        Updating = true; NotifyChanged();
         var notifications = new List<string>();
         void Failure(string message, bool notify = true) { if (notify) notifications.Add(message); Logged?.Invoke(message); }
         async Task ApplyUpdateAsync(Func<AppState, AppState?> edit, bool reload = false)
@@ -435,7 +462,7 @@ internal sealed partial class AppController : IAsyncDisposable
         }
         finally
         {
-            Updating = false; Changed?.Invoke(); _updates.Release();
+            Updating = false; NotifyChanged(); _updates.Release();
             if (!_closing && notifications.Count > 0)
                 Error?.Invoke(string.Join('\n', notifications.Take(5)) + (notifications.Count > 5 ? "\n" + UiText.Format("{0} additional failures. See Logs.", notifications.Count - 5) : ""));
         }
@@ -451,13 +478,14 @@ internal sealed partial class AppController : IAsyncDisposable
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
             catch (Exception error) when (!_closing) { Logged?.Invoke(error.Message); }
     }
-    private void StartWatchdog()
+    private void StartWatchdog()=>StartProxyMonitor("--watchdog",Engine.ProcessId,Engine.ProcessStartTicks,Engine.RuntimeDirectory);
+    private void StartProxyMonitor(string mode,int engineId,long engineTicks,string runtime)
     {
         var exe = Environment.ProcessPath ?? throw new IOException("Application path unavailable.");
         if (Path.GetFileNameWithoutExtension(exe).Equals("dotnet", StringComparison.OrdinalIgnoreCase)) return;
         using var parent = Process.GetCurrentProcess();
         var info = new ProcessStartInfo(exe) { UseShellExecute = false, CreateNoWindow = true };
-        foreach (var arg in new[] { "--watchdog", parent.Id.ToString(), parent.StartTime.ToUniversalTime().Ticks.ToString(), Engine.ProcessId.ToString(), Engine.ProcessStartTicks.ToString(), UserData.DirectoryPath, Engine.RuntimeDirectory }) info.ArgumentList.Add(arg);
+        foreach (var arg in new[] { mode, parent.Id.ToString(), parent.StartTime.ToUniversalTime().Ticks.ToString(), engineId.ToString(), engineTicks.ToString(), UserData.DirectoryPath, runtime }) info.ArgumentList.Add(arg);
         using var child = Process.Start(info) ?? throw new IOException("Could not start proxy recovery monitor.");
     }
     internal static bool IsAdministrator
@@ -468,6 +496,7 @@ internal sealed partial class AppController : IAsyncDisposable
     {
         if (Ready && !_closing && State.LastConnected != Connected) { State = State with { LastConnected = Connected }; await SaveAsync(); }
         _closing = true; _connectionReady = false; _connectedTimestamp = null; _timer.Stop(); _logTimer.Stop(); _lifetime.Cancel();
+        _qualityCancellation?.Cancel();await _qualityTask;
         await _operation.WaitAsync(); await _updates.WaitAsync();
         try { try { _lease.Restore(); } finally { await Engine.DisposeAsync(); } }
         finally { _operation.Release(); _updates.Release(); _http.Dispose(); _lifetime.Dispose(); }

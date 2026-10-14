@@ -33,8 +33,9 @@ internal sealed partial class MainWindow
         _rail.Compact(width < 1040);
         _mode.Compact(width < 1040);
         // Use the content panel's two edges as the common reference, including its inspector.
-        _inspectorBorder.IsVisible = width >= 1440 && _chosen is not null && _page == "Connections";
-        var inset = Math.Max(28, 24 + _brand.DesiredSize.Width + 28 - _rail.Width);
+        _inspectorBorder.IsVisible = width >= 1440 && _chosen is not null && _page == "Connections" && _aboutView is null;
+        // The brand owns the rail's icon centerline; preserve the established toolbar leading edge.
+        var inset = Math.Max(28, 118 - _rail.Width);
         var left = _rail.Width + inset;
         var right = 18 + inset + (_inspectorBorder.IsVisible ? _inspectorBorder.Width : 0);
         _toolbar.Margin = new Thickness(left, 0, right, 24);
@@ -139,7 +140,7 @@ internal sealed partial class MainWindow
     private Task<bool> ReviewImportAsync(ImportDocument document) => ReviewImportAsync(document, _app.Cancellation);
     private async Task<bool> ReviewImportAsync(ImportDocument document, CancellationToken cancellation)
     {
-        var dialog = new Window { Title = UiText.Get("Import review"), Width = 700, Height = 560, MinWidth = 460, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Skin.ChromeBrush, ShowInTaskbar = false, Icon = Icon };
+        var dialog = new CenteredDialog { Title = UiText.Get("Import review"), Width = 700, Height = 560, MinWidth = 460, Background = Skin.ChromeBrush };
         var supported = Ui.Value(UiText.Format("{0} nodes · {1} rules · {2} subscriptions", document.Nodes.Count, document.Rules.Count, document.Subscriptions.Count)); supported.TextWrapping = TextWrapping.Wrap;
         var warnings = new TextBox { Text = string.Join('\n', document.Warnings.Select(UiText.Get)), IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Classes = { "text-input" } };
         var accept = Ui.Button("Import supported items", () => dialog.Close(true), true); var cancel = Ui.Button("Cancel", () => dialog.Close(false)); var actions = Ui.Horizontal(cancel, accept); actions.HorizontalAlignment = HorizontalAlignment.Right;
@@ -150,7 +151,7 @@ internal sealed partial class MainWindow
         dialog.KeyDown += (_, e) => { if (e.Key == Key.Escape) { dialog.Close(false); e.Handled = true; } };
         cancellation.ThrowIfCancellationRequested();
         using var registration = cancellation.Register(() => Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (dialog.IsVisible) dialog.Close(false); }));
-        var accepted = await dialog.ShowDialog<bool>(_editor ?? (Window)this);
+        var accepted = await dialog.ShowDialog<bool>((Control?)_editor ?? this);
         cancellation.ThrowIfCancellationRequested(); return accepted;
     }
     private async void ImportClipboard()
@@ -185,7 +186,7 @@ internal sealed partial class MainWindow
         ProviderSearchDialog? dialog = null;
         dialog = new ProviderSearchDialog(_app.State.Discovery.Search,
             options => _app.SaveSearchCriteriaAsync(options, dialog!.Cancellation),
-            _app.DiscoverAsync, _app.CancelSearch) { Icon = Icon };
+            _app.DiscoverAsync, _app.CancelSearch);
         _providerSearchDialog = dialog;
         void RefreshSearch()
         {
@@ -211,7 +212,7 @@ internal sealed partial class MainWindow
     {
         if (_preview) return;
         var dialog = new AiSearchSettingsDialog(_app.State.Discovery, settings => _app.ApplyAsync(_app.State with { Discovery = settings }));
-        dialog.Icon = Icon; _ = dialog.ShowDialog(this);
+        _ = dialog.ShowDialog(this);
     }
     private void ShowProtocols()
     {
@@ -220,19 +221,37 @@ internal sealed partial class MainWindow
         foreach (var protocol in ProtocolCatalog.Supported) content.Children.Add(Ui.Value(protocol.Name));
         content.Children.Add(Ui.Line()); content.Children.Add(Ui.Text("Additional backend required", true, 18));
         foreach (var name in ProtocolCatalog.Pending) content.Children.Add(Ui.Value(name, true));
-        var dialog = new Window { Title = UiText.Get("Protocol compatibility"), Width = 560, Height = 700, Background = Skin.ChromeBrush, WindowStartupLocation = WindowStartupLocation.CenterOwner, Icon = Icon, ShowInTaskbar = false };
+        var dialog = new CenteredDialog { Title = UiText.Get("Protocol compatibility"), Width = 560, Height = 700, Background = Skin.ChromeBrush };
         dialog.Content = Ui.Scroll(content, new(26)); _ = dialog.ShowDialog(this);
     }
-    private Window? _providerDetails;
-    internal Window? ProviderDetailsWindow => _providerDetails;
-    internal async Task OpenProviderDetailsAsync(string id)
+    private ProviderDetailsPage? _providerDetails;
+    private Control[]? _providerListActions;
+    internal ProviderDetailsPage? ProviderDetailsView => _providerDetails;
+    internal Task OpenProviderDetailsAsync(string id)
     {
-        if (_providerDetails is not null || _page != "Providers") return;
-        if (!Guid.TryParse(id, out var providerId) || _app.State.Providers.FirstOrDefault(p => p.Id == providerId) is not { } site) return;
+        if (_providerDetails is not null || _page != "Providers") return Task.CompletedTask;
+        if (!Guid.TryParse(id, out var providerId) || _app.State.Providers.FirstOrDefault(p => p.Id == providerId) is not { } site) return Task.CompletedTask;
         _chosen = id; _rows.Select(id); UpdateSelectionActions();
-        var dialog = new ProviderDetailsDialog(site, _app.State.Discovery.Search.Currency, OpenUrl) { Icon = Icon };
-        _providerDetails = dialog;
-        try { await dialog.ShowDialog(this); } finally { _providerDetails = null; }
+        var details = _providerDetails = new ProviderDetailsPage(site, _app.State.Discovery.Search.Currency, OpenUrl);
+        _providerListActions = _pageActions.Children.ToArray(); _pageActions.Children.Clear();
+        var back = Ui.Button("Back", () => _ = ReturnProviderListAsync()); back.Tag = "provider-details-back";
+        _pageActions.Children.Add(back); _pageActions.Children.Add(Ui.Button("Open official website", () => OpenUrl(site.Url), true));
+        _pageActionsHost.IsVisible = true; _search.IsVisible = _count.IsVisible = _paging.IsVisible = false;
+        _pageHost.Content = details;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (ReferenceEquals(_providerDetails, details)) details.Reveal(); }, Avalonia.Threading.DispatcherPriority.Loaded);
+        return Task.CompletedTask;
+    }
+    internal async Task ReturnProviderListAsync()
+    {
+        if (_providerDetails is not { IsHitTestVisible: true } details) return;
+        details.Dismiss(); await Task.Delay(300);
+        if (_shutdown || _page != "Providers" || !ReferenceEquals(_providerDetails, details)) return;
+        _providerDetails = null; _pageActions.Children.Clear();
+        if (_providerListActions is { } actions) foreach (var action in actions) _pageActions.Children.Add(action);
+        _providerListActions = null;
+        _search.IsVisible = _count.IsVisible = true; _pageActionsHost.IsVisible = _pageActions.Children.Count > 0;
+        RefreshRows(); UpdateSelectionActions();
+        if (_chosen is { } chosen && _rows.ItemIds.Contains(chosen)) _rows.For(chosen).Focus();
     }
     private StackPanel BuildSelectedDetails()
     {

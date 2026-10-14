@@ -10,11 +10,33 @@ namespace Tizi.Desktop;
 
 internal sealed class NetworkMonitor : StackPanel
 {
+    internal static readonly IBrush TagForeground = new SolidColorBrush(Color.Parse("#D6D6D6"));
+    internal static TextBlock TagLabel(string text,bool translate=false,double opticalOffset=1)
+    {
+        var label=translate?Ui.Text(text,size:13):Ui.Value(text,size:13);
+        label.Foreground=TagForeground;label.TextAlignment=TextAlignment.Center;
+        // Center the visible glyphs rather than the font's asymmetric line box.
+        // This optical offset leaves the pill layout and its series dot unchanged.
+        var alignment=new TranslateTransform(0,opticalOffset);label.RenderTransform=alignment;
+        TopLevel? host=null;
+        void Align(object? sender,EventArgs args)
+        {
+            // Small hinted text needs the optical nudge most at 1x; avoid magnifying it at higher densities.
+            var density=Math.Max(1,host?.RenderScaling??1);
+            // Fractional layout scales also shift the snapped font baseline relative to the capsule.
+            var fractional=density-Math.Floor(density);
+            alignment.Y=opticalOffset*(1/(density*density)-Math.Max(0,fractional-.25));
+        }
+        label.AttachedToVisualTree+=(_,_)=>{host=TopLevel.GetTopLevel(label);if(host is not null)host.ScalingChanged+=Align;Align(null,EventArgs.Empty);};
+        label.DetachedFromVisualTree+=(_,_)=>{if(host is not null)host.ScalingChanged-=Align;host=null;};
+        return label;
+    }
     private const double MetricFontSize = 23;
     private readonly TextBlock _up = Ui.Value("—", size: MetricFontSize), _down = Ui.Value("—", size: MetricFontSize), _latency = Ui.Value("—", size: MetricFontSize), _duration = Ui.Value("—", size: MetricFontSize);
     private readonly TrafficChart _chart = new();
     private readonly WrapPanel _legend = new() { ItemSpacing = 14, LineSpacing = 8, IsVisible = false };
     private Button? _latencyToggle;
+    private Border? _latencyDot;
     internal bool LatencyMonitoring { get; private set; }
     internal event Action<bool>? LatencyMonitoringChanged;
     internal TrafficChart Chart => _chart;
@@ -22,6 +44,7 @@ internal sealed class NetworkMonitor : StackPanel
     internal IBrush? LatencyBrush => _latency.Foreground;
     internal string? DurationValue => _duration.Text;
     internal bool LegendVisible => _legend.IsVisible;
+    internal IpQualityBadges IpQuality { get; } = new();
     private bool _connected;
     internal NetworkMonitor()
     {
@@ -44,18 +67,20 @@ internal sealed class NetworkMonitor : StackPanel
         };
         var title = Ui.Text("Network monitor", true);
         var legend = _legend;
+        legend.Children.Add(IpQuality);
         foreach (var series in new[] { ("Download", TrafficChart.DownloadColor, 0), ("Upload", TrafficChart.UploadColor, 1), ("Latency", TrafficChart.LatencyColor, 2) })
         {
             var dot = new Border { Background = series.Item2, Width = 10, Height = 10, CornerRadius = new(5), VerticalAlignment = VerticalAlignment.Center };
-            var toggle = Ui.Button(series.Item1, () => { }); toggle.Content = Ui.Horizontal(dot, Ui.Text(series.Item1, true, 13)); toggle.Padding = new(8, 4); toggle.MinHeight = 30;
+            var label = TagLabel(series.Item1,true);
+            var toggle = Ui.Button(series.Item1, () => { }); toggle.Content = Ui.Horizontal(dot, label); toggle.Padding = new(8, 4); toggle.MinHeight = 30;
             toggle.Tag = "chart-series-" + series.Item3;
             if (series.Item3 == 2)
             {
-                _latencyToggle = toggle; toggle.Opacity = 0.4;
+                _latencyToggle = toggle; _latencyDot=dot; dot.Opacity = 0.45;
                 ToolTip.SetTip(toggle, UiText.Get("Start latency curve"));
                 toggle.Click += (_, _) => SetLatencyMonitoring(!LatencyMonitoring);
             }
-            else toggle.Click += (_, _) => { var visible = !_chart.SeriesVisible(series.Item3); _chart.SetSeriesVisible(series.Item3, visible); toggle.Opacity = visible ? 1 : 0.4; };
+            else toggle.Click += (_, _) => { var visible = !_chart.SeriesVisible(series.Item3); _chart.SetSeriesVisible(series.Item3, visible); dot.Opacity = visible ? 1 : 0.45; };
             legend.Children.Add(toggle);
         }
         var panel = new StackPanel { Spacing = 12, Children = { title, legend, _chart } };
@@ -64,11 +89,12 @@ internal sealed class NetworkMonitor : StackPanel
     internal void Update(long? up, long? down, int connections, bool connected, string? latency = null, TimeSpan? duration = null)
     {
         _connected = connected;
-        _up.Foreground = connected && up.HasValue ? Ui.DataAccent : Skin.SecondaryBrush; _down.Foreground = connected && down.HasValue ? Ui.DataAccent : Skin.SecondaryBrush;
+        _up.Foreground = connected && up.HasValue ? TrafficChart.UploadColor : Skin.SecondaryBrush; _down.Foreground = connected && down.HasValue ? TrafficChart.DownloadColor : Skin.SecondaryBrush;
         _duration.Foreground = connected ? Skin.LabelBrush : Skin.SecondaryBrush;
         _up.Text = connected && up.HasValue ? UiFormat.Speed(up.Value) : "—"; _down.Text = connected && down.HasValue ? UiFormat.Speed(down.Value) : "—";
         SetDuration(connected ? duration ?? TimeSpan.Zero : null);
         _legend.IsVisible = connected;
+        if (!connected) IpQuality.Update(null, false);
         if (latency is not null && connected) { _latency.Text = latency; _latency.Foreground = LatencyTone.For(latency); }
         if (!connected) { _latency.Text = "—"; _latency.Foreground = Skin.SecondaryBrush; SetLatencyMonitoring(false); _chart.Reset(); }
         else { if (up.HasValue && down.HasValue) _chart.Add(up.Value, down.Value); }
@@ -87,7 +113,7 @@ internal sealed class NetworkMonitor : StackPanel
         if (LatencyMonitoring == enabled) return;
         LatencyMonitoring = enabled; _chart.ClearLatencies(); _chart.SetSeriesVisible(2, enabled);
         if (_latencyToggle is { } button)
-        { button.Opacity = enabled ? 1 : 0.4; ToolTip.SetTip(button, UiText.Get(enabled ? "Stop latency curve" : "Start latency curve")); }
+        { if(_latencyDot is not null)_latencyDot.Opacity = enabled ? 1 : 0.45; ToolTip.SetTip(button, UiText.Get(enabled ? "Stop latency curve" : "Start latency curve")); }
         LatencyMonitoringChanged?.Invoke(enabled);
     }
 }

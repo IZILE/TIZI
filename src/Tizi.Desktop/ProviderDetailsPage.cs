@@ -1,4 +1,6 @@
 using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -7,12 +9,13 @@ using Tizi.Core;
 
 namespace Tizi.Desktop;
 
-internal sealed class ProviderDetailsDialog : Window
+internal sealed class ProviderDetailsPage : SecondPage
 {
-    internal ProviderDetailsDialog(ProviderSite site, string currency, Action<string> open)
+    internal Guid ProviderId { get; }
+    internal ProviderDetailsPage(ProviderSite site, string currency, Action<string> open)
     {
-        Title = site.Name; Width = 760; Height = 740; MinWidth = 480; MinHeight = 480;
-        Background = Skin.ChromeBrush; WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false;
+        ProviderId = site.Id; Tag = "provider-details";
+        Margin = new(0, 0, 16, 0); ClipToBounds = true;
         var body = new StackPanel { Spacing = 24 };
         var name = Wrap(site.Name, 25); name.FontWeight = FontWeight.SemiBold;
         var heading = new StackPanel { Spacing = 9, Children = { name, Wrap(new Uri(site.Url).Host, 13, true) } };
@@ -27,6 +30,7 @@ internal sealed class ProviderDetailsDialog : Window
         if (profile is not null)
         {
             var plans = new StackPanel { Spacing = 10 }; plans.Children.Add(SectionTitle("Plans and prices"));
+            var planCards = new SettingsCards();
             var first = ProviderDirectory.LowestPlan(site, currency);
             foreach (var plan in profile.Plans.OrderBy(p => p == first ? 0 : 1))
             {
@@ -38,8 +42,9 @@ internal sealed class ProviderDetailsDialog : Window
                 if (plan.Conditions.Length > 0) content.Children.Add(Wrap(plan.Conditions, 13, true));
                 var source = Ui.Button("View official pricing", () => open(plan.Source)); source.HorizontalAlignment = HorizontalAlignment.Left; source.MinHeight = 30; source.Padding = new(12, 4);
                 content.Children.Add(source);
-                plans.Children.Add(new Border { Padding = new(18), CornerRadius = new(12), Background = Skin.PasteboardBrush, Child = content });
+                planCards.Children.Add(new Border { Padding = new(18), CornerRadius = new(12), Background = Skin.ChromeBrush, Child = content });
             }
+            plans.Children.Add(planCards);
             if (profile.Plans.Count == 0) plans.Children.Add(Wrap(UiText.Get("Price unavailable"), 14, true));
             body.Children.Add(plans);
             if (profile.ReviewSummary.Length > 0)
@@ -62,12 +67,7 @@ internal sealed class ProviderDetailsDialog : Window
             if (profile.Sources.Count > 0) body.Children.Add(Disclosure(UiText.Get("Official sources"), sources));
             body.Children.Add(Wrap(UiText.Get("Researched") + " · " + profile.ResearchedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), 12, true));
         }
-        var close = Ui.Button("Close", () => _ = DialogMotion.CloseAsync(this));
-        var visit = Ui.Button("Open official website", () => open(site.Url), true);
-        var footer = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 8, Children = { close, visit } };
-        var root = new Grid { RowDefinitions = new("*,Auto"), RowSpacing = 20, Margin = new(24), Children = { Ui.Scroll(body), footer } }; Grid.SetRow(footer, 1);
-        Content = root; DialogMotion.Prepare(this);
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; _ = DialogMotion.CloseAsync(this); } };
+        Child = Ui.Scroll(body);
     }
     private static TextBlock Wrap(string text, double size, bool muted = false)
     { var block = Ui.Value(text, muted, size); block.TextWrapping = TextWrapping.Wrap; block.TextTrimming = TextTrimming.None; block.LineHeight = size * 1.55; return block; }

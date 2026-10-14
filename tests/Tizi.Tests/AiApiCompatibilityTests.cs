@@ -36,6 +36,26 @@ public class AiApiCompatibilityTests
     [Theory][InlineData("http://api.example/v1")][InlineData("https://user:password@api.example/v1")][InlineData("https://api.example/v1?key=private")]
     public void InvalidCredentialDestinationsAreRejected(string endpoint)=>Assert.Throws<FormatException>(()=>AiApiProfiles.Endpoint(new(){Endpoint=endpoint}));
     [Fact]public void LegacySettingsStillResolveToTheOpenAiResponsesEndpoint()=>Assert.Equal("https://api.openai.com/v1/responses",AiApiProfiles.Endpoint(new()).AbsoluteUri);
+    [Theory][InlineData("responses","https://api.deepseek.com/responses")][InlineData("claude","https://api.deepseek.com/anthropic/v1/messages")]
+    public async Task DeepSeekAlternateProtocolsUseTheirEndpointAndFetchedEvidence(string protocol,string endpoint)
+    {
+        var payload=Document().ToJsonString();
+        var response=protocol=="responses"
+            ? new JsonObject { ["status"]="completed",["output"]=new JsonArray(new JsonObject { ["type"]="message",["content"]=new JsonArray(new JsonObject { ["type"]="output_text",["text"]=payload }) }) }
+            : new JsonObject { ["stop_reason"]="end_turn",["content"]=new JsonArray(new JsonObject { ["type"]="text",["text"]=payload }) };
+        var handler=new Handler(response.ToJsonString());using var http=new HttpClient(handler);var evidence=new Evidence();
+        var settings=new DiscoverySettings { Provider="DeepSeek",Protocol=protocol,Endpoint="",Model="deepseek-flash",ApiKey="synthetic-key-never-sent" };
+        var result=await new ProviderDiscovery(http,research:evidence).SearchAsync(settings,"fixture");
+        Assert.Equal(endpoint,handler.Url!.AbsoluteUri);Assert.Single(result);Assert.Equal(1,evidence.Requests);
+        Assert.DoesNotContain("\"web_search\"",handler.Body);Assert.Contains("https://example.com/guide",handler.Body);
+        Assert.Equal(protocol=="claude"?settings.ApiKey:"Bearer "+settings.ApiKey,handler.Headers[protocol=="claude"?"x-api-key":"Authorization"]);
+    }
+    [Fact] public void ProviderProtocolChoicesSeparateFormatsFromVendorNames()
+    {
+        Assert.Equal(new[]{"chat","responses","claude"},AiApiProfiles.ProtocolsFor("DeepSeek"));
+        Assert.Equal(new[]{"gemini"},AiApiProfiles.ProtocolsFor("Gemini"));
+        Assert.Equal(4,AiApiProfiles.ProtocolsFor("Custom").Length);
+    }
     private static JsonObject Document()=>new(){["providers"]=new JsonArray(new JsonObject{["name"]="Example",["url"]="https://example.com/",["description"]="Synthetic service",["serviceKind"]="personal_subscription",["protocols"]=new JsonArray("Clash"),["subscriptionSource"]="https://example.com/guide",["regions"]=new JsonArray(),["securityNotes"]="Unverified",["ipQualityNotes"]="Unverified",["sources"]=new JsonArray("https://example.com/guide"),["plans"]=new JsonArray()})};
     private sealed class Evidence:IWebResearch
     {

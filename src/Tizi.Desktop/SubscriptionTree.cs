@@ -20,6 +20,8 @@ internal sealed class SubscriptionTree : StackPanel
     internal event Action<Guid, string>? NodeActionRequested;
     internal event Action<Guid, string>? SubscriptionActionRequested;
     internal event Action<Guid>? SubscriptionChosen;
+    internal event Action? ManualGroupChosen;
+    internal event Action<string>? ManualGroupActionRequested;
     internal event Action<Guid>? UrlRequested;
     internal event Action<Guid>? UpdateRequested;
     internal event Action? VisibleItemsChanged;
@@ -27,14 +29,14 @@ internal sealed class SubscriptionTree : StackPanel
 
     internal SubscriptionTree() { Spacing = 14; }
     internal bool ContainsVisible(string? id) => id is not null && Children.OfType<GroupCard>().Any(card =>
-        id == "subscription:" + card.Key || card.NodesShown && card.NodeRows.Contains(id));
+        id == (card.Key == "manual" ? "manual" : "subscription:" + card.Key) || card.NodesShown && card.NodeRows.Contains(id));
     internal void SelectSubscription(Guid? id) => SelectItem(id is { } subscription ? "subscription:" + subscription : null);
     internal void SelectItem(string? id)
     {
         _chosen = id; _hasSelection = true;
         foreach (var card in _groups.Values)
         {
-            var selected = id == "subscription:" + card.Key;
+            var selected = id == (card.Key == "manual" ? "manual" : "subscription:" + card.Key);
             card.SelectSubscription(selected);
             AutomationProperties.SetHelpText(card.Header, selected ? UiText.Get("Selected") : "");
             card.SelectNode(Guid.TryParse(id, out var node) ? node : null);
@@ -44,7 +46,7 @@ internal sealed class SubscriptionTree : StackPanel
     internal void SelectItems(IReadOnlySet<string> ids)
     {
         foreach(var card in _groups.Values)
-        { var selected=ids.Contains("subscription:"+card.Key);card.SelectSubscription(selected);card.NodeRows.SelectMany(selected ? new HashSet<string>() : ids); }
+        { var selected=ids.Contains(card.Key == "manual" ? "manual" : "subscription:"+card.Key);card.SelectSubscription(selected);card.NodeRows.SelectMany(selected ? new HashSet<string>() : ids); }
     }
     internal void SetState(AppState state, IReadOnlyDictionary<Guid, string> latencies, string query)
     {
@@ -65,8 +67,8 @@ internal sealed class SubscriptionTree : StackPanel
                 card.NodeChosen += id => NodeChosen?.Invoke(id);
                 card.NodeActivated += id => NodeActivated?.Invoke(id);
                 card.NodeActionRequested += (id, action) => NodeActionRequested?.Invoke(id, action);
-                card.SubscriptionActionRequested += action => { if (entry.Sub is { } s) SubscriptionActionRequested?.Invoke(s.Id, action); };
-                card.Selected += () => { if (entry.Sub is { } s) SubscriptionChosen?.Invoke(s.Id); };
+                card.SubscriptionActionRequested += action => { if (entry.Sub is { } s) SubscriptionActionRequested?.Invoke(s.Id, action); else ManualGroupActionRequested?.Invoke(action); };
+                card.Selected += () => { if (entry.Sub is { } s) SubscriptionChosen?.Invoke(s.Id); else ManualGroupChosen?.Invoke(); };
                 card.Details += () => { if (entry.Sub is { } s) UrlRequested?.Invoke(s.Id); };
                 card.Update += () => { if (entry.Sub is { } s) UpdateRequested?.Invoke(s.Id); };
                 card.VisibleItemsChanged += () => VisibleItemsChanged?.Invoke();
@@ -119,6 +121,8 @@ internal sealed class SubscriptionTree : StackPanel
                  ("Subscription URL", () => Details?.Invoke()), ("Update", () => Update?.Invoke()),
                  ("All subscription update settings", () => SubscriptionActionRequested?.Invoke("settings")),
                  ("Remove subscription", () => SubscriptionActionRequested?.Invoke("remove"))]);
+            else ContextMenu = ItemContextMenu.Create(this, () => Selected?.Invoke(),
+                [("Remove manual nodes", () => SubscriptionActionRequested?.Invoke("remove"))]);
             Transitions = new() { new BrushTransition { Property = BackgroundProperty, Duration = TimeSpan.FromMilliseconds(140), Easing = new SplineEasing(0, 0, .58, 1) } };
             _rotation.Transitions = new() { new DoubleTransition { Property = RotateTransform.AngleProperty, Duration = TimeSpan.FromMilliseconds(220), Easing = new SplineEasing(0.22, 0.7, 0.2, 1) } };
             var arrow = new Canvas { Width = 12, Height = 12, RenderTransform = _rotation, RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative), VerticalAlignment = VerticalAlignment.Center,
@@ -140,7 +144,8 @@ internal sealed class SubscriptionTree : StackPanel
             _reveal = new AnimatedReveal { Child = _body };
             _reveal.PropertyChanged += (_, change) =>
             {
-                if (change.Property == AnimatedReveal.ProgressProperty && _reveal.Progress <= 0 && !_expanded && !_searching) _nodes.IsEnabled = false;
+                if (change.Property == AnimatedReveal.ProgressProperty)
+                { if (_reveal.Progress <= 0 && !_expanded && !_searching) _nodes.IsEnabled = false; RefreshSelectionBackground(); }
             };
             _nodes.Chosen += id => { if (Guid.TryParse(id, out var guid)) NodeChosen?.Invoke(guid); };
             _nodes.Activated += id => { if (Guid.TryParse(id, out var guid)) NodeActivated?.Invoke(guid); };
@@ -163,8 +168,10 @@ internal sealed class SubscriptionTree : StackPanel
         internal void SelectSubscription(bool selected)
         {
             IsSelected = selected; Header.Classes.Set("selected-card", selected);
-            Motion.Set(this, BackgroundProperty, selected ? Ui.SelectionBrush : Skin.ChromeBrush);
+            RefreshSelectionBackground();
         }
+        private void RefreshSelectionBackground() => Motion.Set(this, BackgroundProperty,
+            IsSelected && !NodesShown && _reveal.Progress <= 0 ? Ui.SelectionBrush : Skin.ChromeBrush);
         private void Rows()
         {
             _page = Math.Clamp(_page, 0, Math.Max(0, (_source.Count - 1) / 100));
@@ -176,6 +183,7 @@ internal sealed class SubscriptionTree : StackPanel
         private void Animate()
         {
             var shown = _expanded || _searching;
+            RefreshSelectionBackground();
             UiText.Set(Disclosure, ToolTip.TipProperty, shown ? "Collapse subscription" : "Expand subscription");
             AutomationProperties.SetName(Disclosure, UiText.Get(shown ? "Collapse subscription" : "Expand subscription"));
             // Dimming visible rows before they have slid away produces a click flash.
@@ -198,13 +206,14 @@ internal sealed class AnimatedReveal : Decorator
     internal AnimatedReveal()
     {
         ClipToBounds = true;
-        Transitions = new() { new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(220), Easing = new SplineEasing(0.22, 0.7, 0.2, 1) } };
+        Transitions = new() { new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(220), Easing = new ElasticEasing() } };
     }
     protected override Size MeasureOverride(Size available)
     {
         Child?.Measure(new Size(available.Width, double.PositiveInfinity));
         var size = Child?.DesiredSize ?? default;
-        return new(size.Width, size.Height * Math.Clamp(Progress, 0, 1));
+        var height=size.Height*Math.Clamp(Progress,0,1)+Math.Min(12,size.Height*Math.Clamp(Progress-1,0,.04));
+        return new(size.Width,height);
     }
     protected override Size ArrangeOverride(Size final)
     {

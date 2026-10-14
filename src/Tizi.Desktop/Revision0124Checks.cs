@@ -18,11 +18,11 @@ internal static class Revision0124Checks
 {
     internal static async Task RunAsync(string output, Action<bool, string> check)
     {
-        void Layout(TopLevel top) { top.UpdateLayout(); Dispatcher.UIThread.RunJobs(); }
+        void Layout(Control top) { top.UpdateLayout(); Dispatcher.UIThread.RunJobs(); }
         async Task Until(Func<bool> done) { using var stop = new CancellationTokenSource(8000); while (!done()) await Task.Delay(10, stop.Token); }
-        void Capture(Window top, string file) { Layout(top); AvaloniaHeadlessPlatform.ForceRenderTimerTick(); using var frame = top.CaptureRenderedFrame(); frame?.Save(Path.Combine(output, file), new Avalonia.Media.Imaging.PngBitmapEncoderOptions()); }
+        void Capture(Control top, string file) { Layout(top); AvaloniaHeadlessPlatform.ForceRenderTimerTick(); using var frame = top.CaptureRenderedFrame(); frame?.Save(Path.Combine(output, file), new Avalonia.Media.Imaging.PngBitmapEncoderOptions()); }
         void SwitchBack(Window target) { typeof(WindowBase).GetMethod("HandleDeactivated", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(target, null); typeof(WindowBase).GetMethod("HandleActivated", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(target, null); }
-        void Click(Window top, Control control) { Layout(top); var point = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), top)!.Value; top.MouseMove(point); top.MouseDown(point, MouseButton.Left); top.MouseUp(point, MouseButton.Left); Layout(top); }
+        void Click(Control top, Control control) { Layout(top); var point = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), top)!.Value; top.MouseMove(point); top.MouseDown(point, MouseButton.Left); top.MouseUp(point, MouseButton.Left); Layout(top); }
         var subscription = new Subscription { Name = "Animation fixture", Url = "https://feed.example/" };
         const string feed = "ss://YWVzLTEyOC1nY206Zml4dHVyZQ@node.example:443#Fixture";
         var first = NodeImport.Parse(feed).Single() with { SubscriptionId = subscription.Id };
@@ -94,7 +94,7 @@ internal static class Revision0124Checks
             var add = window.GetVisualDescendants().OfType<Button>().Single(b => b.Content is TextBlock t && t.Text == UiText.Get("Import nodes"));
             check(window.Controller.Updating && !window.Controller.Busy && add.IsEffectivelyEnabled && rows.IsEffectivelyEnabled, "A delayed automatic subscription request leaves content cards and toolbar buttons available instead of only the sidebar");
             SwitchBack(window); Layout(window);
-            Click(window, add); var editor = window.OwnedWindows.OfType<EditorDialog>().Single(); editor.Close(); Layout(window);
+            Click(window, add); var editor = window.OpenDialogs.OfType<EditorDialog>().Single(); editor.Close(); Layout(window);
             check(window.IsEnabled && !window.Controller.Busy, "After switching away and back during a background request, an actual content button still opens and closes its editor");
             var manual = first with { Id = Guid.NewGuid(), SubscriptionId = null, Name = "Concurrent manual fixture" };
             var rule = new RoutingRule("DOMAIN", "concurrent.example", "DIRECT");

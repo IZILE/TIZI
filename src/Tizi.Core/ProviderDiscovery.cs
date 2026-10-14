@@ -48,7 +48,7 @@ public sealed class ProviderDiscovery(HttpClient http, Action<string>? inspectRe
     {
         if (string.IsNullOrWhiteSpace(settings.ApiKey)) throw new InvalidOperationException("Configure an AI API key in Settings first.");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation); timeout.CancelAfter(TimeSpan.FromSeconds(settings.Protocol=="responses"?100:240));
-        if (settings.Protocol != "responses") return await CompatibleAiDiscovery.SearchAsync(http,settings,query,limit,research,timeout.Token);
+        if (settings.Protocol != "responses" || AiApiProfiles.Endpoint(settings).Host != "api.openai.com") return await CompatibleAiDiscovery.SearchAsync(http,settings,query,limit,research,timeout.Token);
         using var request = new HttpRequestMessage(HttpMethod.Post, AiApiProfiles.Endpoint(settings)) { Content = new StringContent(Request(settings, query, limit).ToJsonString(), Encoding.UTF8, "application/json") };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey.Trim());
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);

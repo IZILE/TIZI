@@ -71,7 +71,7 @@ internal static class OperationNotificationChecks
             "An in-memory search failure appears in the visible search window's top notification with retry available and no duplicate inline error");
         search.Close(); window.Close(); await window.Controller.DisposeAsync();
     }
-    private static void Layout(TopLevel window) { window.UpdateLayout(); Dispatcher.UIThread.RunJobs(); }
+    private static void Layout(Control window) { window.UpdateLayout(); Dispatcher.UIThread.RunJobs(); }
     private sealed class FailureHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

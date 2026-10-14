@@ -18,7 +18,7 @@ internal sealed class MoreActionsSheet : Control
     internal IReadOnlyList<Button> Actions { get; }
     internal Rect SourceBounds { get; private set; }
     internal Rect TargetBounds { get; private set; }
-    internal Rect VisibleBounds => Interpolate(SourceBounds, TargetBounds, Math.Clamp(Progress, 0, 1));
+    internal Rect VisibleBounds => ElasticEasing.Bounds(SourceBounds, TargetBounds, Progress);
     internal Task<int?> Completion => _completion.Task;
     internal bool Closing => _closing;
     private readonly TaskCompletionSource<int?> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -35,10 +35,10 @@ internal sealed class MoreActionsSheet : Control
     internal MoreActionsSheet(Button trigger, string context, IReadOnlyList<string> labels)
     {
         Trigger = trigger; _triggerOpacity = trigger.Opacity;
-        _sourceColor = (trigger.Background as ISolidColorBrush)?.Color ?? Color.Parse("#3A3A3A");
+        _sourceColor = DialogOrigin.SurfaceColor(trigger);
         Focusable = true;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
-        _transition = new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(300), Easing = new SplineEasing(.16, 1, .3, 1) };
+        _transition = new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(260), Easing = new SplineEasing(.16,1,.3,1) };
         Transitions = new() { _transition };
         var rows = new StackPanel { Spacing = 6 };
         var buttons = new List<Button>();
@@ -69,14 +69,15 @@ internal sealed class MoreActionsSheet : Control
     internal void Open()
     {
         if (_finished) return;
-        ++_generation; _closing = false; _transition.Duration = TimeSpan.FromMilliseconds(300);
+        if (!_closing && Progress >= .999) { Focus(); return; }
+        ++_generation; _closing = false; _transition.Duration = TimeSpan.FromMilliseconds(260); _transition.Easing = new SplineEasing(.16,1,.3,1);
         Trigger.Opacity = 0; Motion.Set(this, ProgressProperty, 1d); Focus();
     }
     internal async Task CloseAsync(int? action = null)
     {
         if (_closing || _finished) return;
         _closing = true; var generation = ++_generation;
-        _transition.Duration = TimeSpan.FromMilliseconds(220); Motion.Set(this, ProgressProperty, 0d); UpdateClip();
+        _transition.Duration = TimeSpan.FromMilliseconds(220); _transition.Easing = new SplineEasing(.16,1,.3,1); Motion.Set(this, ProgressProperty, 0d); UpdateClip();
         await Task.Delay(240);
         if (generation == _generation) Finish(action);
     }
@@ -130,8 +131,12 @@ internal sealed class MoreActionsSheet : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         var point = e.GetPosition(this);
-        if (_closing && SourceBounds.Contains(point)) { Open(); e.Handled = true; }
-        else if (!VisibleBounds.Contains(point) || Progress < .7 && SourceBounds.Contains(point)) { _ = CloseAsync(); e.Handled = true; }
+        if (SourceBounds.Contains(point))
+        {
+            if (_closing) Open(); else _ = CloseAsync();
+            e.Handled = true;
+        }
+        else if (!VisibleBounds.Contains(point)) { _ = CloseAsync(); e.Handled = true; }
         base.OnPointerPressed(e);
     }
     protected override void OnKeyDown(KeyEventArgs e)

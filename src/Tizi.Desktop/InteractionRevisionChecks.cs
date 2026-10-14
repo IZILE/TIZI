@@ -17,9 +17,10 @@ internal static class InteractionRevisionChecks
 {
     internal static async Task RunAsync(string output, Action<bool, string> check)
     {
-        static void Layout(TopLevel window) { window.UpdateLayout(); Dispatcher.UIThread.RunJobs(); }
-        static void Click(TopLevel window, Control control)
+        static void Layout(Control window) { window.UpdateLayout(); Dispatcher.UIThread.RunJobs(); }
+        static void Click(Control window, Control control)
         {
+            CenteredDialogChecks.Ready(window);
             Layout(window); var point = control.TranslatePoint(new(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
             window.MouseMove(point); window.MouseDown(point, MouseButton.Left); window.MouseUp(point, MouseButton.Left); Layout(window);
         }
@@ -100,35 +101,36 @@ internal static class InteractionRevisionChecks
         var optionsGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); var optionsApplied = 0;
         typeof(MainWindow).GetMethod("OptionsDialog", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(window,
             ["Directory settings", new StackPanel(), new Func<Task>(async () => { await optionsGate.Task; optionsApplied++; })]);
-        var optionsDialog = window.OwnedWindows.Single(); Layout(optionsDialog); Click(optionsDialog, Button(optionsDialog, "Save"));
+        var optionsDialog = window.OpenDialogs.Single(); Layout(optionsDialog); Click(optionsDialog, Button(optionsDialog, "Save"));
         await Until(() => window.Controller.Busy); optionsDialog.Close(); Layout(optionsDialog);
         check(optionsDialog.IsVisible && !Button(optionsDialog, "Cancel").IsEnabled,
             "An options window stays open with Cancel disabled while its real save is committing");
         optionsGate.SetResult(); await Until(() => !optionsDialog.IsVisible);
         check(optionsApplied == 1 && !window.Controller.Busy, "An options save completes once before its window closes");
         window.ShowPage("Settings"); Layout(window);
-        var restoreOption = window.PageView.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Content is TextBlock t && t.Text == UiText.Get("Restore the previous connection on startup"));
+        Click(window, window.SettingsSections!.ButtonAt(3)); Layout(window);
+        var restoreOption = window.PageView.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Content is TextBlock t && t.Text == UiText.Get("Enable IPv6"));
         window.Notification.Dismiss();
-        var persistedRestore = window.Controller.State.RestoreConnection; restoreOption.IsChecked = !persistedRestore; Layout(window);
+        var persistedRestore = window.Controller.State.Transport.Ipv6; restoreOption.IsChecked = !persistedRestore; Layout(window);
         check(window.SettingsDirty&&!window.Notification.Showing,"Editing settings keeps the draft indicator local without a top notice");
         window.ShowPage("Nodes");Layout(window);
         check(window.Notification.Showing&&window.Notification.IsWarning&&!window.Notification.IsError&&window.Notification.Message==UiText.Get("Unsaved changes"),"Leaving settings with a draft shows one yellow warning");
-        check(window.Notification.GetVisualDescendants().OfType<Border>().Any(b=>b.Width==24&&b.Height==24&&b.Background is Avalonia.Media.ISolidColorBrush brush&&brush.Color==Avalonia.Media.Color.Parse("#F4C152")),"The unsaved-settings notice uses the requested yellow icon");
+        check(window.Notification.Glyph is { Page: "Warning", FilledBody: null, OutlineBrush: Avalonia.Media.ISolidColorBrush brush } && brush.Color == Avalonia.Media.Color.Parse("#F4C152"),"The unsaved-settings notice uses a yellow outlined warning glyph from the sidebar icon family");
         using(var warningClock=new UiAnimationClock(window.Notification)){warningClock.Pulse(0);warningClock.Pulse(400);Layout(window);AvaloniaHeadlessPlatform.ForceRenderTimerTick();using var frame=window.CaptureRenderedFrame();frame?.Save(Path.Combine(output,"settings-unsaved-warning.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());}
         window.ShowPage("Settings");Layout(window);check(!window.Notification.Showing&&window.SettingsDirty,"Returning to settings dismisses the leave-page warning and retains the draft");
         window.Hide();typeof(MainWindow).GetMethod("Exit",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.Invoke(window,null);
-        await Until(() => window.OwnedWindows.Any(w => w.Tag is "discard-settings"));
-        var discard = window.OwnedWindows.Single(w => w.Tag is "discard-settings"); Layout(discard); Click(discard, Button(discard, "Return to editing"));
+        await Until(() => window.OpenDialogs.Any(w => w.Tag is "discard-settings"));
+        var discard = window.OpenDialogs.Single(w => w.Tag is "discard-settings"); Layout(discard); Click(discard, Button(discard, "Return to editing"));
         await Until(() => !discard.IsVisible);
-        check(window.IsVisible && window.SettingsDirty && window.Controller.State.RestoreConnection == persistedRestore,
+        check(window.IsVisible && window.SettingsDirty && window.Controller.State.Transport.Ipv6 == persistedRestore,
             "Exiting with an unsaved settings draft offers a return path that retains the draft and leaves saved preferences unchanged");
-        check(NativeCaption.HideCaptionIcon(discard),"The unsaved-settings prompt suppresses its native caption app icon");
-        window.Close(); await Until(() => window.OwnedWindows.Any(w => w.Tag is "discard-settings"));
-        discard = window.OwnedWindows.Single(w => w.Tag is "discard-settings"); Layout(discard); Click(discard, Button(discard, "Discard and exit")); await Until(() => !window.IsVisible);
-        check(new Vault(UserData.DirectoryPath).Read<AppState>("settings.dat")!.RestoreConnection == persistedRestore,
+        check(!typeof(Window).IsAssignableFrom(discard.GetType()) && !window.OwnedWindows.Any(),"The unsaved-settings prompt is a client-area sheet with no native caption app icon");
+        window.Close(); await Until(() => window.OpenDialogs.Any(w => w.Tag is "discard-settings"));
+        discard = window.OpenDialogs.Single(w => w.Tag is "discard-settings"); Layout(discard); Click(discard, Button(discard, "Discard and exit")); await Until(() => !window.IsVisible);
+        check(new Vault(UserData.DirectoryPath).Read<AppState>("settings.dat")!.Transport.Ipv6 == persistedRestore,
             "Explicitly discarding an unsaved draft exits without applying it to the encrypted profile");
         var reopened=new MainWindow(false);reopened.Show();await Until(()=>reopened.Controller.Ready);reopened.ShowPage("Settings");Layout(reopened);
-        check(reopened.IsVisible&&!reopened.SettingsDirty&&reopened.Controller.State.RestoreConnection==persistedRestore,"After discarding and closing, a fresh application window reopens the saved profile without a stuck draft or prompt");
+        check(reopened.IsVisible&&!reopened.SettingsDirty&&reopened.Controller.State.Transport.Ipv6==persistedRestore,"After discarding and closing, a fresh application window reopens the saved profile without a stuck draft or prompt");
         typeof(MainWindow).GetMethod("Exit",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.Invoke(reopened,null);await Until(()=>!reopened.IsVisible);
 
         var connectionWindow = new MainWindow(true, state); connectionWindow.Show();

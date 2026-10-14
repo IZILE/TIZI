@@ -114,6 +114,7 @@ public sealed record AppState
     public TransportSettings Transport { get; init; } = new();
     public LatencySettings Latency { get; init; } = new();
     public LogSettings Logs { get; init; } = new();
+    public IpQualitySettings IpQuality { get; init; } = new();
 }
 public static class UserData
 {

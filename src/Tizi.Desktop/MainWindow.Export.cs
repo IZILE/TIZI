@@ -18,9 +18,9 @@ internal sealed partial class MainWindow
         if (_preview) return;
         await CreateExportDialog().ShowDialog(this);
     }
-    internal Window CreateExportDialog()
+    internal CenteredDialog CreateExportDialog()
     {
-        var dialog = new Window { Title = UiText.Get("Export"), Width = 720, Height = 620, MinWidth = 520, Background = Skin.ChromeBrush, WindowStartupLocation = WindowStartupLocation.CenterOwner, Icon = Icon };
+        var dialog = new CenteredDialog { Title = UiText.Get("Export"), Width = 720, Height = 620, MinWidth = 520, Background = Skin.ChromeBrush };
         // Freeze the operation target and contents when opening; the connected node
         // and later background updates must not silently change an export's scope.
         var snapshot = _app.State;

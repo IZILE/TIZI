@@ -12,7 +12,7 @@ using Tizi.Core;
 
 namespace Tizi.Desktop;
 
-internal sealed class NodeEditor : Window
+internal sealed class NodeEditor : CenteredDialog
 {
     internal ComboBox Protocol { get; } = new() { ItemsSource = ProtocolCatalog.Supported };
     private readonly Dictionary<string, Control> _inputs = [];
@@ -38,8 +38,7 @@ internal sealed class NodeEditor : Window
     internal NodeEditor(Func<ProxyNode, Task> apply, ProxyNode? original = null)
     {
         Title = UiText.Get(original is null ? "Add node" : "Edit node"); Width = 700; Height = 700; MinWidth = 480; MinHeight = 520;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner; Background = Skin.ChromeBrush; ShowInTaskbar = false;
-        using var icon = typeof(MainWindow).Assembly.GetManifestResourceStream("Tizi.Desktop.AppIcon.ico"); if (icon is not null) Icon = new WindowIcon(icon);
+        Background = Skin.ChromeBrush; 
         UiText.WireChoices(this);
         var index = original is null ? 0 : Array.FindIndex(ProtocolCatalog.Supported, p => p.CoreType == original.Type &&
             (p.CoreType is not ("http" or "socks5") || p.Tls == (original.Options["tls"]?.GetValue<bool>() == true)));
@@ -176,7 +175,7 @@ internal sealed class NodeEditor : Window
                 // here until apply returns, do not offer a cancellation that could
                 // leave a saved node behind a dismissed editor.
                 Session.BeginCommit(); await apply(node);
-                ErrorText = null; error.IsVisible = false; Applied = true; _allowClose = true; Close();
+                ErrorText = null; error.IsVisible = false; Applied = true; _allowClose = true; await CloseSheetAsync();
             }
             catch (OperationCanceledException) when (Session.IsCancellationRequested) { }
             catch (Exception e)

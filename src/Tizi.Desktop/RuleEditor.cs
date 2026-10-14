@@ -7,7 +7,7 @@ using Tizi.Core;
 
 namespace Tizi.Desktop;
 
-internal sealed class RuleEditor : Window
+internal sealed class RuleEditor : CenteredDialog
 {
     internal StableChoice TypeChoice { get; } = new() { ItemsSource = RoutingRule.Types };
     internal TextBox ValueEditor { get; } = new() { Classes = { "text-input" } };
@@ -22,8 +22,7 @@ internal sealed class RuleEditor : Window
     {
         _apply = apply; Title = UiText.Get(adding ? "Add rule" : "Edit rule");
         Width = 600; MinWidth = 460; MaxHeight = 760; SizeToContent = SizeToContent.Height;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner; Background = Skin.ChromeBrush; Padding = new(24); ShowInTaskbar = false;
-        using var icon = typeof(MainWindow).Assembly.GetManifestResourceStream("Tizi.Desktop.AppIcon.ico"); if (icon is not null) Icon = new WindowIcon(icon);
+        Background = Skin.ChromeBrush; Padding = new(24); 
         TypeChoice.SelectedIndex = Array.IndexOf(RoutingRule.Types, rule.Type);
         ValueEditor.Text = rule.Value; ActionChoice.SelectedItem = rule.Action; NoResolve.IsChecked = rule.NoResolve;
         var body = new StackPanel { Spacing = 18 };
@@ -51,7 +50,7 @@ internal sealed class RuleEditor : Window
             ErrorText = null; _error.IsVisible = false;
             var type = TypeChoice.SelectedItem?.ToString() ?? "";
             var rule = new RoutingRule(type, type == "MATCH" ? "" : ValueEditor.Text?.Trim() ?? "", ActionChoice.SelectedItem?.ToString() ?? "") { NoResolve = NoResolve.IsEnabled && NoResolve.IsChecked == true };
-            ModelValidation.Rule(rule); await _apply(rule); Applied = true; Close();
+            ModelValidation.Rule(rule); await _apply(rule); Applied = true; await CloseSheetAsync();
         }
         catch (Exception e) { ErrorText = e.Message; _error.Text = UiText.Get(e.Message); _error.IsVisible = true; }
         finally { _save.IsEnabled = true; }

@@ -94,9 +94,9 @@ internal static class ProviderSearchChecks
         }
         finally { releaseOperation.TrySetResult(); await operation; }
 
-        CheckDialogStates(options, check);
+        await CheckDialogStates(options, check);
     }
-    private static void CheckDialogStates(ProviderSearchOptions options, Action<bool, string> check)
+    private static async Task CheckDialogStates(ProviderSearchOptions options, Action<bool, string> check)
     {
         var cancellations = 0;
         var dialog = new ProviderSearchDialog(options, _ => Task.CompletedTask, _ => Task.CompletedTask, () => cancellations++);
@@ -115,7 +115,7 @@ internal static class ProviderSearchChecks
         dialog.SetSearchState(false, null, cancelled: true);
         check(dialog.ErrorText is null && dialog.StatusText == UiText.Get("Search cancelled; previous results kept."),
             "User cancellation has neutral feedback rather than a failure message");
-        dialog.SetSearchState(true, null); dialog.Close();
+        dialog.SetSearchState(true, null); await dialog.CloseSheetAsync();
         check(cancellations == 1 && dialog.Cancellation.IsCancellationRequested, "Closing the modeless search window cancels the active search and its criteria session");
     }
     private static async Task ExpectCancelled(Task task)

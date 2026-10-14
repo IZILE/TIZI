@@ -41,7 +41,7 @@ internal sealed partial class MainWindow
             var path = files[0].TryGetLocalPath() ?? throw new IOException(UiText.Get("Choose a local TIZI backup file."));
             var backup = await Task.Run(() => new Vault(Path.GetDirectoryName(path)!).Read<AppState>(Path.GetFileName(path))) ?? throw new IOException(UiText.Get("Saved configuration is empty."));
             var merged = _app.Ready ? ProfileRecovery.MergeContents(_app.State, backup) : backup;
-            var dialog = new Window { Title = UiText.Get("Recover saved data"), Width = 540, SizeToContent = SizeToContent.Height, Background = Skin.ChromeBrush, WindowStartupLocation = WindowStartupLocation.CenterOwner, Icon = Icon, ShowInTaskbar = false };
+            var dialog = new CenteredDialog { Title = UiText.Get("Recover saved data"), Width = 540, SizeToContent = SizeToContent.Height, Background = Skin.ChromeBrush };
             var summary = Ui.Value(UiText.Format("{0} subscriptions · {1} nodes · {2} rules", merged.Subscriptions.Count, merged.Nodes.Count, merged.Rules.Count)); summary.TextWrapping = Avalonia.Media.TextWrapping.Wrap;
             var note = Ui.Text(_app.Ready ? "Missing subscriptions, nodes and rules will be merged. Current preferences and existing items will be kept." : "The backup will restore saved settings. The unreadable original will be kept in encrypted backups.", true); note.TextWrapping = Avalonia.Media.TextWrapping.Wrap;
             var error = Ui.Value(""); error.IsVisible = false; error.TextWrapping = Avalonia.Media.TextWrapping.Wrap;

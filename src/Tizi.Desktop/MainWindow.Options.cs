@@ -13,7 +13,7 @@ internal sealed partial class MainWindow
     private void ShowSubscriptionUrl(Guid id)
     {
         if (_preview || _app.State.Subscriptions.FirstOrDefault(s => s.Id == id) is not { } subscription) return;
-        var dialog = new Window { Title = UiText.Get("Subscription URL"), Width = 620, MinWidth = 460, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Skin.ChromeBrush, ShowInTaskbar = false, Icon = Icon };
+        var dialog = new CenteredDialog { Title = UiText.Get("Subscription URL"), Width = 620, MinWidth = 460, SizeToContent = SizeToContent.Height, Background = Skin.ChromeBrush };
         var address = new TextBox { Text = subscription.Url, IsReadOnly = true, PasswordChar = '●', Classes = { "text-input" } };
         var reveal = Option("Show URL", false); reveal.IsCheckedChanged += (_, _) => address.PasswordChar = reveal.IsChecked == true ? '\0' : '●';
         var copied = Ui.Value(""); copied.Foreground = Ui.DataAccent;
@@ -24,7 +24,7 @@ internal sealed partial class MainWindow
         _ = dialog.ShowDialog(this);
     }
     private LogCategory? SelectedLogCategory => _logFilter.SelectedIndex switch { 1 => LogCategory.Proxy, 2 => LogCategory.Dns, 3 => LogCategory.Application, _ => null };
-    private string VisibleLogText() => string.Join('\n', _logs.Entries.Where(e => SelectedLogCategory is null || e.Category == SelectedLogCategory).Select(e => $"{e.Time.ToLocalTime():MM-dd HH:mm:ss}  [{UiText.Get(e.Category == LogCategory.Dns ? "DNS" : e.Category.ToString())}] {e.Message}"));
+    private string VisibleLogText() => string.Join('\n', _logs.Entries.Where(e => SelectedLogCategory is null || e.Category == SelectedLogCategory).Select(LogView.FormatLine));
     private async Task LoadActivityLogAsync()
     {
         _logs.Settings = _app.State.Logs;
@@ -56,7 +56,7 @@ internal sealed partial class MainWindow
     private void OptionsDialog(string title, StackPanel content, Func<Task> save)
     {
         if (_preview) return;
-        var dialog = new Window { Title = UiText.Get(title), Width = 540, MinWidth = 440, MaxHeight = 760, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Skin.ChromeBrush, ShowInTaskbar = false, Icon = Icon };
+        var dialog = new CenteredDialog { Title = UiText.Get(title), Width = 540, MinWidth = 440, MaxHeight = 760, SizeToContent = SizeToContent.Height, Background = Skin.ChromeBrush };
         var error = Ui.Value(""); error.Foreground = new SolidColorBrush(Color.Parse("#FFB5A5")); error.TextWrapping = TextWrapping.Wrap; error.IsVisible = false;
         var accept = Ui.Button("Save", () => { }, true);
         var saving = false; var allowClose = false;

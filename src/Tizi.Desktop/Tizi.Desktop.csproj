@@ -13,6 +13,10 @@
     <EmbeddedResource Include="Locale/zh-CN.json" LogicalName="Tizi.Desktop.Locale.zh-CN.json" />
     <EmbeddedResource Include="Assets/TIZI.ico" LogicalName="Tizi.Desktop.AppIcon.ico" />
     <EmbeddedResource Include="Assets/TIZI.png" LogicalName="Tizi.Desktop.AppIcon.png" />
+    <EmbeddedResource Include="Assets/BrandMark.png" LogicalName="Tizi.Desktop.BrandMark.png" />
+    <EmbeddedResource Include="Assets/ConnectionLadder.png" LogicalName="Tizi.Desktop.ConnectionLadder.png" />
+    <EmbeddedResource Include="Assets/ConnectionLadder.geometry.json" LogicalName="Tizi.Desktop.ConnectionLadder.geometry.json" />
+    <EmbeddedResource Include="Assets/Brand/*.png" LogicalName="Tizi.Desktop.Brand.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Assets/Flags/*.png" LogicalName="Tizi.Desktop.Flags.%(Filename)%(Extension)" />
     <Content Include="../../engine/*" Link="engine/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <Content Include="../../licenses/*" Link="licenses/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

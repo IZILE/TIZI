@@ -15,6 +15,8 @@ internal sealed class NavigationGlyph : Canvas
     public double SelectionFill { get => GetValue(SelectionFillProperty); set => SetValue(SelectionFillProperty, value); }
     internal string Page { get; }
     internal Geometry? FilledBody { get; }
+    internal IBrush OutlineBrush { get; }
+    internal const double StrokeWidth = 1.5;
     internal const int DurationMilliseconds = 240;
 
     static NavigationGlyph()
@@ -25,15 +27,19 @@ internal sealed class NavigationGlyph : Canvas
         });
     }
 
-    internal NavigationGlyph(string page)
+    internal NavigationGlyph(string page, IBrush? outlineBrush = null)
     {
         Page = page;
+        OutlineBrush = outlineBrush ?? Skin.LabelBrush;
         Width = Height = 24;
         HorizontalAlignment = HorizontalAlignment.Center;
         VerticalAlignment = VerticalAlignment.Center;
         IsHitTestVisible = false;
         var (outline, details, body) = page switch
         {
+            "Notice" => ("M22,12 A10,10 0 1 1 2,12 A10,10 0 1 1 22,12 Z", "M12,10 L12,17 M12,6.5 L12,6.6", ""),
+            "Warning" => ("M10.3,3.8 Q12,1 13.7,3.8 L22,18.4 Q23.5,21 20.5,21 L3.5,21 Q0.5,21 2,18.4 Z", "M12,9 L12,14 M12,17.5 L12,17.6", ""),
+            "Error" => ("M22,12 A10,10 0 1 1 2,12 A10,10 0 1 1 22,12 Z", "M8.5,8.5 L15.5,15.5 M15.5,8.5 L8.5,15.5", ""),
             "Nodes" => (
                 "M4,2 L20,2 L20,10 L4,10 Z M4,14 L20,14 L20,22 L4,22 Z M12,10 L12,14",
                 "M7,6 L9,6 M7,18 L9,18",
@@ -60,7 +66,7 @@ internal sealed class NavigationGlyph : Canvas
             _ => ("M11,7 A4,4 0 1 1 10.99,7 M11,1 L11,4 M11,18 L11,21 M1,11 L4,11 M18,11 L21,11 M4,4 L6,6 M16,16 L18,18 M4,18 L6,16 M16,6 L18,4", "", ""),
         };
         FilledBody = body.Length == 0 ? null : Geometry.Parse(body);
-        Children.Add(new GlyphSurface(this, Geometry.Parse(outline), details.Length == 0 ? null : Geometry.Parse(details)) { Width = 24, Height = 24 });
+        Children.Add(new GlyphSurface(this, Geometry.Parse(outline), details.Length == 0 ? null : Geometry.Parse(details), OutlineBrush) { Width = 24, Height = 24 });
         Transitions = new Transitions
         {
             new DoubleTransition { Property = SelectionFillProperty, Duration = TimeSpan.FromMilliseconds(DurationMilliseconds), Easing = new SplineEasing(.16, 1, .3, 1) },
@@ -75,10 +81,10 @@ internal sealed class NavigationGlyph : Canvas
         if (!animate) Transitions = transitions;
     }
 
-    private sealed class GlyphSurface(NavigationGlyph owner, Geometry outline, Geometry? details) : Control
+    private sealed class GlyphSurface(NavigationGlyph owner, Geometry outline, Geometry? details, IBrush brush) : Control
     {
-        private static readonly Pen OutlinePen = new(Skin.LabelBrush, 1.5, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
-        private static readonly Pen SelectedPen = new(Brushes.White, 1.5, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+        private readonly Pen OutlinePen = new(brush, StrokeWidth, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+        private static readonly Pen SelectedPen = new(Brushes.White, StrokeWidth, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
         public override void Render(DrawingContext context)
         {
             var progress = Math.Clamp(owner.SelectionFill, 0, 1);

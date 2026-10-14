@@ -31,49 +31,47 @@ internal static class ProviderCardChecks
         var cards = sites.Select(p => (ProviderCardButton)rows.For(p.Id.ToString())).ToArray();
         var contents = cards.Select(c => c.Content).ToArray();
         var presenters = cards.Select(c => c.GetVisualDescendants().OfType<ContentPresenter>().Single(p => p.Name == "PART_ContentPresenter" && ReferenceEquals(p.TemplatedParent, c))).ToArray();
-        var pixels = new List<object>(); var minimum = 255; var maximum = 0; var movingFrames = 0; var resizingFrames = 0;
-        var secondTop = cards[1].Bounds.Y; var firstHeight = cards[0].Bounds.Height; var secondHeight = cards[1].Bounds.Height;
-        using var clock = new UiAnimationClock(rows.Indicator, rows.Indicator.Position);
-        Layout(window); AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        using var initial = window.CaptureRenderedFrame() ?? throw new IOException("Missing airport baseline frame.");
-        var baseline = Sample(initial, cards[0], window);
-        for (var frame = 0; frame <= 180; frame++)
+        var faces=cards.Select(card=>card.GetVisualDescendants().OfType<Border>().First(border=>border.Name=="buttonFace")).ToArray();
+        var pixels=new List<object>();var minimum=255;var maximum=0;var intermediateFrames=0;
+        using var clock=new UiAnimationClock(faces);
+        Layout(window);AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        using var initial=window.CaptureRenderedFrame()??throw new IOException("Missing airport baseline frame.");
+        var baseline=Sample(initial,cards[0],window);
+        for(var frame=0;frame<=180;frame++)
         {
-            var before = rows.Indicator.Position.Y;
-            if (frame is 1 or 34 or 50 or 100) rows.Select(sites[0].Id.ToString());
-            if (frame is 30 or 38 or 80) rows.Select(sites[1].Id.ToString());
-            if (frame is 30 or 34 or 38 or 50 or 80 or 100 && Math.Abs(rows.Indicator.Position.Y - before) > .01)
-                throw new IOException("Retargeting airport selection jumped away from its displayed position.");
-            if (frame == 145) rows.Select(null);
-            if (frame is >= 110 and <= 140)
+            if(frame is 1 or 34 or 50 or 100)window.MouseMove(cards[0].TranslatePoint(new(300,75),window)!.Value);
+            if(frame is 30 or 38 or 80)window.MouseMove(cards[1].TranslatePoint(new(300,75),window)!.Value);
+            if(frame==145){rows.Select(sites[0].Id.ToString());window.MouseMove(new(2,2));}
+            if(frame is >=110 and <=140)
             {
-                var point = cards[0].TranslatePoint(new(300, 75), window)!.Value; window.MouseMove(point);
-                if (frame % 2 == 0) window.MouseDown(point, MouseButton.Left); else window.MouseUp(point, MouseButton.Left);
+                var point=cards[0].TranslatePoint(new(300,75),window)!.Value;window.MouseMove(point);
+                if(frame%2==0)window.MouseDown(point,MouseButton.Left);else window.MouseUp(point,MouseButton.Left);
             }
-            clock.Pulse(frame * 8); Layout(window); AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-            using var bitmap = window.CaptureRenderedFrame() ?? throw new IOException("Missing airport selection frame.");
-            var values = cards.Select(c => Sample(bitmap, c, window)).ToArray();
-            minimum = Math.Min(minimum, values.Min()); maximum = Math.Max(maximum, values.Max());
-            var y = rows.Indicator.Position.Y; var height = rows.Indicator.Height;
-            if (y > .1 && y < secondTop - .1) movingFrames++;
-            if (height > firstHeight + .1 && height < secondHeight - .1) resizingFrames++;
-            if (values.Any(value => value < baseline - 1 || value > 66)) throw new IOException($"Airport selection brightness overshoot at frame {frame}: {string.Join(',', values)}, baseline {baseline}.");
-            if (presenters.Any(p => p.Opacity != 1)) throw new IOException("Airport selection changed text opacity.");
-            pixels.Add(new { frame, milliseconds = frame * 8, gray = values, y, height = double.IsFinite(height) ? height : (double?)null });
-            if (frame is 0 or 15 or 31 or 34 or 38 or 51 or 81 or 101 or 112 or 145 or 180) bitmap.Save(Path.Combine(directory, frame.ToString("D3") + ".png"), new PngBitmapEncoderOptions());
+            clock.Pulse(frame*8);Layout(window);AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            using var bitmap=window.CaptureRenderedFrame()??throw new IOException("Missing airport hover frame.");
+            var values=cards.Select(card=>Sample(bitmap,card,window)).ToArray();
+            minimum=Math.Min(minimum,values.Min());maximum=Math.Max(maximum,values.Max());
+            if(values.Any(value=>value>baseline+1&&value<64))intermediateFrames++;
+            if(values.Any(value=>value<baseline-1||value>66))throw new IOException($"Airport hover brightness overshoot at frame {frame}: {string.Join(',',values)}, baseline {baseline}.");
+            if(presenters.Any(p=>p.Opacity!=1)||rows.Backplate.IsVisible)throw new IOException("Airport hover dimmed text or retained a click-selection backplate.");
+            pixels.Add(new {frame,milliseconds=frame*8,gray=values});
+            if(frame is 0 or 15 or 31 or 34 or 38 or 51 or 81 or 101 or 112 or 145 or 180)bitmap.Save(Path.Combine(directory,frame.ToString("D3")+".png"),new PngBitmapEncoderOptions());
+            if(frame==180)check(values.All(value=>Math.Abs(value-baseline)<=1)&&cards[0].Classes.Contains("selected-card"),
+                "Leaving an airport card removes its gray emphasis even when it remains the logical action target");
         }
-        window.MouseUp(new(320, 90), MouseButton.Left);
-        check(minimum >= baseline - 1 && maximum <= 66 && maximum >= 64 && movingFrames > 20 && resizingFrames > 20,
-            "181 rendered airport frames retain moving and resizing intermediate selection frames during rapid reversals, with no background brightness overshoot");
-        check(cards.Select((c, i) => ReferenceEquals(c.Content, contents[i])).All(value => value) && presenters.All(p => p.Opacity == 1) && rows.Backplate.Background is ISolidColorBrush brush && brush.Color.R == 65,
-            "Airport selection retains both content trees and fully opaque text above one fixed-color moving background");
-        File.WriteAllText(Path.Combine(output, "provider-selection-render-check.json"), JsonSerializer.Serialize(new { frames = pixels.Count, baseline, minimum, maximum, movingFrames, resizingFrames, samples = pixels, scope = "Isolated Skia-rendered production cards using the same SelectionIndicator as other content pages; native desktop compositor not inspected." }, new JsonSerializerOptions { WriteIndented = true }));
+        window.MouseUp(new(320,90),MouseButton.Left);
+        check(minimum>=baseline-1&&maximum<=66&&maximum>=64&&intermediateFrames>20,
+            "181 rendered airport hover frames fade through intermediate colors during rapid reversals without a brightness flash");
+        check(cards.Select((card,i)=>ReferenceEquals(card.Content,contents[i])).All(value=>value)&&presenters.All(p=>p.Opacity==1),
+            "Airport hover and repeated clicks retain original content trees and fully opaque text");
+        File.WriteAllText(Path.Combine(output,"provider-selection-render-check.json"),JsonSerializer.Serialize(new {frames=pixels.Count,baseline,minimum,maximum,intermediateFrames,samples=pixels,
+            scope="Production provider cards with pointer-driven emphasis; native desktop compositor timing not measured."},new JsonSerializerOptions {WriteIndented=true}));
         window.Close();
     }
-    private static void Layout(TopLevel window) { window.UpdateLayout(); Dispatcher.UIThread.RunJobs(); }
-    private static int Sample(Bitmap bitmap, Control card, TopLevel window)
+    private static void Layout(Control window) { window.UpdateLayout(); Dispatcher.UIThread.RunJobs(); }
+    private static int Sample(Bitmap bitmap, Control card, Control window)
     {
-        var point = card.TranslatePoint(new(card.Bounds.Width / 2, 75), window)!.Value; var scale = window.RenderScaling;
+        var point = card.TranslatePoint(new(card.Bounds.Width / 2, 75), window)!.Value; var scale = TopLevel.GetTopLevel(window)!.RenderScaling;
         var region = new PixelRect((int)(point.X * scale), (int)(point.Y * scale), 4, 4); var data = new byte[64]; var pin = GCHandle.Alloc(data, GCHandleType.Pinned);
         try { bitmap.CopyPixels(region, pin.AddrOfPinnedObject(), data.Length, 16); }
         finally { pin.Free(); }

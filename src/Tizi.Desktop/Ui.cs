@@ -230,7 +230,7 @@ internal sealed class MovingRows : Grid
                 Grid.SetRow(specs, 2); Grid.SetColumnSpan(specs, 4); row.Children.Add(specs);
                 var evidence = Ui.Value(profile?.ReviewSummary is { Length: > 0 } review ? review : UiText.Get("No saved reviews"), true, 12); evidence.TextWrapping = TextWrapping.Wrap; evidence.MaxLines = 2;
                 var footer = new Grid { ColumnDefinitions = new("*,12,Auto"), Children = { evidence } };
-                var link = Ui.Button("Open website", () => SourceRequested?.Invoke(provider.Url)); link.MinHeight = 30; link.Padding = new(12, 4); link.CornerRadius = new(15); Grid.SetColumn(link, 2); footer.Children.Add(link);
+                var link = Ui.Button("Open website", () => SourceRequested?.Invoke(provider.Url), true); link.MinHeight = 30; link.Padding = new(12, 4); link.CornerRadius = new(15); Grid.SetColumn(link, 2); footer.Children.Add(link);
                 Grid.SetRow(footer, 3); Grid.SetColumnSpan(footer, 4); row.Children.Add(footer);
             }
             _buttons[entry.Id].Content = row;
@@ -249,7 +249,7 @@ internal sealed class MovingRows : Grid
     internal void Select(string? id)
     {
         _multiple = null;
-        _selected = id; _indicator.IsVisible = !_nodeGrid && id is not null && _buttons.ContainsKey(id);
+        _selected = id; _indicator.IsVisible = !_nodeGrid && id is not null && _buttons.ContainsKey(id) && _display.GetValueOrDefault(id)?.Provider is null;
         foreach (var (key, button) in _buttons)
         {
             button.Classes.Set("selected-card", key == id);
@@ -282,7 +282,16 @@ internal sealed class MovingRows : Grid
             if (ground is NodeCardGround nodeGround) nodeGround.SetCurrent(_display.GetValueOrDefault(id)?.Current == true);
             else ground.Background = _multiple?.Contains(id) == true ? Ui.SelectionBrush : _display.GetValueOrDefault(id)?.Provider is not null ? Skin.TabBack : Brushes.Transparent;
         }
-        if (!_nodeGrid && _multiple is null && _selected is { } selected && _buttons.TryGetValue(selected, out var button) && button.Bounds.Width > 0) _indicator.MoveTo(button.Bounds);
+        if (!_nodeGrid && _multiple is null && _selected is { } selected && _display.GetValueOrDefault(selected)?.Provider is null && _buttons.TryGetValue(selected, out var button) && button.Bounds.Width > 0) _indicator.MoveTo(button.Bounds);
+    }
+    internal Color? RowSurfaceColor(Control control)
+    {
+        var ancestors=control.GetVisualAncestors().ToArray();
+        var row=_buttons.FirstOrDefault(pair=>ReferenceEquals(pair.Value,control)||ancestors.Contains(pair.Value));
+        if(row.Value is null)return null;
+        if(!_nodeGrid&&_indicator.IsVisible&&_selected==row.Key&&_multiple is null)
+            return (_backplate.Background as ISolidColorBrush)?.Color;
+        return (_grounds.GetValueOrDefault(row.Key)?.Background as ISolidColorBrush)?.Color;
     }
 }
 

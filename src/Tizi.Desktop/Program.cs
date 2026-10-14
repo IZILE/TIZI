@@ -26,16 +26,35 @@ internal static class Program
         if (args is ["--verify-discovery", var searchData, var searchOutput]) return DiscoveryChecks.VerifyAsync(searchData, searchOutput).GetAwaiter().GetResult();
         if (args is ["--watchdog", var pid, var ticks, var child, var childTicks, var data, var runtime])
             return Watchdog(int.Parse(pid), long.Parse(ticks), int.Parse(child), long.Parse(childTicks), data, runtime);
+        if (args is ["--quality-watchdog", var qualityPid, var qualityTicks, var qualityChild, var qualityChildTicks, var qualityData, var qualityRuntime])
+            return Watchdog(int.Parse(qualityPid),long.Parse(qualityTicks),int.Parse(qualityChild),long.Parse(qualityChildTicks),qualityData,qualityRuntime,restoreProxy:false);
         if (args is ["--verify-ui", var output])
         {
             UserData.DirectoryPath = Path.Combine(Path.GetFullPath(output), "settings");
             Build(true).SetupWithoutStarting(); return UiChecks.Run(output);
+        }
+        if (args is ["--verify-brand-motion", var motionOutput])
+        {
+            UserData.DirectoryPath = Path.Combine(Path.GetFullPath(motionOutput), "settings");
+            Build(true).SetupWithoutStarting(); return BrandMotionChecks.Run(motionOutput);
+        }
+        if (args is ["--profile-log-navigation", var logOutput])
+        {
+            UserData.DirectoryPath = Path.Combine(Path.GetFullPath(logOutput), "settings");
+            Build(true).SetupWithoutStarting(); return LogNavigationProbe.Run(logOutput);
         }
         if (args is ["--verify-connection", var connectionOutput])
         {
             UserData.DirectoryPath = Path.Combine(Path.GetFullPath(connectionOutput), "settings");
             Build(true).SetupWithoutStarting();
             var check = ConnectionChecks.RunAsync(connectionOutput);
+            while (!check.IsCompleted) { Avalonia.Threading.Dispatcher.UIThread.RunJobs(); Thread.Sleep(10); }
+            return check.GetAwaiter().GetResult();
+        }
+        if (args is ["--verify-interactions", var interactionOutput])
+        {
+            UserData.DirectoryPath = Path.Combine(Path.GetFullPath(interactionOutput), "settings"); Build(true).SetupWithoutStarting();
+            var check = Revision0127Checks.Run(interactionOutput);
             while (!check.IsCompleted) { Avalonia.Threading.Dispatcher.UIThread.RunJobs(); Thread.Sleep(10); }
             return check.GetAwaiter().GetResult();
         }
@@ -98,7 +117,7 @@ internal static class Program
         else builder.UsePlatformDetect();
         return builder.With(UiFonts.Options()).LogToTrace();
     }
-    private static int Watchdog(int parentId, long parentTicks, int engineId, long engineTicks, string data, string runtime)
+    private static int Watchdog(int parentId, long parentTicks, int engineId, long engineTicks, string data, string runtime,bool restoreProxy=true)
     {
         Process? parent = null, engine = null;
         try
@@ -106,10 +125,10 @@ internal static class Program
             try { parent = Process.GetProcessById(parentId); if (parent.StartTime.ToUniversalTime().Ticks != parentTicks) { parent.Dispose(); parent = null; } } catch (ArgumentException) { }
             try { engine = Process.GetProcessById(engineId); if (engine.StartTime.ToUniversalTime().Ticks != engineTicks || !string.Equals(engine.MainModule?.FileName, Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "engine", "mihomo.exe")), StringComparison.OrdinalIgnoreCase)) { engine.Dispose(); engine = null; } } catch (ArgumentException) { }
             if (parent is not null && engine is not null) Task.WhenAny(parent.WaitForExitAsync(), engine.WaitForExitAsync()).GetAwaiter().GetResult();
-            new ProxyLease(new WindowsProxyRegistry(), new Vault(data)).Restore();
+            if(restoreProxy)new ProxyLease(new WindowsProxyRegistry(), new Vault(data)).Restore();
             if (engine is { HasExited: false }) { engine.Kill(true); engine.WaitForExit(5000); }
             // The caller passes only our session directory; never remove another path.
-            var expectedRoot = Path.GetFullPath(Path.Combine(data, "run")) + Path.DirectorySeparatorChar;
+            var expectedRoot = Path.GetFullPath(Path.Combine(data, restoreProxy ? "run" : "quality-run")) + Path.DirectorySeparatorChar;
             var absolute = Path.GetFullPath(runtime);
             if (absolute.StartsWith(expectedRoot, StringComparison.OrdinalIgnoreCase) && Path.GetFileName(absolute).StartsWith("session-", StringComparison.Ordinal) && Directory.Exists(absolute)) Directory.Delete(absolute, true);
             return 0;
@@ -124,6 +143,8 @@ public sealed class DesktopApp : Application
     private SingleInstance? _instance;
     public override void Initialize()
     {
+        Button.ClickEvent.AddClassHandler<Button>((button, e) => { if (Ui.OwnButtonEvent(button, e)) DialogOrigin.Remember(button); });
+        MenuItem.ClickEvent.AddClassHandler<MenuItem>((item, e) => { if (ReferenceEquals(e.Source, item)) DialogOrigin.Remember(item); });
         Window.WindowOpenedEvent.AddClassHandler<Window>((window, _) =>
         {
             if (TrayMenuPlacement.IsTrayMenu(window)) { TrayMenuPlacement.Attach(window); return; }

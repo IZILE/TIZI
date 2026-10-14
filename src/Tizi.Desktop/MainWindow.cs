@@ -59,7 +59,7 @@ internal sealed partial class MainWindow : Window
     private readonly ClientNotification _notification = new();
     private readonly TextBlock _pagination = Ui.Value("", true, 11);
     private readonly TextBlock _footer = Ui.Value("", true, 11);
-    private readonly TextBox _logView = new() { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, FontFamily = new FontFamily("Consolas"), FontSize = 13, Background = Brushes.Transparent, BorderThickness = new(0), Classes = { "text-input" } };
+    private readonly LogView _logView = new();
     private readonly Button _previous, _next;
     private readonly StackPanel _paging;
     private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -110,6 +110,12 @@ internal sealed partial class MainWindow : Window
         _preview = preview; _app = new AppController(preview);
         _listScroll = new ScrollViewer { Content = _rows, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
         _subscriptionScroll = new ScrollViewer { Content = _subscriptionTree, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, AllowAutoHide = false };
+        _subscriptionScroll.TemplateApplied += (_, e) =>
+        {
+            // Keep the bar visible when needed, over the tree's existing 16-pixel right margin.
+            // Its appearance must never change the width of subscription cards or usage tracks.
+            if (e.NameScope.Find<Avalonia.Controls.Presenters.ScrollContentPresenter>("PART_ContentPresenter") is { } presenter) Grid.SetColumnSpan(presenter, 2);
+        };
         _subscriptionTree.Margin = new(0, 0, 16, 0); _rows.Margin = new(0, 0, 16, 0); _overview.Margin = new(0, 0, 16, 0);
         _listScroll.AllowAutoHide = false;
         // Keep the panel and its scroll presenter together across page visits.
@@ -130,12 +136,12 @@ internal sealed partial class MainWindow : Window
         var root = new Grid { RowDefinitions = new RowDefinitions("32,Auto,*,32") };
         root.Children.Add(BuildCaption());
         var brand = _brand = Ui.Value("TIZI", size: 36); brand.FontWeight = FontWeight.SemiBold;
-        brand.UseLayoutRounding = false; brand.Opacity = 0; // The host paints the original glyph outlines and matching steps together.
+        brand.UseLayoutRounding = false; brand.Opacity = 0; // The approved source mark is drawn by its host; keep TIZI as accessible text.
         // Keep the complete font line box while aligning the visible uppercase letters
         // to the toolbar center. The host does not reserve another header row.
         var brandHost = new WordmarkHost { Child = brand, Height = 44,
             HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center,
-            Margin = new(24, 0, 0, 24) };
+            Margin = new(0, 0, 0, 24) };
         Grid.SetRow(brandHost, 1); root.Children.Add(brandHost);
         var toolbar = _toolbar = new Grid { ColumnDefinitions = new("*,Auto,*"), Margin = new Thickness(24, 0, 24, 24) };
         Grid.SetColumn(_nodeChoice, 1); toolbar.Children.Add(_nodeChoice);
@@ -165,6 +171,7 @@ internal sealed partial class MainWindow : Window
             if (enabled) { _lastProbe = DateTimeOffset.MinValue; _probeTask = ProbeSelectedAsync(); }
         };
         Content = _clientSurface = new Grid { ClipToBounds = true, Children = { root, _notification } }; SizeChanged += (_, _) => Responsive();
+        Closed += (_, _) => { foreach (var dialog in _dialogs.ToArray()) dialog.ForceClose(); };
         Deactivated += (_, _) =>
         {
             ActiveMoreSheet?.DismissImmediately();
@@ -173,6 +180,7 @@ internal sealed partial class MainWindow : Window
         };
         AddHandler(PointerPressedEvent, (_, e) =>
         {
+            if (_dialogs.Count > 0) return;
             if (_search.IsKeyboardFocusWithin && e.Source is Visual source && !ReferenceEquals(source, _search)
                 && !source.GetVisualAncestors().Contains(_search)) FocusManager?.Focus(null);
             ClearSelectionOnBlankPress(e);
@@ -196,6 +204,8 @@ internal sealed partial class MainWindow : Window
         _subscriptionTree.NodeActionRequested += (id, action) => { ChooseItem(id.ToString()); if (action == "edit") EditNode(); else if (action == "remove") RemoveSelected(); };
         _subscriptionTree.SubscriptionActionRequested += (id, action) => { ChooseItem("subscription:" + id); if (action == "edit") EditSubscription(id); else if (action == "settings") SubscriptionSettings(); else if (action == "remove") RemoveSelected(); };
         _subscriptionTree.SubscriptionChosen += id => { ChooseItem("subscription:" + id); if (_multiSelect) ApplyMultipleSelectionVisuals(); else _subscriptionTree.SelectItem(_chosen); };
+        _subscriptionTree.ManualGroupChosen += () => { ChooseItem("manual"); if (_multiSelect) ApplyMultipleSelectionVisuals(); else _subscriptionTree.SelectItem(_chosen); };
+        _subscriptionTree.ManualGroupActionRequested += action => { ChooseItem("manual"); if (action == "remove") RemoveSelected(); };
         _subscriptionTree.VisibleItemsChanged += () => Dispatcher.UIThread.Post(() => { if (_page == "Nodes") ValidateSelection(); });
         _subscriptionTree.UrlRequested += ShowSubscriptionUrl;
         _subscriptionTree.UpdateRequested += id => Run(() => _app.UpdateSubscriptionAsync(id));
@@ -219,7 +229,6 @@ internal sealed partial class MainWindow : Window
         _app.Changed += Refresh;
         _app.Error += ShowError;
         _app.Logged += message => { _logs.Settings = _app.State.Logs; _logs.Add(message); _logDirty = true; };
-        _logView.VerticalContentAlignment = VerticalAlignment.Top;
         _logFilter.Changed += _ => { if (_page == "Logs") RefreshLog(true); };
         _poll.Tick += async (_, _) => await PollAsync();
         Opened += async (_, _) =>
@@ -235,24 +244,52 @@ internal sealed partial class MainWindow : Window
         {
             ActiveMoreSheet?.DismissImmediately();
             if (_preview || _allowClose) return;
+            if (GeneralSettingsSaving)
+            {
+                e.Cancel = true; if (_awaitingAutoSaveOnExit) return; _awaitingAutoSaveOnExit = true;
+                try { while (GeneralSettingsSaving) await _settingsAutoSaveTask; Close(); }
+                finally { _awaitingAutoSaveOnExit = false; }
+                return;
+            }
             if (!_forceExit && _app.State.CloseToTray && _tray is not null) { e.Cancel = true; Hide(); return; }
             if (_settingsSaving) { e.Cancel = true; ShowNotice("Saving settings…"); return; }
             if (SettingsDirty && !_discardSettingsOnExit)
             {
-                e.Cancel = true; if (_askingDiscardSettings) return; _askingDiscardSettings = true;
+                e.Cancel = true;
+                if (_askingDiscardSettings)
+                {
+                    if (_settingsDiscardDialog is { IsVisible: false }) _closeAgainAfterSettingsPrompt = true;
+                    return;
+                }
+                _askingDiscardSettings = true;
                 try
                 {
                     if (await ConfirmDiscardSettingsAsync()) { _discardSettingsOnExit = true; Close(); }
                     else _forceExit = false;
                 }
-                finally { _askingDiscardSettings = false; }
+                finally
+                {
+                    _askingDiscardSettings = false;
+                    if (_closeAgainAfterSettingsPrompt) { _closeAgainAfterSettingsPrompt = false; Dispatcher.UIThread.Post(Close); }
+                }
                 return;
             }
-            e.Cancel = true; if (_shutdown) return; _shutdown = true; _latencyStop?.Cancel(); _headerLatencyStop?.Cancel(); _probeStop?.Cancel(); _poll.Stop(); IsEnabled = false;
+            e.Cancel = true; if (_shutdown) return;
+            if (!CloseDialogsForOwner()) { ShowNotice("Saving settings…"); return; }
+            _shutdown = true; _latencyStop?.Cancel(); _headerLatencyStop?.Cancel(); _probeStop?.Cancel(); _poll.Stop(); IsEnabled = false;
             try { if (_latencyTask is { } latency) await latency; if (_probeTask is { } probe) await probe; await PersistActivityLogAsync(); await _app.DisposeAsync(); DisposeTray(); _allowClose = true; Close(); }
             catch (Exception error) { IsEnabled = true; _shutdown = false; ShowError(error.Message); }
         };
-        KeyDown += (_, e) => { if (ActiveMoreSheet is null && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.O) { ImportFile(); e.Handled = true; } };
+        KeyDown += (_, e) =>
+        {
+            if (_dialogs.Count > 0)
+            {
+                if(!_dialogs[^1].IsKeyboardFocusWithin) { _dialogs[^1].Focus();e.Handled=true; }
+                return;
+            }
+            if (_providerDetails is not null && (e.Key == Key.Escape || e.Key == Key.Left && e.KeyModifiers.HasFlag(KeyModifiers.Alt))) { _ = ReturnProviderListAsync(); e.Handled = true; }
+            else if (ActiveMoreSheet is null && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.O) { ImportFile(); e.Handled = true; }
+        };
         ShowPage("Overview"); Refresh();
     }
     public override void Show()
@@ -272,7 +309,7 @@ internal sealed partial class MainWindow : Window
         ShowInTaskbar = true;
         if (WindowState == WindowState.Minimized) WindowState = _restoreState;
         Show();
-        if (_settingsDiscardDialog is { IsVisible: true } prompt) { prompt.WindowState = WindowState.Normal; prompt.Activate(); }
+        if (_settingsDiscardDialog is { IsVisible: true } prompt) { prompt.Activate(); }
         else Activate();
     }
     private Menu BuildMenu()
@@ -349,7 +386,9 @@ internal sealed partial class MainWindow : Window
     internal void ShowNotice(string text) => _notification.Show(UiText.Get(text), isError: false);
     internal void ShowPage(string page)
     {
+        _aboutView=null;_aboutReturn=null;
         ActiveMoreSheet?.DismissImmediately();
+        _providerDetails = null; _providerListActions = null;
         if (page == "Subscriptions") page = "Nodes";
         if (_page == "Settings" && page != "Settings" && SettingsDirty) _notification.Show(UiText.Get("Unsaved changes"), isError: false, isWarning: true);
         else if (page == "Settings" && _notification.IsWarning && _notification.Message == UiText.Get("Unsaved changes")) _notification.Dismiss();
@@ -382,7 +421,12 @@ internal sealed partial class MainWindow : Window
             case "Connections": _closeSelectionButton = Ui.Button("Close selected", CloseSelectedConnection); _pageActions.Children.Add(_closeSelectionButton); Action("Close all", () => Run(() => _app.Engine.CloseConnectionsAsync())); break;
             case "Logs": _pageActions.Children.Add(_logFilter); Action("Clear current category", () => { _logs.Clear(SelectedLogCategory); _ = PersistActivityLogAsync(); RefreshLog(true); }); Action("Copy", CopyVisibleLog); Action("Log settings", LogOptions); break;
         }
-        if (_removalBubble is not null) _pageActions.Children.Insert(_pageActions.Children.OfType<Button>().Select(b => _pageActions.Children.IndexOf(b)).DefaultIfEmpty(-1).Max()+1, _removalBubble);
+        if (_removalBubble is not null)
+        {
+            var anchor = _pageActions.Children.OfType<Button>().FirstOrDefault(b => b.Tag is "more-actions") ?? _pageActions.Children.OfType<Button>().Last();
+            var at = _pageActions.Children.IndexOf(anchor); _pageActions.Children.RemoveAt(at);
+            _removalBubble.AttachAnchor(anchor); _pageActions.Children.Insert(at, _removalBubble);
+        }
         _pageActionsHost.IsVisible = _pageActions.Children.Count > 0;
         if (page == "Overview") _pageHost.Content = _overviewScroll;
         else if (page == "Settings") _pageHost.Content = BuildSettings();
@@ -408,19 +452,19 @@ internal sealed partial class MainWindow : Window
         if (_removeSelectionButton is not { } remove) return;
         remove.IsEnabled = _page switch
         {
-            "Nodes" => nodeSelected || visible && SelectedSubscriptionId is not null,
+            "Nodes" => nodeSelected || visible && (SelectedSubscriptionId is not null || _chosen == "manual"),
             "Providers" => visible && Guid.TryParse(_chosen, out var provider) && _app.State.Providers.Any(p => p.Id == provider),
             "Rules" => visible && ruleIndex is not null,
             _ => false
         };
-        remove.Content = Ui.Text(_page == "Nodes" ? SelectedSubscriptionId is not null ? "Remove subscription" : "Remove node" : "Remove");
+        remove.Content = Ui.Text(_page == "Nodes" ? _chosen == "manual" ? "Remove manual nodes" : SelectedSubscriptionId is not null ? "Remove subscription" : "Remove node" : "Remove");
         if (_multiSelect && _selectedMany.Count > 1) remove.Content = Ui.Value(UiText.Format("Remove selected ({0})", _selectedMany.Count));
         _removalBubble?.SetOpen(_selectionManagement && remove.IsEnabled);
     }
     internal async Task ShowMoreActionsAsync(string context, params (string Label, Action Action)[] entries)
     {
         if (ActiveMoreSheet is { IsVisible: true } active) { active.Open(); return; }
-        var trigger = _pageActions.Children.OfType<Button>().SingleOrDefault(b => b.Tag is "more-actions");
+        var trigger = _removalBubble?.Anchor is { Tag: "more-actions" } anchor ? anchor : _pageActions.Children.OfType<Button>().SingleOrDefault(b => b.Tag is "more-actions");
         if (trigger is null) return;
         var sheet = new MoreActionsSheet(trigger, context, entries.Select(e => e.Label).ToArray());
         ActiveMoreSheet = sheet; _clientSurface.Children.Add(sheet); UpdateLayout(); sheet.Open();
@@ -441,6 +485,7 @@ internal sealed partial class MainWindow : Window
         _mode.SelectedIndex = (int)_app.State.Mode; _capture.SelectedIndex = (int)_app.State.Capture;
         _capture.IsEnabled = _app.Ready && !_app.Connected && !_app.Busy; _mode.IsEnabled = _app.Ready && !_app.Busy;
         _connect.SetState(_app.ConnectionState, _app.Busy || !_app.Ready, _app.ConnectionFailure);
+        _monitor.IpQuality.Update(IpQualityPresentation.From(_app.IpQualityResult),_app.Connected);
         _footer.Text = _app.Updating ? UiText.Get("Updating subscriptions and website status…") : _app.Connected ? $"127.0.0.1:{_app.State.MixedPort}  ·  mihomo 1.19.32" : $"TIZI {AppVersion}  ·  Windows";
         _pageActions.IsEnabled = _app.Ready && !_app.Busy; _rows.IsEnabled = _app.Ready && !_app.Busy; _subscriptionTree.IsEnabled = _app.Ready && !_app.Busy;
         if (_page == "Providers")
@@ -463,12 +508,18 @@ internal sealed partial class MainWindow : Window
         _syncing = false;
         if (!ReferenceEquals(_renderedState, _app.State) || _renderedPage != _page)
         { _renderedState = _app.State; _renderedPage = _page; RefreshRows(); RefreshInspector(); }
-        if (_page == "Settings" && _app.Ready && !_settingsLoaded) { _settingsLoaded = true; _pageHost.Content = BuildSettings(); }
+        if (_page == "Settings" && _app.Ready && !_settingsLoaded && _aboutView is null) { _settingsLoaded = true; _pageHost.Content = BuildSettings(); }
         Responsive();
     }
     private void RefreshRows()
     {
+        if (_aboutView is not null) return;
         if (_page is "Overview" or "Settings" or "Logs") return;
+        if (_page == "Providers" && _providerDetails is { } details)
+        {
+            if (!_app.State.Providers.Any(p => p.Id == details.ProviderId)) _ = ReturnProviderListAsync();
+            return;
+        }
         var query = _search.Text?.Trim() ?? "";
         if (_page == "Nodes")
         {
@@ -584,7 +635,7 @@ internal sealed partial class MainWindow : Window
     }
     private void OpenNodeEditor(ProxyNode? original)
     {
-        if (OwnedWindows.OfType<NodeEditor>().FirstOrDefault() is { } open) { open.Activate(); return; }
+        if (OpenDialogs.OfType<NodeEditor>().FirstOrDefault() is { } open) { open.Activate(); return; }
         _ = new NodeEditor(edited => _app.ExecuteAsync(async () =>
         {
             if (original is null) { await _app.ApplyImportAsync(new([edited], [], [], [], "Manual")); return; }
@@ -637,15 +688,21 @@ internal sealed partial class MainWindow : Window
         if (_multiSelect && _selectedMany.Count > 1) { RemoveMultipleItems(); return; }
         if (_preview || !IsVisibleTarget(_chosen) || _chosen is not { } target) return;
         var page = _page; var subscriptionId = SelectedSubscriptionId;
+        var manual = page == "Nodes" && target == "manual";
+        var manualTargets = manual ? ManualNodes(_app.State).Select(n => n.Id).ToHashSet() : [];
         if (page == "Nodes" && subscriptionId is { } sid && _app.State.Subscriptions.FirstOrDefault(s => s.Id == sid) is { } sub)
             if (!await ConfirmRemovalAsync(sub.Name, _app.State.Nodes.Count(n => n.SubscriptionId == sid))) return;
+        if (manual && manualTargets.Count > 1)
+            if (!await ConfirmRemovalAsync(UiText.Get("Manual nodes"), manualTargets.Count, true)) return;
         if (_page != page || _chosen != target || !IsVisibleTarget(target)) return;
         Run(async () =>
         {
             var before = _app.State; var state = before; Func<AppState, AppState>? undo = null;
             if (page == "Nodes")
             {
-                var removed = subscriptionId is { } ownerId ? before.Nodes.Where(n => n.SubscriptionId == ownerId).ToArray()
+                if (manual && !manualTargets.SetEquals(ManualNodes(before).Select(n => n.Id)))
+                    throw new InvalidOperationException(UiText.Get("The node group changed. Reopen its menu before removing it."));
+                var removed = manual ? ManualNodes(before).ToArray() : subscriptionId is { } ownerId ? before.Nodes.Where(n => n.SubscriptionId == ownerId).ToArray()
                     : Guid.TryParse(target, out var nodeId) ? before.Nodes.Where(n => n.Id == nodeId).ToArray() : [];
                 var removedIds = removed.Select(n => n.Id).ToHashSet();
                 if (_app.Connected && before.SelectedNode is { } active && removedIds.Contains(active))
@@ -759,18 +816,18 @@ internal sealed partial class MainWindow : Window
         dialog.Closed += (_, _) => { if (_editor == dialog) _editor = null; if (title is "Import nodes" or "Add subscription" && dialog.Applied) ShowImportResult(); };
         return dialog;
     }
-    private void About() => Dialog("About TIZI", [new("about", "TIZI " + AppVersion, "Compositor controls · mihomo 1.19.32\nUI source: robbietilton/Compositor and community Windows port (MIT)\nProxy engine: MetaCubeX/mihomo (GPL-3.0)\nIndependent project; no servers included.", true)], _ => Task.CompletedTask, "Close");
+    private void About() => _ = OpenAboutAsync();
     private void RefreshLog(bool force = false)
     {
         _logs.Settings = _app.State.Logs; _logs.Trim(DateTimeOffset.Now);
         _count.Text = UiText.Format("{0} entries", _logs.Entries.Count(e => SelectedLogCategory is null || e.Category == SelectedLogCategory));
-        if (force || _logView.SelectionStart == _logView.SelectionEnd) _logView.Text = VisibleLogText();
+        _logView.Update(_logs.Entries, SelectedLogCategory, force);
         if (_pageHost.Content != _logView) _pageHost.Content = _logView;
     }
     private async Task PollAsync()
     {
         _monitor.SetDuration(_app.ConnectedDuration);
-        if (_logDirty && _page == "Logs") { _logDirty = false; RefreshLog(); }
+        if ((_logDirty || _logView.Pending) && _page == "Logs" && _aboutView is null) { _logDirty = false; RefreshLog(); }
         if (DateTimeOffset.Now - _lastLogSave > TimeSpan.FromMinutes(1)) { _lastLogSave = DateTimeOffset.Now; await PersistActivityLogAsync(); }
         if (!_app.Connected || _polling || _shutdown) return; _polling = true;
         try

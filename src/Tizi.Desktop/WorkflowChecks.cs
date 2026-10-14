@@ -21,15 +21,16 @@ internal static class WorkflowChecks
 {
     internal static async Task<int> RunAsync(string output)
     {
-        Directory.CreateDirectory(output); File.Delete(Path.Combine(output, "workflow-failure.txt")); var checks = new List<string>();
+        Directory.CreateDirectory(output); File.Delete(Path.Combine(output, "workflow-failure.txt")); File.Delete(Path.Combine(output, "workflow-checks.json")); var checks = new List<string>();
         void Check(bool value, string label) { if (!value) throw new InvalidOperationException(label); checks.Add(label); }
-        void Layout(TopLevel window) { window.UpdateLayout(); Dispatcher.UIThread.RunJobs(); }
-        void Click(TopLevel window, Control control)
+        void Layout(Control window) { window.UpdateLayout(); Dispatcher.UIThread.RunJobs(); }
+        void Click(Control window, Control control)
         {
+            CenteredDialogChecks.Ready(window);
             Layout(window); var point = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
             window.MouseMove(point); window.MouseDown(point, MouseButton.Left); window.MouseUp(point, MouseButton.Left); Layout(window);
         }
-        void RightClick(Window window, Control control)
+        void RightClick(Control window, Control control)
         {
             Layout(window); var point = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
             window.MouseMove(point); window.MouseDown(point, MouseButton.Right); window.MouseUp(point, MouseButton.Right); Layout(window);
@@ -47,7 +48,12 @@ internal static class WorkflowChecks
         try
         {
             UiText.Language = "zh-CN";
+            await CenteredDialogChecks.RunAsync(output, Check);
+            await LogViewChecks.RunAsync(output, Check);
+            await SubscriptionRevision0126Checks.RunAsync(output, Check);
+            await Revision0126PlusChecks.RunAsync(output, Check);
             await Revision0124Checks.RunAsync(output, Check);
+            await Revision0126Checks.RunAsync(output, Check);
             var rules = Enumerable.Range(0, 9233).Select(i => new RoutingRule("DOMAIN", $"fixture{i}.example", "DIRECT")).ToList();
             var node = NodeImport.Parse("ss://YWVzLTEyOC1nY206ZGVtby1wYXNzd29yZA@jp.example.net:443#Japan%20fixture")[0];
             var state = new AppState { Nodes = [node], SelectedNode = node.Id, Rules = rules, AutoUpdate = false, AutoUpdateProviders = false, StartHidden = false };
@@ -175,8 +181,8 @@ internal static class WorkflowChecks
             Check(ReferenceEquals(original, window.Controller.State), "Rejected import changes neither nodes nor rules"); rejected.Close(); await rejection;
             var reviewEditor = window.CreateImportEditor(); var reviewShown = reviewEditor.ShowDialog(window);
             reviewEditor.Field("text").Text = "{\"proxies\":[" + node.Options.ToJsonString() + "],\"proxy-providers\":{}}";
-            var reviewSubmit = reviewEditor.SubmitAsync(); await Until(() => reviewEditor.OwnedWindows.Any());
-            reviewEditor.OwnedWindows.Single().Close(false); await reviewSubmit;
+            var reviewSubmit = reviewEditor.SubmitAsync(); await Until(() => reviewEditor.OwnedDialogs.Any());
+            reviewEditor.OwnedDialogs.Single().Close(false); await reviewSubmit;
             Check(!reviewEditor.Applied && reviewEditor.ErrorText is null && reviewEditor.IsVisible && ReferenceEquals(original, window.Controller.State), "Cancelling import review returns to the editor without reporting success or altering data"); reviewEditor.Close(); await reviewShown;
             var directory = window.CreateProviderDirectoryEditor(); var directoryShown = directory.ShowDialog(window); Layout(directory);
             var directoryField = directory.Field("directory"); Check(directoryField.VerticalContentAlignment == VerticalAlignment.Top && directoryField.CaretIndex == 0, "Airport directory editor starts at the first line");
@@ -246,26 +252,26 @@ internal static class WorkflowChecks
             var sourceRequests = new List<string>(); var providerSelections = 0;
             providerRows.SourceRequested += sourceRequests.Add; providerRows.Chosen += _ => providerSelections++;
             Click(window, providerLink);
-            Check(sourceRequests.SequenceEqual(new[] { provider.Url }) && providerSelections == 0 && window.ProviderDetailsWindow is null && !providerCard.Classes.Contains("selected-card"), "Airport URL mouse click opens only its website without selecting the parent card or showing details");
+            Check(sourceRequests.SequenceEqual(new[] { provider.Url }) && providerSelections == 0 && window.ProviderDetailsView is null && !providerCard.Classes.Contains("selected-card"), "Airport URL mouse click opens only its website without selecting the parent card or showing details");
             foreach (var key in new[] { Key.Enter, Key.Space })
             {
                 var physical = key == Key.Enter ? PhysicalKey.Enter : PhysicalKey.Space;
                 providerLink.Focus(); window.KeyPress(key, RawInputModifiers.None, physical, null); window.KeyRelease(key, RawInputModifiers.None, physical, null); Layout(window);
-                Check(sourceRequests.Count == (key == Key.Enter ? 2 : 3) && sourceRequests.All(url => url == provider.Url) && providerSelections == 0 && window.ProviderDetailsWindow is null, "Airport URL " + key + " activation never bubbles into parent selection or details");
+                Check(sourceRequests.Count == (key == Key.Enter ? 2 : 3) && sourceRequests.All(url => url == provider.Url) && providerSelections == 0 && window.ProviderDetailsView is null, "Airport URL " + key + " activation never bubbles into parent selection or details");
             }
             Click(window, providerCard);
-            Check(providerCard.Classes.Contains("selected-card") && providerSelections == 1 && window.ProviderDetailsWindow is null, "Single airport-card click selects it for Remove without opening a details window");
+            Check(providerCard.Classes.Contains("selected-card") && providerSelections == 1 && window.ProviderDetailsView is null, "Single airport-card click selects it for Remove without opening a details page");
             var providerContent = providerCard.Content;
             Click(window, window.PageHeading);
-            Check(!providerCard.Classes.Contains("selected-card") && !window.GetVisualDescendants().OfType<Button>().Single(b => b.Tag is "remove-selection").IsEffectivelyEnabled && window.ProviderDetailsWindow is null, "Blank content-heading click clears airport selection and disables Remove without opening details");
+            Check(!providerCard.Classes.Contains("selected-card") && !window.GetVisualDescendants().OfType<Button>().Single(b => b.Tag is "remove-selection").IsEffectivelyEnabled && window.ProviderDetailsView is null, "Blank content-heading click clears airport selection and disables Remove without opening details");
             Click(window, providerCard);
-            Check(ReferenceEquals(providerContent, providerCard.Content) && providerCard is ProviderCardButton && providerCard.Background == Brushes.Transparent && providerRows.Backplate.Background == Ui.SelectionBrush, "Airport reselection retains its content above the same moving selection surface used by other content pages");
+            Check(ReferenceEquals(providerContent, providerCard.Content) && providerCard is ProviderCardButton && providerCard.Background == Brushes.Transparent && !providerRows.Backplate.IsVisible, "Airport reselection retains its content and action target while gray emphasis stays pointer-driven");
             Click(window, window.PageHeading); Click(window, providerCard); Click(window, providerCard);
-            await Until(() => window.ProviderDetailsWindow is not null);
-            var details = window.ProviderDetailsWindow!; Layout(details);
-            Check(details.IsVisible && details.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == provider.Name) && window.OwnedWindows.Count() == 1, "Double-clicking an airport card opens exactly its own details window");
-            details.Close(); await Until(() => window.ProviderDetailsWindow is null);
-            Check(window.PageView.GetVisualDescendants().OfType<Button>().Any(b => b.Classes.Contains("selected-card")), "Airport card remains visibly selected after details close");
+            await Until(() => window.ProviderDetailsView is not null);
+            var details = window.ProviderDetailsView!; Layout(window);
+            Check(details.IsVisible && details.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == provider.Name) && !window.OwnedWindows.Any() && ReferenceEquals(window.PageView, details), "Double-clicking an airport card opens its own details inside the main content area");
+            await window.ReturnProviderListAsync(); await Until(() => window.ProviderDetailsView is null);
+            Check(window.PageView.GetVisualDescendants().OfType<Button>().Any(b => b.Classes.Contains("selected-card")), "Airport card retains its logical action target after details close");
             Check(!window.GetVisualDescendants().OfType<Button>().Any(b => b.Content is TextBlock t && t.Text == UiText.Get("Details")), "Airport page has no redundant Details button");
             VisualChecks.Run(window, output);
             Check(window.Controller.State.Rules.Count == 9233 && window.Controller.State.Subscriptions.Count == 1, "Repeated rendering and navigation preserve the imported profile");
@@ -335,8 +341,8 @@ internal static class WorkflowChecks
             Click(TopLevel.GetTopLevel(nodeEditAction)!, nodeEditAction);
             var retractingMenu = nodeMenu.GetVisualDescendants().OfType<PopupRevealSurface>().Single();
             Check(menuClicks == 1 && nodeMenu.IsOpen && !retractingMenu.IsHitTestVisible && !headerWindow.OwnedWindows.Any(), "A context action starts retracting before dispatch and cannot receive a second click during retraction");
-            await Until(() => !nodeMenu.IsOpen && headerWindow.OwnedWindows.OfType<NodeEditor>().Any()); Layout(headerWindow);
-            var nodeEditor = headerWindow.OwnedWindows.OfType<NodeEditor>().Single();
+            await Until(() => !nodeMenu.IsOpen && headerWindow.OpenDialogs.OfType<NodeEditor>().Any()); Layout(headerWindow);
+            var nodeEditor = headerWindow.OpenDialogs.OfType<NodeEditor>().Single();
             Check(nodeEditor.IsVisible && nodeEditor.NameField.Text == same[0].Name, "The node context Edit opens the targeted node after its menu has retracted");
             var beforeNodeEdit = headerWindow.Controller.State;
             var advancedBefore = nodeEditor.Advanced.Text;
@@ -386,7 +392,8 @@ internal static class WorkflowChecks
             await Until(() => !headerWindow.Controller.Busy && headerWindow.Controller.State.SelectedNode == same[0].Id);
             Check(new Vault(UserData.DirectoryPath).Read<AppState>("settings.dat")!.SelectedNode == same[0].Id, "Enter activates the focused node as the keyboard equivalent of a double click");
             headerWindow.ShowPage("Settings"); Layout(headerWindow);
-            var restoreOption = headerWindow.PageView.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Content is TextBlock t && t.Text == UiText.Get("Restore the previous connection on startup"));
+            Click(headerWindow, headerWindow.SettingsSections!.ButtonAt(3)); Layout(headerWindow);
+            var restoreOption = headerWindow.PageView.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Content is TextBlock t && t.Text == UiText.Get("Enable IPv6"));
             var savedRestore = restoreOption.IsChecked; var settingsOrigin = headerWindow.PageHeading.TranslatePoint(default, headerWindow)!.Value;
             restoreOption.IsChecked = !savedRestore; Layout(headerWindow);
             Check(headerWindow.SettingsDirty && !headerWindow.Notification.Showing && headerWindow.PageHeading.TranslatePoint(default, headerWindow)!.Value == settingsOrigin, "Settings edits keep their draft local without showing an early notification or moving the page");
@@ -394,14 +401,18 @@ internal static class WorkflowChecks
             Check(!headerWindow.SettingsDirty && !headerWindow.Notification.Showing, "Restoring every original setting clears the dirty state and dismisses its notice");
             restoreOption.IsChecked = !savedRestore; headerWindow.ShowPage("Nodes"); headerWindow.ShowPage("Settings"); Layout(headerWindow);
             Check(headerWindow.SettingsDirty && restoreOption.IsChecked != savedRestore, "Unsaved settings survive page navigation");
+            Click(headerWindow, headerWindow.SettingsSections!.ButtonAt(0)); Layout(headerWindow);
             var languageChoice = headerWindow.PageView.GetVisualDescendants().OfType<StableChoice>().Single(c => c.Items.Contains("English"));
             languageChoice.SelectedIndex = 1; Layout(headerWindow);
+            Click(headerWindow, headerWindow.SettingsSections!.ButtonAt(3)); Layout(headerWindow);
             Check(headerWindow.SettingsDirty && restoreOption.IsChecked != savedRestore && headerWindow.PageView.GetVisualDescendants().OfType<CheckBox>().Contains(restoreOption), "Switching language translates the form while retaining the same pending controls");
+            Click(headerWindow, headerWindow.SettingsSections!.ButtonAt(0)); Layout(headerWindow);
             languageChoice.SelectedIndex = 0; Layout(headerWindow);
+            Click(headerWindow, headerWindow.SettingsSections!.ButtonAt(3)); Layout(headerWindow);
             var settingsSave = headerWindow.PageView.GetVisualDescendants().OfType<Button>().Single(b => b.Content is TextBlock t && t.Text == UiText.Get("Save settings"));
             Click(headerWindow, settingsSave); await Until(() => !headerWindow.Controller.Busy); Layout(headerWindow);
-            Check(!headerWindow.SettingsDirty && headerWindow.Controller.State.RestoreConnection == (!savedRestore == true) && headerWindow.Notification.Message == UiText.Get("Settings saved") && !headerWindow.Notification.IsError, "Successful settings save updates the encrypted profile and uses a positive top notification");
-            Check(new Vault(UserData.DirectoryPath).Read<AppState>("settings.dat")!.RestoreConnection == headerWindow.Controller.State.RestoreConnection, "Saved settings notification follows actual encrypted persistence");
+            Check(!headerWindow.SettingsDirty && headerWindow.Controller.State.Transport.Ipv6 == (!savedRestore == true) && headerWindow.Notification.Message == UiText.Get("Settings saved") && !headerWindow.Notification.IsError, "Successful advanced settings save updates the encrypted profile and uses a positive top notification");
+            Check(new Vault(UserData.DirectoryPath).Read<AppState>("settings.dat")!.Transport.Ipv6 == headerWindow.Controller.State.Transport.Ipv6, "Saved settings notification follows actual encrypted persistence");
             Click(headerWindow, headerWindow.SettingsSections!.ButtonAt(5)); Layout(headerWindow);
             var delayField = headerWindow.PageView.GetVisualDescendants().OfType<TextBox>().Single(t => t.Text == headerWindow.Controller.State.DelayUrl);
             var savedDelay = delayField.Text; delayField.Text = "invalid URL"; Click(headerWindow, settingsSave); await Until(() => !headerWindow.Controller.Busy); Layout(headerWindow);
@@ -536,8 +547,11 @@ internal static class WorkflowChecks
             await OperationNotificationChecks.RunAsync(output, Check);
             await Revision0122Checks.RunAsync(output, Check);
             ProviderCardChecks.Run(output, Check);
+            await Revision0127Checks.RunAsync(output, Check);
+            await Revision0128Checks.RunAsync(output, Check);
+            TagAlignmentChecks.Run(output, Check);
             var proxyAfter = new WindowsProxyRegistry().Read(); Check(proxyBefore.All(p => p.Value is null ? proxyAfter[p.Key] is null : p.Value.Same(proxyAfter[p.Key])), "All workflow checks leave Windows proxy settings unchanged");
-            File.WriteAllText(Path.Combine(output, "workflow-checks.json"), JsonSerializer.Serialize(new { passed = checks.Count, checks, syntheticData = true, nativeTaskbarVerified = false, userNodeConnected = false }, new JsonSerializerOptions { WriteIndented = true })); return 0;
+            File.WriteAllText(Path.Combine(output, "workflow-checks.json"), JsonSerializer.Serialize(new { passed = checks.Count, checks, syntheticData = true, nativeTaskbarVerified = false, userNodeConnected = false, binary = VerificationStamp.Current() }, new JsonSerializerOptions { WriteIndented = true })); return 0;
         }
         catch (Exception error) { File.WriteAllText(Path.Combine(output, "workflow-failure.txt"), string.Join('\n', checks) + "\n" + error); return 1; }
     }

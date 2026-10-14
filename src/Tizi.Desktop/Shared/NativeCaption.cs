@@ -45,7 +45,7 @@ internal static class NativeCaption
         var color = window.Background is ISolidColorBrush brush ? brush.Color : Skin.Chrome;
         return color.R | color.G << 8 | color.B << 16;
     }
-    internal static bool HideCaptionIcon(Window window) => window is MainWindow || window.Tag is "discard-settings";
+    internal static bool HideCaptionIcon(Window window) => !TrayMenuPlacement.IsTrayMenu(window);
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(nint window, int attribute, ref int value, int size);
     [DllImport("user32.dll")] private static extern nint CreateIcon(nint instance, int width, int height, byte planes, byte bitsPerPixel, byte[] andMask, byte[] xorMask);
     [DllImport("user32.dll")] private static extern bool DestroyIcon(nint icon);

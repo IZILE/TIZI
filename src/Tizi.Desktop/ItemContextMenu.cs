@@ -28,8 +28,8 @@ internal static class ItemContextMenu
             var item = new MenuItem { [!MenuItem.HeaderProperty] = UiText.Bind(label) };
             item.Click += (_, _) =>
             {
-                if (!menu.IsOpen) { select(); action(); return; }
-                pending = () => { select(); action(); }; menu.Close();
+                if (!menu.IsOpen) { select(); DialogOrigin.Remember(owner); action(); return; }
+                pending = () => { select(); DialogOrigin.Remember(owner); action(); }; menu.Close();
             };
             menu.Items.Add(item);
         }

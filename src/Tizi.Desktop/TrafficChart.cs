@@ -10,13 +10,18 @@ namespace Tizi.Desktop;
 /// <summary>One time axis, separate speed and latency scales, with bounded real samples.</summary>
 internal sealed class TrafficChart : Control
 {
-    internal static readonly IBrush DownloadColor = Ui.DataAccent, UploadColor = new SolidColorBrush(Color.Parse("#58D6B2")), LatencyColor = new SolidColorBrush(Color.Parse("#F6C76C"));
+    internal static readonly IBrush DownloadColor = new SolidColorBrush(Color.Parse("#58D6B2")), UploadColor = Ui.DataAccent, LatencyColor = new SolidColorBrush(Color.Parse("#F6C76C"));
     private readonly List<(DateTimeOffset Time, long Up, long Down)> _traffic = [];
     private readonly List<(DateTimeOffset Time, int? Value)> _delays = [];
     private readonly bool[] _visible = [true, true, true];
     private readonly DispatcherTimer _motion = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private DateTimeOffset _now;
     private long _started;
+    private double _interval = 1, _fromMaximum = 100000;
+    internal double? PreviewElapsed { get; set; }
+    private double SecondsSinceSample => PreviewElapsed ?? (_started == 0 ? 0 : Stopwatch.GetElapsedTime(_started).TotalSeconds);
+    internal DateTimeOffset DisplayTime => _now == default ? _now : _now.AddSeconds(-_interval + SecondsSinceSample);
+    internal bool Animating => _motion.IsEnabled;
     private double? _hoverX;
     private string _hoverText = "";
     internal bool HasData => _traffic.Count > 0 || _delays.Count > 0;
@@ -30,26 +35,30 @@ internal sealed class TrafficChart : Control
     internal TrafficChart()
     {
         Height = 220; ClipToBounds = true;
-        _motion.Tick += (_, _) => { InvalidateVisual(); if (Elapsed >= 1) _motion.Stop(); };
+        _motion.Tick += (_, _) => { if(_hoverX is { } x)HoverAt(x);else InvalidateVisual(); };
+        AttachedToVisualTree += (_, _) => { if (HasData) _motion.Start(); };
         DetachedFromVisualTree += (_, _) => _motion.Stop();
         PointerMoved += (_, e) => { var point = e.GetPosition(this); if (Plot.Contains(point)) HoverAt(point.X); else ClearHover(); };
         PointerExited += (_, _) => ClearHover();
     }
-    private double Elapsed => Math.Clamp(Stopwatch.GetElapsedTime(_started).TotalMilliseconds / 220, 0, 1);
+    private double RenderMaximum => _fromMaximum+(SpeedMaximum-_fromMaximum)*Math.Clamp(SecondsSinceSample/Math.Max(.1,_interval),0,1);
     internal bool SeriesVisible(int series) => _visible[series];
     internal void SetSeriesVisible(int series, bool visible) { _visible[series] = visible; InvalidateVisual(); }
     internal void Add(long up, long down, DateTimeOffset? time = null)
     {
-        var stamp = time ?? DateTimeOffset.Now; _traffic.Add((stamp, Math.Max(0, up), Math.Max(0, down))); Advance(stamp);
+        var stamp = time ?? DateTimeOffset.Now; _fromMaximum = RenderMaximum;
+        if (_now != default && (stamp-_now).TotalSeconds is >= .1 and <= 3) _interval = (stamp-_now).TotalSeconds;
+        _now = stamp; _traffic.Add((stamp, Math.Max(0, up), Math.Max(0, down))); Advance(stamp);
         _started = Stopwatch.GetTimestamp(); if (VisualRoot is not null) _motion.Start(); InvalidateVisual();
     }
     internal void AddLatency(int? delay, DateTimeOffset? time = null)
     {
-        var stamp = time ?? DateTimeOffset.Now; _delays.Add((stamp, delay is >= 0 ? delay : null)); Advance(stamp); InvalidateVisual();
+        var stamp = time ?? DateTimeOffset.Now; _delays.Add((stamp, delay is >= 0 ? delay : null));
+        if (_traffic.Count == 0) { _now=stamp; _started=Stopwatch.GetTimestamp(); if(VisualRoot is not null)_motion.Start(); }
+        Advance(stamp); InvalidateVisual();
     }
     private void Advance(DateTimeOffset stamp)
     {
-        if (stamp > _now) _now = stamp;
         _traffic.RemoveAll(s => s.Time < _now.AddSeconds(-60)); _delays.RemoveAll(s => s.Time < _now.AddSeconds(-60));
         if (_traffic.Count > 120) _traffic.RemoveRange(0, _traffic.Count - 120); if (_delays.Count > 120) _delays.RemoveRange(0, _delays.Count - 120);
         if (_hoverX is { } x) HoverAt(x);
@@ -58,7 +67,7 @@ internal sealed class TrafficChart : Control
     {
         if (!HasData) { ClearHover(); return ""; }
         _hoverX = Math.Clamp(x, Plot.Left, Plot.Right);
-        var stamp = _now.AddSeconds(-60 + 60 * ((_hoverX.Value - Plot.Left) / Math.Max(1, Plot.Width)));
+        var stamp = DisplayTime.AddSeconds(-60 + 60 * ((_hoverX.Value - Plot.Left) / Math.Max(1, Plot.Width)));
         var sample = _traffic.OrderBy(s => Math.Abs((s.Time - stamp).TotalMilliseconds)).FirstOrDefault();
         var latency = _delays.OrderBy(s => Math.Abs((s.Time - stamp).TotalMilliseconds)).FirstOrDefault();
         var trafficClose = sample.Time != default && Math.Abs((sample.Time - stamp).TotalSeconds) <= 2;
@@ -69,7 +78,7 @@ internal sealed class TrafficChart : Control
         HoverChanged?.Invoke(text); InvalidateVisual(); return text;
     }
     private void ClearHover() { _hoverX = null; _hoverText = ""; HoverChanged?.Invoke(""); InvalidateVisual(); }
-    internal void Reset() { _traffic.Clear(); _delays.Clear(); _now = default; _motion.Stop(); ClearHover(); }
+    internal void Reset() { _traffic.Clear(); _delays.Clear(); _now = default; _started=0; _interval=1; _fromMaximum=100000; _motion.Stop(); ClearHover(); }
     internal void ClearLatencies() { _delays.Clear(); InvalidateVisual(); }
     private static double NiceMaximum(double value, double minimum)
     {
@@ -83,7 +92,7 @@ internal sealed class TrafficChart : Control
             var text = new FormattedText(value, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(FontFamily.Default), 11, Skin.SecondaryBrush);
             context.DrawText(text, new(x - (right ? text.Width : 0), y));
         }
-        var speedMax = SpeedMaximum; var delayMax = LatencyMaximum;
+        var speedMax = RenderMaximum; var delayMax = LatencyMaximum;
         Label(UiText.Get("Speed") + " (MB/S)", plot.Left, 0); if (_visible[2]) Label(UiText.Get("Latency") + " (ms)", Bounds.Width - 2, 0, true);
         for (var i = 0; i < 4; i++)
         {
@@ -92,7 +101,8 @@ internal sealed class TrafficChart : Control
             Label(UiFormat.SpeedNumber(speedMax * fraction), plot.Left - 10, y - 6, true); if (_visible[2]) Label($"{delayMax * fraction:0}", plot.Right + 10, y - 6);
         }
         Label("−60 s", plot.Left, plot.Bottom + 10); Label("−30 s", plot.Center.X, plot.Bottom + 10, true); Label(UiText.Get("Now"), plot.Right, plot.Bottom + 10, true);
-        double X(DateTimeOffset time) => plot.Left + Math.Clamp(1 - (_now - time).TotalSeconds / 60, 0, 1) * plot.Width;
+        var cursor=DisplayTime;
+        double X(DateTimeOffset time) => plot.Left + (1 - (cursor - time).TotalSeconds / 60) * plot.Width;
         void Line(IEnumerable<(DateTimeOffset Time, double? Value)> source, double maximum, IBrush brush, double maximumGap)
         {
             Point? previous = null; DateTimeOffset previousTime = default;
@@ -100,7 +110,14 @@ internal sealed class TrafficChart : Control
             {
                 if (sample.Value is not { } value) { previous = null; continue; }
                 var point = new Point(X(sample.Time), plot.Bottom - Math.Clamp(value / maximum, 0, 1) * plot.Height);
-                if (previous is { } from && sample.Time > previousTime && (sample.Time - previousTime).TotalSeconds <= maximumGap) context.DrawLine(new Pen(brush, 2, lineCap: PenLineCap.Round), from, point);
+                if (previous is { } from && sample.Time > previousTime && (sample.Time - previousTime).TotalSeconds <= maximumGap)
+                {
+                    // Horizontal endpoint tangents keep adjacent segments continuous without
+                    // creating values above a measured peak or below a measured trough.
+                    var path=new StreamGeometry();using(var line=path.Open())
+                    { line.BeginFigure(from,false);var third=(point.X-from.X)/3;line.CubicBezierTo(new(from.X+third,from.Y),new(point.X-third,point.Y),point);line.EndFigure(false); }
+                    using(context.PushClip(plot))context.DrawGeometry(null,new Pen(brush,2,lineCap:PenLineCap.Round),path);
+                }
                 previous = point; previousTime = sample.Time;
             }
         }
@@ -109,7 +126,6 @@ internal sealed class TrafficChart : Control
             for (var i = 0; i < _traffic.Count; i++)
             {
                 double value = upload ? _traffic[i].Up : _traffic[i].Down;
-                if (i == _traffic.Count - 1 && i > 0) value = (upload ? _traffic[i - 1].Up : _traffic[i - 1].Down) * (1 - Elapsed) + value * Elapsed;
                 yield return (_traffic[i].Time, value);
             }
         }

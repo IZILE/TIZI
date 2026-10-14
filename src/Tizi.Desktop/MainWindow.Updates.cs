@@ -10,11 +10,11 @@ namespace Tizi.Desktop;
 
 internal sealed partial class MainWindow
 {
-    private Window? _updateWindow;
+    private CenteredDialog? _updateWindow;
     private void ShowUpdates()
     {
         if (_updateWindow is { } opened) { opened.Activate(); return; }
-        var dialog = _updateWindow = new Window { Title = UiText.Get("Version updates"), Width = 580, MinWidth = 460, MaxHeight = 720, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Skin.ChromeBrush, ShowInTaskbar = false, Icon = Icon };
+        var dialog = _updateWindow = new CenteredDialog { Title = UiText.Get("Version updates"), Width = 580, MinWidth = 460, MaxHeight = 720, SizeToContent = SizeToContent.Height, Background = Skin.ChromeBrush };
         var status = Ui.Text("Check GitHub for a new version", true); status.TextWrapping = Avalonia.Media.TextWrapping.Wrap;
         var notes = new TextBox { IsReadOnly = true, AcceptsReturn = true, TextWrapping = Avalonia.Media.TextWrapping.Wrap, MaxHeight = 280, IsVisible = false, Classes = { "text-input" } };
         var progress = new ProgressBar { Minimum = 0, Maximum = 100, Height = 6, IsVisible = false };

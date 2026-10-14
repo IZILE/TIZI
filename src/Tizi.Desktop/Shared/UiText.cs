@@ -46,7 +46,7 @@ internal static class UiText
 
     public static void Set(AvaloniaObject owner, AvaloniaProperty property, string text) => owner.Bind(property, Bind(text));
 
-    public static void WireChoices(Window window)
+    public static void WireChoices(ContentControl window)
     {
         // Window initialization can precede the derived constructor's content. Content assignment is
         // still before Show and layout, so translated templates and numeric styling are ready for frame one.
