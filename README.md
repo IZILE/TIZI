@@ -30,10 +30,4 @@ TIZI 是面向 Windows 的代理客户端，提供节点与订阅管理、分流
 
 ## 界面预览
 
-以下使用默认 1032 × 722 窗口和模拟数据。
-
-![设置与对称边距](docs/previews/0.1.36/settings-dns.png)
-
-![模型选择](docs/previews/0.1.36/ai-model-picker.png)
-
-[当前模型置顶](docs/previews/0.1.36/ai-model-picker-open.png) · [概览与弱网曲线](docs/previews/0.1.33/poor-network-overview.png) · [更新提示](docs/previews/0.1.35/update-available-blue.png)
+![概览](docs/previews/0.1.33/poor-network-overview.png)
