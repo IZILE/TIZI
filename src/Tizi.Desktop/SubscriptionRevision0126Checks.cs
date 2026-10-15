@@ -29,6 +29,20 @@ internal static class SubscriptionRevision0126Checks
         try
         {
             var group = window.SubscriptionView.Groups.Single(g => g.Key == subscription.Id.ToString());
+            foreach(var card in window.SubscriptionView.Groups)
+            {
+                var groupSelectionEvents=0;card.Selected+=()=>groupSelectionEvents++;
+                foreach(var corner in new[]{new Point(2,2),new Point(card.Disclosure.Bounds.Width-2,2),new Point(2,card.Disclosure.Bounds.Height-2),new Point(card.Disclosure.Bounds.Width-2,card.Disclosure.Bounds.Height-2)})
+                {
+                    foreach(var shownCard in window.SubscriptionView.Groups)
+                    {var transitions=shownCard.Reveal.Transitions;shownCard.Reveal.Transitions=null;shownCard.Reveal.Progress=shownCard.NodesShown?1:0;shownCard.Reveal.Transitions=transitions;}
+                    Layout(window);card.Header.BringIntoView();Layout(window);
+                    var expanded=card.Expanded;var disclosurePoint=card.Disclosure.TranslatePoint(corner,window)!.Value;
+                    window.MouseMove(disclosurePoint);window.MouseDown(disclosurePoint,MouseButton.Left);window.MouseUp(disclosurePoint,MouseButton.Left);Layout(window);
+                    check(card.Expanded!=expanded&&groupSelectionEvents==0&&window.Controller.State.SelectedNode==subscribed.Id,
+                        "The expanded disclosure hit target toggles "+card.Key+" from padded corner "+corner+" without selecting the group or switching a node");
+                }
+            }
             Click(window, group.Header);
             using (var clock = new UiAnimationClock(group, group.Reveal))
             {

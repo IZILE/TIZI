@@ -34,7 +34,7 @@ internal sealed partial class MainWindow
         var format = new StableChoice { ItemsSource = new[] { "JSON", "YAML", UiText.Get("Share link"), UiText.Get("QR code") }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
         var text = new TextBox { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Tag = "export-output", Classes = { "text-input" } };
         var image = new Image { Stretch = Stretch.Uniform, MaxWidth = 360, MaxHeight = 360, HorizontalAlignment = HorizontalAlignment.Center };
-        var error = Ui.Value(""); error.TextWrapping = TextWrapping.Wrap; error.Foreground = new SolidColorBrush(Color.Parse("#FFB5A5"));
+        var error = Ui.Value(""); error.TextWrapping = TextWrapping.Wrap; error.Foreground = Skin.Error;
         var target = Ui.Value(""); target.TextWrapping = TextWrapping.Wrap; target.TextTrimming = TextTrimming.None; target.Tag = "export-target";
         var feedback = Ui.Value("", true, 13); feedback.IsVisible = false; feedback.TextWrapping = TextWrapping.Wrap; feedback.Tag = "export-feedback";
         Button? copy = null, save = null;

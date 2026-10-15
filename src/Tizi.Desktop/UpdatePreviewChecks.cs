@@ -28,7 +28,7 @@ internal static class UpdatePreviewChecks
             Save("update-normal.png");await window.CheckStartupUpdatesAsync();await window.CheckStartupUpdatesAsync();
             var button=window.VersionUpdateButton!;
             check(transport.Requests==1&&button.Content is TextBlock{Text:"发现新版本"},"Startup update discovery runs once and changes the existing settings action");
-            check(button.Background is ISolidColorBrush brush&&brush.Color==Color.Parse("#2979F5")&&((TextBlock)button.Content!).Foreground==Skin.LabelBrush,"An available release uses the existing blue accent and normal readable label");
+            check(button.Background is ISolidColorBrush brush&&brush.Color==Color.Parse("#2979F5")&&((TextBlock)button.Content!).Foreground==Skin.OnAccent,"An available release uses the existing blue accent and its readable foreground");
             Save("update-available.png");window.ShowUpdates();var dialog=window.OpenDialogs.Single();CenteredDialogChecks.Ready(dialog);window.UpdateLayout();
             var actions=dialog.GetVisualDescendants().OfType<Button>().Where(b=>b.IsVisible).ToArray();
             check(actions.Any(b=>b.Content is TextBlock{Text:"下载新版本"})&&!actions.Any(b=>b.Content is TextBlock t&&t.Text==UiText.Get("GitHub releases")),"A cached new release opens directly with Download new version and no GitHub releases action");

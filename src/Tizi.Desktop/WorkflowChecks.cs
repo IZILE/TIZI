@@ -570,6 +570,7 @@ internal static class WorkflowChecks
                 Check(displayed.Height>180 && displayed.Height<240,"Settings cards pass through intermediate sizes without scaling their content");
                 cardsLast.ContinueFrom(cardsAfter);cardHost.Content=cardsLast;Layout(cardWindow);
                 Check(cardsLast.Children[0].Bounds==displayed,"A rapid section change continues from the current card shape");
+                Check(cardsLast.GetVisualChildren().SequenceEqual(cardsLast.Children.Cast<Visual>()),"A settings tab transition paints only the current page's cards without outgoing ghost surfaces");
                 cardsClock.Pulse(70);cardsClock.Pulse(400);Layout(cardWindow);
                 Check(cardsLast.Progress==1 && Math.Abs(cardsLast.Children[0].Bounds.Height-160)<.1,"Settings section settles to its final card size");
             }
@@ -579,6 +580,7 @@ internal static class WorkflowChecks
             await OperationNotificationChecks.RunAsync(output, Check);
             await Revision0122Checks.RunAsync(output, Check);
             ProviderCardChecks.Run(output, Check);
+            NodeHoverChecks.Verify(output,Check);
             await Revision0127Checks.RunAsync(output, Check);
             await Revision0128Checks.RunAsync(output, Check);
             TagAlignmentChecks.Run(output, Check);

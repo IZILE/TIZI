@@ -13,6 +13,7 @@ internal sealed class ProviderCardButton : Button
     private bool _multipleSelected;
     private static readonly IBrush EmptyProviderTint=new SolidColorBrush(Color.FromArgb(0,65,65,65));
     private static readonly IBrush HoverTint=new SolidColorBrush(Color.Parse("#182979F5")), MultipleTint=new SolidColorBrush(Color.Parse("#262979F5"));
+    private static readonly IBrush ClearNodeTint=new SolidColorBrush(Color.FromArgb(0,41,121,245));
     internal ProviderCardButton(bool nodeTile=false) { _nodeTile=nodeTile; Classes.Add("provider-card"); }
     internal void SetMultipleSelected(bool selected) { _multipleSelected=selected; UpdateFeedback(); }
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -22,6 +23,11 @@ internal sealed class ProviderCardButton : Button
         {
             var transitions=_face.Transitions;_face.Transitions=null;
             _face.Background=EmptyProviderTint;_face.Transitions=transitions;
+        }
+        else if(_nodeTile&&_face is not null)
+        {
+            var transitions=_face.Transitions;_face.Transitions=null;
+            _face.Background=ClearNodeTint;_face.BorderBrush=ClearNodeTint;_face.Transitions=transitions;
         }
         UpdateFeedback();
     }
@@ -36,7 +42,7 @@ internal sealed class ProviderCardButton : Button
             return;
         }
         _face.BorderThickness=new Thickness(1.25);
-        Motion.Set(_face,Border.BorderBrushProperty,IsPointerOver||_multipleSelected?MovingRows.CurrentNodeBrush:Brushes.Transparent);
-        Motion.Set(_face,Border.BackgroundProperty,_multipleSelected?MultipleTint:IsPointerOver?HoverTint:Brushes.Transparent);
+        Motion.Set(_face,Border.BorderBrushProperty,IsPointerOver||_multipleSelected?MovingRows.CurrentNodeBrush:ClearNodeTint);
+        Motion.Set(_face,Border.BackgroundProperty,_multipleSelected?MultipleTint:IsPointerOver?HoverTint:ClearNodeTint);
     }
 }

@@ -47,7 +47,7 @@ internal sealed class IpQualityBadges : StackPanel
         {
             var badge = _badges[i]; var (value, details, tone) = items[i];
             ((TextBlock)badge.Child!).Text = value;
-            ((TextBlock)badge.Child!).Foreground = NetworkMonitor.TagForeground;
+            ((TextBlock)badge.Child!).Foreground = Skin.BadgeInk;
             badge.Background = new SolidColorBrush(tone ?? Color.Parse("#454545"));
             var explanation = Ui.Value(details, size: 13); explanation.TextWrapping = TextWrapping.Wrap; explanation.MaxWidth = 340; explanation.LineHeight = 21;
             ToolTip.SetTip(badge, explanation); AutomationProperties.SetName(badge, value); AutomationProperties.SetHelpText(badge, details);

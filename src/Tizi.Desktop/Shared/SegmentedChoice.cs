@@ -19,11 +19,11 @@ internal sealed class SegmentedChoice : Border
         VerticalAlignment = VerticalAlignment.Center;
         HorizontalAlignment = HorizontalAlignment.Left;
         CornerRadius = new CornerRadius(18);
-        Background = new SolidColorBrush(Color.FromRgb(53, 53, 53));
-        BorderBrush = new SolidColorBrush(Colors.White, 0.08); BorderThickness = new Thickness(0.5);
+        Background = Skin.FieldFill;
+        BorderBrush = Skin.TabBackEdge; BorderThickness = new Thickness(0.5);
         _selection = new SelectionIndicator { Height = 34, HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center, CornerRadius = new CornerRadius(17),
-            Background = new SolidColorBrush(Color.FromRgb(41, 121, 245)) };
+            Background = Skin.Blue };
         // Let the actual templates measure their text and previews. Sharing the columns makes
         // segments equal without estimating font widths or forgetting template borders.
         var row = new Grid();
@@ -53,6 +53,7 @@ internal sealed class SegmentedChoice : Border
             // selection directly; animate once an already laid-out choice actually changes.
             if (_selected != index && _buttons[_selected].Bounds.Width > 0) _animateSelection = true;
             _selected = index;
+            for(var i=0;i<_buttons.Length;i++)((TextBlock)_buttons[i].Content!).Foreground=i==index?Skin.OnAccent:Skin.LabelBrush;
             PlaceSelection();
         }
     }

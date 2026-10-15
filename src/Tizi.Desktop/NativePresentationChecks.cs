@@ -44,18 +44,26 @@ internal static class NativePresentationChecks
                 Check(!frame.IsCloaked && finalCloak == 0 && disabledTransitions == 0,
                     "Both native visibility and ordinary DWM transitions are restored after first presentation");
                 Check(opened == 1 && !loadedAtOpening, "The original asynchronous post-opening profile load order is preserved");
+                if(StartupAnimation.AllowVerification&&StartupAnimation.AnimationsEnabled())
+                {
+                    Check(window.StartupOverlay is not null,"The first composed native window includes the live startup strokes");
+                    while(window.StartupOverlay is not null)await Task.Delay(10,lifetime.Token);
+                    Check(window.ContentSurface.IsEffectivelyVisible&&window.Opacity==1,"Startup finishes with one visible functional page and no window fade");
+                }
                 window.Hide(); window.Show();
                 Check(ReferenceEquals(frame, window.InitialPresentation), "Tray restore reuses the first presentation instead of re-cloaking");
                 DwmGetWindowAttribute(window.TryGetPlatformHandle()!.Handle, 14, out var restoredCloak, sizeof(int));
                 Check(restoredCloak == 0, "The restored native window stays revealed");
                 while (!window.Controller.Ready) await Task.Delay(10);
                 Check(!window.Controller.Connected && !window.Controller.Engine.IsRunning, "Native checks never connect a node or start the proxy engine");
+                var actualTransparency=window.ActualTransparencyLevel.ToString();
                 window.Close(); while (window.IsVisible) await Task.Delay(10);
                 File.WriteAllText(Path.Combine(output, "native-first-frame.json"), JsonSerializer.Serialize(new
                 {
                     passed = checks.Count, checks, backend = "normal Windows platform", firstShowMs,
                     initialCloak, cloakedAtOpening, loadedAtOpening, finalCloak, disabledTransitions,
                     targetActuallyDrew = frame.FrameRendered, timeout = frame.TimedOut, networkConnection = false,
+                    theme=Appearance.Current.Theme,frosted=window.FrostedChromeVisible,actualTransparency,startupAnimation=StartupAnimation.AllowVerification,
                     limitation = "Native draw and DWM visibility ordering verified; no high-speed desktop recording.", binary = VerificationStamp.Current()
                 }, new JsonSerializerOptions { WriteIndented = true }));
             }
@@ -67,7 +75,7 @@ internal static class NativePresentationChecks
             }
         });
         Dispatcher.UIThread.MainLoop(lifetime.Token);
-        return failure is null && checks.Count == 7 ? 0 : 1;
+        return failure is null && checks.Count == (StartupAnimation.AllowVerification&&StartupAnimation.AnimationsEnabled()?9:7) ? 0 : 1;
     }
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(nint window, int attribute, out int value, int size);
 }

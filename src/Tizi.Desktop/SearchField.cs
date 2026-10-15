@@ -20,7 +20,7 @@ internal sealed class SearchField : Border
     internal SearchField()
     {
         Width = 260; Height = 36; VerticalAlignment = VerticalAlignment.Center; CornerRadius = new(18);
-        Background = Skin.TabBack; BorderBrush = new SolidColorBrush(Color.Parse("#20FFFFFF")); BorderThickness = new(1);
+        Background = Skin.TabBack; BorderBrush = Skin.SearchEdge; BorderThickness = new(1);
         Transitions = new() { new BrushTransition { Property = BorderBrushProperty, Duration = TimeSpan.FromMilliseconds(140), Easing = new SplineEasing(0, 0, .58, 1) } };
         var icon = new Path { Data = Geometry.Parse("M10.8,6.2 A4.6,4.6 0 1 1 1.6,6.2 A4.6,4.6 0 1 1 10.8,6.2 M9.6,9.6 L14,14"), Stroke = Skin.SecondaryBrush, StrokeThickness = 1.5, StrokeLineCap = PenLineCap.Round, Width = 16, Height = 16, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
         Clear = new Button { Width = 22, Height = 22, MinHeight = 0, Padding = new(5), CornerRadius = new(11), Classes = { "plain" }, IsVisible = false,
@@ -29,7 +29,7 @@ internal sealed class SearchField : Border
         Clear.Click += (_, _) => { Input.Text = ""; Input.Focus(); };
         Input.TextChanged += (_, _) => { Clear.IsVisible = !string.IsNullOrEmpty(Input.Text); TextChanged?.Invoke(this, EventArgs.Empty); };
         Input.GotFocus += (_, _) => Motion.Set(this, BorderBrushProperty, Ui.DataAccent);
-        Input.LostFocus += (_, _) => Motion.Set(this, BorderBrushProperty, new SolidColorBrush(Color.Parse("#20FFFFFF")));
+        Input.LostFocus += (_, _) => Motion.Set(this, BorderBrushProperty, Skin.SearchEdge);
         Input.KeyDown += (_, e) => { if (e.Key == Key.Escape && !string.IsNullOrEmpty(Input.Text)) { Input.Text = ""; e.Handled = true; } };
         var row = new Grid { ColumnDefinitions = new("16,8,*,6,22"), Margin = new(12, 5, 6, 5), Children = { icon, Input, Clear } };
         Grid.SetColumn(Input, 2); Grid.SetColumn(Clear, 4); Child = row;

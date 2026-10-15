@@ -10,7 +10,7 @@ namespace Tizi.Desktop;
 
 internal sealed class NetworkMonitor : StackPanel
 {
-    internal static readonly IBrush TagForeground = new SolidColorBrush(Color.Parse("#D6D6D6"));
+    internal static readonly IBrush TagForeground = Skin.TagInk;
     internal static TextBlock TagLabel(string text,bool translate=false,double opticalOffset=1)
     {
         var label=translate?Ui.Text(text,size:13):Ui.Value(text,size:13);

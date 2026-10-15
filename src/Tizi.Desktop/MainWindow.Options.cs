@@ -57,7 +57,7 @@ internal sealed partial class MainWindow
     {
         if (_preview) return;
         var dialog = new CenteredDialog { Title = UiText.Get(title), Width = 540, MinWidth = 440, MaxHeight = 760, SizeToContent = SizeToContent.Height, Background = Skin.ChromeBrush };
-        var error = Ui.Value(""); error.Foreground = new SolidColorBrush(Color.Parse("#FFB5A5")); error.TextWrapping = TextWrapping.Wrap; error.IsVisible = false;
+        var error = Ui.Value(""); error.Foreground = Skin.Error; error.TextWrapping = TextWrapping.Wrap; error.IsVisible = false;
         var accept = Ui.Button("Save", () => { }, true);
         var saving = false; var allowClose = false;
         var cancel = Ui.Button("Cancel", () => dialog.Close());

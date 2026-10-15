@@ -84,13 +84,13 @@ internal sealed class NavigationGlyph : Canvas
     private sealed class GlyphSurface(NavigationGlyph owner, Geometry outline, Geometry? details, IBrush brush) : Control
     {
         private readonly Pen OutlinePen = new(brush, StrokeWidth, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
-        private static readonly Pen SelectedPen = new(Brushes.White, StrokeWidth, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+        private static readonly Pen SelectedPen = new(Skin.BrandInk, StrokeWidth, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
         public override void Render(DrawingContext context)
         {
             var progress = Math.Clamp(owner.SelectionFill, 0, 1);
             if (progress > 0)
                 using (context.PushOpacity(progress))
-                    if (owner.FilledBody is { } body) context.DrawGeometry(Brushes.White, null, body);
+                    if (owner.FilledBody is { } body) context.DrawGeometry(Skin.BrandInk, null, body);
             context.DrawGeometry(null, OutlinePen, outline);
             if (progress > 0)
                 using (context.PushOpacity(progress)) context.DrawGeometry(null, SelectedPen, outline);

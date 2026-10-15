@@ -23,7 +23,7 @@ internal sealed class ConnectionLogo : Control
         Line(new(55.9712711404049,20.7784753817146),new(42.1620592580931,30.9)),
         Line(new(42.1620592580931,25.1),new(42.1620592580931,10.9))
     ]);
-    // Docking coordinates are measured from the approved raster, which renders the settled state.
+    // The same source-derived coordinates render both motion and the settled state.
     private static readonly (Curve[] Curves,double Stroke) Docking = LoadDocking();
     private static readonly Curve[] Ladder = Docking.Curves;
     private static (Curve[],double) LoadDocking()
@@ -45,7 +45,7 @@ internal sealed class ConnectionLogo : Control
     private readonly Spring _speed = new(0);
     private double[] _initialX = [], _initialV = [];
     private Curve[] _pieces = Play;
-    private double _angle=-Math.PI/2, _initialAngle, _evaluated, _previewStarted, _fromFracture, _formationEnd, _fromAsset, _fromStroke=3.6;
+    private double _angle=-Math.PI/2, _initialAngle, _evaluated, _previewStarted, _fromFracture, _formationEnd, _fromStroke=3.6;
     private ConnectionPhase _phase;
     private bool _attached, _assemble;
     internal bool Waiting => _waiting.IsEnabled;
@@ -54,9 +54,6 @@ internal sealed class ConnectionLogo : Control
     internal double Fracture => _phase==ConnectionPhase.Failed
         ? _fromFracture+(1-_fromFracture)*Ease.Ease(Math.Clamp((MorphProgress-_formationEnd)/(1-_formationEnd),0,1))
         : _fromFracture*(1-Ease.Ease(Math.Clamp(MorphProgress,0,1)));
-    internal double ArtworkOpacity => _phase is ConnectionPhase.Connected or ConnectionPhase.Failed
-        ? _fromAsset+(1-_fromAsset)*Smooth((MorphProgress-.78)/.22)
-        : _fromAsset*(1-Smooth(MorphProgress/.18));
     private double StrokeWidth => _fromStroke+((_phase is ConnectionPhase.Connected or ConnectionPhase.Failed ? Docking.Stroke : 3.6)-_fromStroke)*Smooth(MorphProgress/.6);
     internal double[] Velocities() { Evaluate(); return _coordinates.Select(s=>s.V).ToArray(); }
     private IEnumerable<Spring> Springs => _coordinates.Append(_speed);
@@ -75,9 +72,9 @@ internal sealed class ConnectionLogo : Control
     }
     internal void SetPhase(ConnectionPhase phase)
     {
-        var fracture=Fracture;var asset=ArtworkOpacity;var stroke=StrokeWidth;Evaluate();Snapshot();_pieces=ReadCurves();
+        var fracture=Fracture;var stroke=StrokeWidth;Evaluate();Snapshot();_pieces=ReadCurves();
         _assemble=phase is ConnectionPhase.Connected or ConnectionPhase.Failed && Flatten(Ladder).Zip(_coordinates,(v,s)=>Math.Abs(v-s.X)).Max()>.15;
-        _fromFracture=fracture;_fromAsset=asset;_fromStroke=stroke;_phase=phase;
+        _fromFracture=fracture;_fromStroke=stroke;_phase=phase;
         _formationEnd=phase==ConnectionPhase.Failed && fracture==0 && _assemble ? .68 : 0;
         var transitions=Transitions;var remaining=new Transitions();
         if(transitions is not null)foreach(var item in transitions.Where(t=>t is not TransitionBase known || known.Property!=MorphProgressProperty))remaining.Add(item);
@@ -152,27 +149,19 @@ internal sealed class ConnectionLogo : Control
     internal (Point Start,Point End)[] Strokes()=>Curves().Where(c=>c.Opacity>.001).Select(c=>(c.Start,c.End)).ToArray();
     public override void Render(DrawingContext context)
     {
-        base.Render(context);var curves=Curves();var asset=ArtworkOpacity;
-        // Reveal the approved pixels across the docked structure without an opacity dip from
-        // compositing two partially transparent white shapes over the blue action surface.
-        var edge=ArtworkBounds.Left+ArtworkBounds.Width*asset;
-        using(context.PushClip(asset<=0 ? new Rect(0,0,96,36) : new Rect(edge,0,96-edge,36)))
-        foreach(var group in curves.Chunk(2))
+        base.Render(context);var curves=Curves();
+        var geometry=new StreamGeometry();
+        using(var path=geometry.Open())foreach(var group in curves.Chunk(2))
         {
             var continuous=group.Length==2 && Math.Abs(group[0].End.X-group[1].Start.X)<.01 && Math.Abs(group[0].End.Y-group[1].Start.Y)<.01;
             foreach(var stroke in continuous ? new[] {group} : group.Select(curve=>new[] {curve}))
             {
-                var geometry=new StreamGeometry();
-                using(var path=geometry.Open())
-                {
-                    path.BeginFigure(stroke[0].Start,false);
-                    foreach(var curve in stroke)path.CubicBezierTo(curve.Control1,curve.Control2,curve.End);
-                    path.EndFigure(false);
-                }
-                context.DrawGeometry(null,new Pen(Brushes.White,StrokeWidth,lineCap:PenLineCap.Round,lineJoin:PenLineJoin.Round),geometry);
+                path.BeginFigure(stroke[0].Start,false);
+                foreach(var curve in stroke)path.CubicBezierTo(curve.Control1,curve.Control2,curve.End);
+                path.EndFigure(false);
             }
         }
-        if(asset>0)using(context.PushClip(new Rect(0,0,edge,36)))ApprovedLadder.Draw(context,new(48,18),this);
+        context.DrawGeometry(null,new Pen(Brushes.White,StrokeWidth,lineCap:PenLineCap.Round,lineJoin:PenLineJoin.Round),geometry);
         if(Fracture>.001)
         {
             var cut=new StreamGeometry();var position=Math.Clamp(Fracture*1.6,0,1)*(CrackPoints.Length-1);var count=(int)position;

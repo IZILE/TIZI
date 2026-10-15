@@ -18,9 +18,12 @@ internal static class NativeCaption
         if (window.TryGetPlatformHandle() is { HandleDescriptor: "HWND" } handle)
         {
             // Match the application chrome while preserving Windows caption controls.
-            var dark = 1; DwmSetWindowAttribute(handle.Handle, 20, ref dark, sizeof(int));
-            var caption = CaptionColor(window);
-            DwmSetWindowAttribute(handle.Handle, 35, ref caption, sizeof(int));
+            void Refresh()
+            {
+                var dark=Skin.IsLight?0:1;DwmSetWindowAttribute(handle.Handle,20,ref dark,sizeof(int));
+                var caption=CaptionColor(window);DwmSetWindowAttribute(handle.Handle,35,ref caption,sizeof(int));
+            }
+            Refresh();Appearance.Changed+=Refresh;
             if (HideCaptionIcon(window))
             {
                 // A null HICON falls back to Windows' generic document icon. Only the
@@ -35,6 +38,7 @@ internal static class NativeCaption
             }
             window.Closed += (_, _) =>
             {
+                Appearance.Changed-=Refresh;
                 Win32Properties.RemoveWndProcHookCallback(window, Hook);
                 if (CaptionIcons.Remove(handle.Handle, out var icon)) DestroyIcon(icon);
                 Attached.Remove(window);
@@ -43,7 +47,7 @@ internal static class NativeCaption
     }
     internal static int CaptionColor(Window window)
     {
-        var color = window.Background is ISolidColorBrush brush ? brush.Color : Skin.Chrome;
+        var color = window.Background is ISolidColorBrush brush&&brush.Color.A==255 ? brush.Color : Skin.Chrome;
         return color.R | color.G << 8 | color.B << 16;
     }
     internal static bool HideCaptionIcon(Window window) => !TrayMenuPlacement.IsTrayMenu(window);

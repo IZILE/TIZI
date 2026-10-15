@@ -63,11 +63,11 @@ internal sealed class NodeEditor : CenteredDialog
             Motion.Set(rotation, RotateTransform.AngleProperty, expanded ? 180d : 0d);
             Avalonia.Automation.AutomationProperties.SetHelpText(AdvancedButton, UiText.Get(expanded ? "Expanded" : "Collapsed"));
         };
-        var advancedCard = new Border { Background = Brush.Parse("#353535"), CornerRadius = new(18), ClipToBounds = true,
+        var advancedCard = new Border { Background = Skin.FieldFill, CornerRadius = new(18), ClipToBounds = true,
             Child = new StackPanel { Children = { AdvancedButton, AdvancedReveal } } };
         var body = new StackPanel { Spacing = 16, Children = { MacControls.Row("Protocol", Protocol), MacControls.Row("Name", NameField), MacControls.Row("Server", ServerField), MacControls.Row("Port", PortField), fields, advancedCard } };
         var error = Ui.Value(""); error.Tag = "node-editor-error"; error.TextWrapping = TextWrapping.Wrap;
-        error.Foreground = new SolidColorBrush(Color.Parse("#FF9B8F")); error.IsVisible = false;
+        error.Foreground = Skin.ErrorStrong; error.IsVisible = false;
         var progress = Ui.Text("Applying changes…", true, 13); progress.Tag = "node-editor-progress"; progress.IsVisible = false;
         var save = Ui.Button(original is null ? "Add" : "Save", () => { }, true);
         var cancel = Ui.Button("Cancel", Close); save.Click += (_, _) => _ = Save(); var actions = Ui.Horizontal(cancel, save); actions.HorizontalAlignment = HorizontalAlignment.Right;

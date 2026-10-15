@@ -5,9 +5,9 @@ namespace Tizi.Desktop;
 
 internal static class LatencyTone
 {
-    internal static readonly IBrush Good = Brush.Parse("#70DCA4");
-    internal static readonly IBrush Moderate = Brush.Parse("#FFB86C");
-    internal static readonly IBrush Poor = Brush.Parse("#FF808C");
+    internal static readonly IBrush Good = Skin.Good;
+    internal static readonly IBrush Moderate = Skin.Moderate;
+    internal static readonly IBrush Poor = Skin.Poor;
 
     internal static IBrush For(string value)
     {

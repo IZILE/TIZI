@@ -11,6 +11,7 @@ namespace Tizi.Desktop;
 
 internal static class Program
 {
+    internal static bool Headless {get;private set;}
     internal static string? PendingImportLink { get; private set; }
     private static bool ImportLink(string value) => new[] { "clash://", "shadowrocket://", "clash-verge://", "tizi://", "sub://" }.Any(prefix => value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     [STAThread]
@@ -24,6 +25,12 @@ internal static class Program
         {
             frameOutput = Path.GetFullPath(frameOutput); DesktopChecks.Prepare(frameOutput);
             Build(false).SetupWithoutStarting(); return NativePresentationChecks.Run(frameOutput);
+        }
+        if(args is ["--verify-startup-native",var startupOutput,var startupTheme])
+        {
+            startupOutput=Path.GetFullPath(startupOutput);DesktopChecks.Prepare(startupOutput);StartupAnimation.AllowVerification=true;
+            File.WriteAllText(UserData.File("appearance.json"),System.Text.Json.JsonSerializer.Serialize(new AppearancePreferences(startupTheme)));
+            Build(false).SetupWithoutStarting();return NativePresentationChecks.Run(startupOutput);
         }
         if (args is ["--verify-wireguard-sample", var qr1, var qr2, var userData, var searchVault, var importReport]) return ImportChecks.WireGuardSample(qr1, qr2, userData, searchVault, importReport);
         if (args is ["--import-ikuuu-cache", var ikuuuData, var ikuuuReport]) return ImportChecks.IKuuuCache(ikuuuData, ikuuuReport);
@@ -42,6 +49,14 @@ internal static class Program
         {
             UserData.DirectoryPath = Path.Combine(Path.GetFullPath(motionOutput), "settings");
             Build(true).SetupWithoutStarting(); return BrandMotionChecks.Run(motionOutput);
+        }
+        if(args is ["--verify-appearance",var appearanceOutput])
+        {
+            UserData.DirectoryPath=Path.Combine(Path.GetFullPath(appearanceOutput),"settings");Build(true).SetupWithoutStarting();return AppearanceChecks.Run(appearanceOutput);
+        }
+        if(args is ["--verify-node-hover",var hoverOutput])
+        {
+            UserData.DirectoryPath=Path.Combine(Path.GetFullPath(hoverOutput),"settings");Build(true).SetupWithoutStarting();return NodeHoverChecks.Run(hoverOutput);
         }
         if (args is ["--profile-log-navigation", var logOutput])
         {
@@ -130,6 +145,7 @@ internal static class Program
     }
     private static AppBuilder Build(bool headless)
     {
+        Headless=headless;
         var builder = AppBuilder.Configure<DesktopApp>();
         if (headless) builder.UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false, ShouldRenderOnUIThread = true }).UseSkia();
         else builder.UsePlatformDetect();
@@ -169,7 +185,7 @@ public sealed class DesktopApp : Application
             NativeCaption.Attach(window); DialogMotion.Open(window);
         });
         Resources["DefaultFontFamily"] = UiFonts.Interface;
-        RequestedThemeVariant = ThemeVariant.Dark; _theme = new FluentTheme(); Styles.Add(_theme); MacControls.Apply(this);
+        RequestedThemeVariant = ThemeVariant.Dark; _theme = new FluentTheme(); Styles.Add(_theme); MacControls.Apply(this); Appearance.Initialize(this);
     }
     public override void OnFrameworkInitializationCompleted()
     {

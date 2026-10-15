@@ -117,6 +117,9 @@ internal static class CenteredDialogChecks
                         clock.Pulse(ms);Layout(sheet);
                         check(motion.SurfaceColor.R<100&&motion.SurfaceColor.G<100&&motion.SurfaceColor.B<100,
                             item.Name+" retains its visible gray surface without a white morph frame at "+ms+" ms");
+                        check(!motion.HasSourcePreview&&motion.SourceContentOpacity==0&&motion.SurfaceColor==Skin.Chrome
+                            &&motion.GetVisualChildren().Single() is Grid{Opacity:1,RenderTransform:null},
+                            item.Name+" draws one opaque live page with no source snapshot or scaled copy at "+ms+" ms");
                         check(trigger.IsEffectivelyEnabled&&!window.OwnedWindows.Any(),
                             item.Name+" opens without disabled background styling or an extra native window at "+ms+" ms");
                         Capture(window,Path.Combine(motionFolder,ms.ToString("D3")+".png"));

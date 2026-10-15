@@ -59,7 +59,7 @@ internal sealed class ProviderSearchDialog : CenteredDialog
         Field("Preferred regions (optional)", Regions); Field("Protocols / client formats (any selected)", protocols);
         _fields.Children.Add(Trial); Field("Additional preferences (optional)", Extra);
         _status.TextWrapping = TextWrapping.Wrap; _status.TextTrimming = TextTrimming.None;
-        _error.TextWrapping = TextWrapping.Wrap; _error.TextTrimming = TextTrimming.None; _error.Foreground = new SolidColorBrush(Color.Parse("#FFB5A5"));
+        _error.TextWrapping = TextWrapping.Wrap; _error.TextTrimming = TextTrimming.None; _error.Foreground = Skin.Error;
         _cancel = Ui.Button("Cancel", () => { if ((_searching || _submittingSearch) && _cancelSearch is not null) _cancelSearch(); else Close(); });
         _remember = Ui.Button("Save criteria", () => { }); _go = Ui.Button("Search · uses API credits", () => { }, true);
         _remember.Click += (_, _) => _ = Submit(save, false); _go.Click += (_, _) => _ = Submit(search, true);

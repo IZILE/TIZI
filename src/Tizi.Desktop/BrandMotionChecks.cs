@@ -94,18 +94,18 @@ internal static class BrandMotionChecks
             for(var frame=0;frame<=50;frame++)
             {
                 clock.Pulse(1201+frame*20);Layout(top);var curves=button.Logo.Curves();
-                pieces.Add(new { milliseconds=frame*20,button.Logo.MorphProgress,button.Logo.ArtworkOpacity,curves });
+                pieces.Add(new { milliseconds=frame*20,button.Logo.MorphProgress,curves });
                 Save(top,Path.Combine(assembly,frame.ToString("D3")+".png"));
                 if(frame==6)check(curves.Chunk(2).Any(pair=>Distance(pair[0].End,pair[1].Start)>2),"The three original arcs have visibly separated pieces before the ladder is complete");
                 if(frame==14)check(Math.Abs(curves[1].Start.X-curves[1].End.X)<.6 && Math.Abs(curves[2].Start.X-curves[2].End.X)<.6 && Math.Abs(curves[5].Start.Y-curves[5].End.Y)>.7,"Both rails dock before the final bottom rung, so the result reads as construction rather than one simultaneous morph");
             }
-            check(button.Logo.ArtworkOpacity==1 && ConnectionLogo.ArtworkBounds.Height==32 && !button.Logo.Waiting,"The settled success state uses the exact approved vertical ladder asset and stops the spinner timer");
+            check(button.Logo.MorphProgress==1 && button.Logo.Curves().Length==6 && ConnectionLogo.ArtworkBounds.Height==32 && !button.Logo.Waiting,"The settled success state keeps the same six source-derived vector strokes and stops the spinner timer");
             Save(top,Path.Combine(output,"connected.png"));
             button.SetState(ConnectionPhase.Connecting,true);clock.Pulse(2202);clock.Pulse(3202);button.Logo.PreviewTime=2.2;
             button.SetState(ConnectionPhase.Connected,false);clock.Pulse(3203);clock.Pulse(3443);var current=button.Logo.Curves();velocity=button.Logo.Velocities();
             button.SetState(ConnectionPhase.Disconnected,false);
             check(button.Logo.Curves().SequenceEqual(current) && button.Logo.Velocities().SequenceEqual(velocity),"Cancelling during staged assembly retains the current pieces and velocity before reversing");
-            clock.Pulse(3444);clock.Pulse(4444);check(button.Logo.Assembly==0 && button.Logo.ArtworkOpacity==0 && !button.Logo.Waiting,"Interrupted assembly finishes at the original play symbol without a hidden active timer");
+            clock.Pulse(3444);clock.Pulse(4444);check(button.Logo.Assembly==0 && button.Logo.MorphProgress==1 && !button.Logo.Waiting,"Interrupted assembly finishes at the original play symbol without a hidden active timer");
         }
         finally { top.Close(); }
         File.WriteAllText(Path.Combine(output,"assembly-samples.json"),JsonSerializer.Serialize(pieces,new JsonSerializerOptions { WriteIndented=true }));
@@ -124,6 +124,7 @@ internal static class BrandMotionChecks
             Save(top,Path.Combine(output,"app-icon-sizes.png"));
             check(icon.PixelSize==new PixelSize(1024,1024),"The app icon renderer uses the approved 1024-pixel embedded artwork at multiple shell sizes");
             var ladder=new BrandRaster("ConnectionLadder",32);var mark=new BrandRaster("BrandMark",28);
+            check(ladder.IsVector&&mark.IsVector,"Both toolbar brand marks use source-derived vector geometry at every display scale");
             foreach(var scale in new[] {1d,1.25,1.5,1.75,2,2.5,3,4})
                 check(ladder.AtScale(scale).PixelSize.Height==Math.Round(32*scale) && mark.AtScale(scale).PixelSize.Height==Math.Round(28*scale)
                     && ladder.Bounds(new(48,18),scale).Center==new Point(48,18),

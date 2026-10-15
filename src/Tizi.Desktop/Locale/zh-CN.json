@@ -255,8 +255,8 @@
   "Inside the edge": "内部边缘",
   "Dither": "抖色",
   "Look": "风格",
-  "Light": "亮色",
-  "Dark": "暗色",
+  "Light": "浅色",
+  "Dark": "深色",
   "Fuzziness": "容差",
   "Click the canvas to sample": "点击画布取样",
   "Clipped highlights": "高光溢出",
@@ -1274,7 +1274,7 @@
   "Invalid model list.": "接口未返回有效的模型列表，请手动输入模型。",
   "Model list pagination is incomplete.": "模型列表未完整返回，请重试或手动输入模型。",
   "No models returned. You can enter a model manually.": "接口未返回模型，可手动输入模型名称。",
-  "AI returned no structured result. Retry or select another model.": "AI 未返回有效结果，请重试或选择其他模型。",
+  "AI returned no structured result. Retry or select another model.": "模型未返回有效结果，可重试或选择其他模型。",
   "Download and install": "下载并安装",
   "Cancel download": "取消下载",
   "GitHub releases": "GitHub 发布页",
@@ -1368,5 +1368,6 @@
   "Model detection timed out. Reopen settings to retry.": "获取模型超时，可重新打开设置重试。",
   "Search was incomplete; previous results kept.": "搜索未完成，已保留原有结果。",
   "Search output reached its length limit; previous results kept.": "模型返回内容达到长度上限，已保留原有结果。",
-  "AI returned no structured result. Retry or select another model.": "模型未返回有效结果，可重试或选择其他模型。"
+  "Appearance": "外观",
+  "Follow system": "跟随系统"
 }

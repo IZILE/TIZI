@@ -10,7 +10,7 @@ namespace Tizi.Desktop;
 /// <summary>One time axis, separate speed and latency scales, with bounded real samples.</summary>
 internal sealed class TrafficChart : Control
 {
-    internal static readonly IBrush DownloadColor = new SolidColorBrush(Color.Parse("#58D6B2")), UploadColor = Ui.DataAccent, LatencyColor = new SolidColorBrush(Color.Parse("#F6C76C"));
+    internal static readonly IBrush DownloadColor = Skin.Download, UploadColor = Ui.DataAccent, LatencyColor = Skin.Latency;
     private readonly List<(DateTimeOffset Time, long Up, long Down)> _traffic = [];
     private readonly List<(DateTimeOffset Time, int? Value)> _delays = [];
     private readonly bool[] _visible = [true, true, true];

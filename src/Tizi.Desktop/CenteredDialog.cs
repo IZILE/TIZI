@@ -48,13 +48,12 @@ internal class CenteredDialog : ContentControl
         var width=double.IsFinite(Width)?Width:620;
         var height=SizeToContent.HasFlag(SizeToContent.Height)?(double?)null:double.IsFinite(Height)?Height:null;
         var origin=DialogOrigin.Take(owner);_source=origin?.Control;
-        var snapshot=origin?.KeepSourceVisible == true ? null : DialogOrigin.Capture(_source);
         if(_source is not null && origin?.KeepSourceVisible != true) { _sourceHidden=true;_sourceOpacity=_source.Opacity;_source.Opacity=0; }
         var padding=Padding;var maxHeight=MaxHeight;Content=null;Padding=default;
         Width=Height=double.NaN;MinWidth=MinHeight=0;MaxWidth=MaxHeight=double.PositiveInfinity;
         HorizontalAlignment=HorizontalAlignment.Stretch;VerticalAlignment=VerticalAlignment.Stretch;
         Background=Brushes.Transparent;
-        Overlay=new DialogOverlay(body,Title,padding,width,height,maxHeight,origin,snapshot,Close);Content=Overlay;
+        Overlay=new DialogOverlay(body,Title,padding,width,height,maxHeight,origin,Close);Content=Overlay;
         AddHandler(KeyDownEvent,(_,e)=>{if(e.Key==Key.Escape){Close();e.Handled=true;}},Avalonia.Interactivity.RoutingStrategies.Tunnel);
         _host.AttachDialog(this);IsVisible=true;_host.UpdateLayout();Opened?.Invoke(this,EventArgs.Empty);
         Dispatcher.UIThread.Post(()=>{if(IsVisible&&!_closing){Overlay.Reveal();if(!IsKeyboardFocusWithin)Focus();}},DispatcherPriority.Loaded);
@@ -183,28 +182,16 @@ internal sealed class DialogOverlay : Control
     private readonly DialogOrigin? _origin;
     private readonly Action _dismiss;
     private readonly Grid _body;
-    private readonly TextBlock _label;
-    private readonly Image? _preview;
-    private Bitmap? _snapshot;
     private readonly DoubleTransition _transition, _visualTransition;
-    internal bool HasSourcePreview => _snapshot is not null;
-    internal int OpeningMilliseconds => _origin?.KeepSourceVisible == true ? 240 : 160;
-    internal int ClosingMilliseconds => _origin?.KeepSourceVisible == true ? 180 : 120;
+    internal bool HasSourcePreview => false;
+    internal int OpeningMilliseconds => _origin?.KeepSourceVisible == true ? 300 : 280;
+    internal int ClosingMilliseconds => 220;
     internal Color SourceColor => _origin?.Color ?? Skin.Chrome;
-    internal double SourceContentOpacity => _preview?.Opacity ?? _label.Opacity;
-    internal Color SurfaceColor
-    {
-        get
-        {
-            // Finish the color hand-off during the first part of the expansion, before a large blue sheet can form.
-            var p=Smooth(Progress/.55);var source=SourceColor;var target=Skin.Chrome;
-            byte Mix(byte a,byte b)=>(byte)Math.Round(a+(b-a)*p);
-            return Color.FromRgb(Mix(source.R,target.R),Mix(source.G,target.G),Mix(source.B,target.B));
-        }
-    }
+    internal double SourceContentOpacity => 0;
+    internal Color SurfaceColor => Skin.Chrome;
     static DialogOverlay() => AffectsArrange<DialogOverlay>(ProgressProperty);
 
-    internal DialogOverlay(Control content, string title, Thickness padding, double width, double? height, double maxHeight, DialogOrigin? origin, Bitmap? snapshot, Action dismiss)
+    internal DialogOverlay(Control content, string title, Thickness padding, double width, double? height, double maxHeight, DialogOrigin? origin, Action dismiss)
     {
         _width = width; _height = height; PreferredMaxHeight = maxHeight; _origin = origin; _dismiss = dismiss;
         ClipToBounds = true;
@@ -213,20 +200,11 @@ internal sealed class DialogOverlay : Control
         var body = new Border { Padding = padding, Child = content };
         _body = new Grid { RowDefinitions = new("Auto,16,*"), Children = { caption, body } };
         Grid.SetRow(body, 2);
-        _label = Ui.Value(origin?.KeepSourceVisible == true ? "" : origin?.Label ?? "", size: 14); _label.TextAlignment = TextAlignment.Center; _label.VerticalAlignment = VerticalAlignment.Center;
-        VisualChildren.Add(_body); LogicalChildren.Add(_body); VisualChildren.Add(_label); LogicalChildren.Add(_label);
-        _snapshot=snapshot;
-        if(snapshot is not null)
-        {
-            _preview=new Image {Source=snapshot,Stretch=Stretch.None,IsHitTestVisible=false};
-            RenderOptions.SetBitmapInterpolationMode(_preview,BitmapInterpolationMode.HighQuality);
-            VisualChildren.Add(_preview);LogicalChildren.Add(_preview);
-        }
-        _transition = new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(OpeningMilliseconds), Easing = origin?.KeepSourceVisible == true ? new SplineEasing(.2,0,.2,1) : new SplineEasing(.16,1,.3,1) };
+        VisualChildren.Add(_body); LogicalChildren.Add(_body);
+        _transition = new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(OpeningMilliseconds), Easing = new SplineEasing(.2,0,.2,1) };
         _visualTransition=new DoubleTransition {Property=VisualProgressProperty,Duration=TimeSpan.FromMilliseconds(OpeningMilliseconds),Easing=new LinearEasing()};
         Transitions = new() { _transition,_visualTransition };
         PropertyChanged += (_, e) => { if (e.Property == ProgressProperty || e.Property==VisualProgressProperty) { UpdateClip(); InvalidateVisual(); } };
-        DetachedFromVisualTree+=(_,_)=> {if(_preview is not null)_preview.Source=null;_snapshot?.Dispose();_snapshot=null;};
     }
     internal void Reveal() { Retracting = false; _transition.Duration = _visualTransition.Duration = TimeSpan.FromMilliseconds(OpeningMilliseconds); Motion.Set(this, ProgressProperty, 1d);Motion.Set(this,VisualProgressProperty,1d); UpdateClip(); }
     internal void Dismiss() { Retracting = true; _transition.Duration = _visualTransition.Duration = TimeSpan.FromMilliseconds(ClosingMilliseconds); Motion.Set(this, ProgressProperty, 0d);Motion.Set(this,VisualProgressProperty,0d); UpdateClip(); }
@@ -234,7 +212,7 @@ internal sealed class DialogOverlay : Control
     protected override Size MeasureOverride(Size available)
     {
         var size = new Size(Math.Max(0, Math.Min(_width, available.Width - 48)), Math.Max(0, Math.Min(PreferredMaxHeight, available.Height - 48)));
-        _body.Measure(new(size.Width, _height is { } height ? Math.Min(height, size.Height) : size.Height)); _label.Measure(available);_preview?.Measure(available);
+        _body.Measure(new(size.Width, _height is { } height ? Math.Min(height, size.Height) : size.Height));
         return available;
     }
     protected override Size ArrangeOverride(Size final)
@@ -251,20 +229,15 @@ internal sealed class DialogOverlay : Control
             SourceBounds = new((screen.X - offset.X) / scale, (screen.Y - offset.Y) / scale, screen.Width / scale, screen.Height / scale);
         }
         else SourceBounds = new(final.Width / 2 - 48, final.Height / 2 - 18, 96, 36);
-        var previewBounds=new Rect(VisibleBounds.Center-new Vector(SourceBounds.Width/2,SourceBounds.Height/2),SourceBounds.Size);
-        _body.Arrange(TargetBounds); _label.Arrange(previewBounds);_preview?.Arrange(previewBounds); UpdateClip(); return final;
+        // One live page keeps its final text layout while its origin and visible
+        // viewport move continuously. No copied source page is composited over it.
+        _body.Arrange(new Rect(VisibleBounds.Position,TargetBounds.Size)); UpdateClip(); return final;
     }
     private void UpdateClip()
     {
         var p = Math.Clamp(Progress, 0, 1);var t=Math.Clamp(VisualProgress,0,1); var bounds = VisibleBounds; var radius = Radius(p);
-        _body.Clip = new RectangleGeometry(new(bounds.X - TargetBounds.X, bounds.Y - TargetBounds.Y, bounds.Width, bounds.Height), radius, radius);
-        _body.Opacity = Smooth((t - .2) / .65); _body.IsHitTestVisible = !Retracting && p > .7 && t>.45;
-        _label.Opacity = _preview is null?1-Smooth(t/.45):0;
-        if(_preview is not null)
-        {
-            _preview.Opacity=1-Smooth(t/.45);
-            _preview.Clip=new RectangleGeometry(new Rect(bounds.Position-_preview.Bounds.Position,bounds.Size),radius,radius);
-        }
+        _body.Clip = new RectangleGeometry(new Rect(bounds.Size), radius, radius);
+        _body.Opacity = 1; _body.IsHitTestVisible = !Retracting && p > .7 && t>.45;
     }
     private double Radius(double p) => (_origin?.Radius ?? 18) + (18 - (_origin?.Radius ?? 18)) * p;
     public override void Render(DrawingContext context)

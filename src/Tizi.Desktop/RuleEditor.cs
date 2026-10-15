@@ -28,7 +28,7 @@ internal sealed class RuleEditor : CenteredDialog
         var body = new StackPanel { Spacing = 18 };
         void Field(string label, Control input) => body.Children.Add(new StackPanel { Spacing = 7, Children = { Ui.Text(label, true), input } });
         Field("Rule type", TypeChoice); Field("Domain, network or process", ValueEditor); Field("Action", ActionChoice); body.Children.Add(NoResolve);
-        _error.Foreground = new SolidColorBrush(Color.Parse("#FF9B8F")); _error.TextWrapping = TextWrapping.Wrap; _error.IsVisible = false; body.Children.Add(_error);
+        _error.Foreground = Skin.ErrorStrong; _error.TextWrapping = TextWrapping.Wrap; _error.IsVisible = false; body.Children.Add(_error);
         _save = Ui.Button(adding ? "Add" : "Save", () => _ = SubmitAsync(), true);
         var actions = Ui.Horizontal(Ui.Button("Cancel", Close), _save); actions.HorizontalAlignment = HorizontalAlignment.Right; body.Children.Add(actions);
         Content = Ui.Scroll(body); UiText.WireChoices(this);

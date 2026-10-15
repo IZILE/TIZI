@@ -39,7 +39,7 @@ internal sealed class EditorDialog : CenteredDialog
             Avalonia.Automation.AutomationProperties.SetLabeledBy(input, caption);
             content.Children.Add(new StackPanel { Spacing = 6, Children = { caption, input } });
         }
-        var error = Ui.Value(""); error.TextWrapping = TextWrapping.Wrap; error.Foreground = new SolidColorBrush(Color.Parse("#FF9B8F")); error.IsVisible = false;
+        var error = Ui.Value(""); error.TextWrapping = TextWrapping.Wrap; error.Foreground = Skin.ErrorStrong; error.IsVisible = false;
         error.Tag = "editor-error";
         var progress = Ui.Text("Applying changes…", true, 13); progress.TextWrapping = TextWrapping.Wrap; progress.IsVisible = false;
         progress.Tag = "editor-progress";

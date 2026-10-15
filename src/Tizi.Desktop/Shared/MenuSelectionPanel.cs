@@ -5,13 +5,15 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace Tizi.Desktop;
 
 /// <summary>A menu keeps one highlight beneath its items, including keyboard-selected items.</summary>
 internal sealed class MenuSelectionPanel : StackPanel
 {
-    private static readonly IBrush MenuBlue = new SolidColorBrush(Color.FromRgb(41, 121, 245));
+    private static readonly IBrush MenuBlue = Skin.Blue;
+    private readonly Dictionary<TextBlock,IBrush?> _originalInk=[];
     private static readonly StyledProperty<double> LeftProperty = AvaloniaProperty.Register<MenuSelectionPanel, double>("HighlightLeft");
     private static readonly StyledProperty<double> TopProperty = AvaloniaProperty.Register<MenuSelectionPanel, double>("HighlightTop");
     private static readonly StyledProperty<double> HighlightWidthProperty = AvaloniaProperty.Register<MenuSelectionPanel, double>("HighlightWidth");
@@ -50,6 +52,7 @@ internal sealed class MenuSelectionPanel : StackPanel
         AttachedToVisualTree += (_, _) => { _attached = true; Reconcile(); Schedule(); };
         DetachedFromVisualTree += (_, _) =>
         {
+            foreach(var (text,ink) in _originalInk)text.Foreground=ink;_originalInk.Clear();
             ++_generation; _queued = false; _placed = false; _attached = false; Highlighted = null;
             var transitions = Transitions; Transitions = null; SetValue(AlphaProperty, 0); Transitions = transitions;
         };
@@ -88,6 +91,13 @@ internal sealed class MenuSelectionPanel : StackPanel
             ?? enabled.FirstOrDefault(item => item is MenuItem { IsSubMenuOpen: true })
             ?? (IsPointerOver && enabled.Contains(Highlighted) ? Highlighted : null);
         Highlighted = item;
+        foreach(var row in enabled)
+        foreach(var text in row.GetVisualDescendants().OfType<TextBlock>())
+        {
+            if(Orientation==Orientation.Vertical&&ReferenceEquals(row,item))
+            {if(!_originalInk.ContainsKey(text))_originalInk[text]=text.Foreground;text.Foreground=Skin.OnAccent;}
+            else if(_originalInk.Remove(text,out var ink))text.Foreground=ink;
+        }
         if (item is null) { Motion.Set(this, AlphaProperty, 0.0); return; }
         var bounds = item.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0) return;

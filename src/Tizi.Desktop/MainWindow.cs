@@ -133,9 +133,9 @@ internal sealed partial class MainWindow : Window
         PropertyChanged += (_, change) => { if (change.Property == WindowStateProperty && WindowState != WindowState.Minimized) _restoreState = WindowState; };
         using var icon = typeof(MainWindow).Assembly.GetManifestResourceStream("Tizi.Desktop.AppIcon.ico"); if (icon is not null) Icon = new WindowIcon(icon);
         UiText.WireChoices(this);
-        _mode.Indicator.Background = new SolidColorBrush(Color.Parse("#2979F5"));
+        _mode.Indicator.Background = Skin.Blue;
         var root = new Grid { RowDefinitions = new RowDefinitions("32,Auto,*,32") };
-        root.Children.Add(BuildCaption());
+        root.Children.Add(_captionGrid=BuildCaption());
         var brand = _brand = Ui.Value("TIZI", size: 36); brand.FontWeight = FontWeight.SemiBold;
         brand.UseLayoutRounding = false; brand.Opacity = 0; // The approved source mark is drawn by its host; keep TIZI as accessible text.
         // Keep the complete font line box while aligning the visible uppercase letters
@@ -143,6 +143,7 @@ internal sealed partial class MainWindow : Window
         var brandHost = new WordmarkHost { Child = brand, Height = 44,
             HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center,
             Margin = new(0, 0, 0, 24) };
+        _wordmarkHost=brandHost;_shellRoot=root;
         Grid.SetRow(brandHost, 1); root.Children.Add(brandHost);
         var toolbar = _toolbar = new Grid { ColumnDefinitions = new("*,Auto,*"), Margin = new Thickness(24, 0, 24, 24) };
         Grid.SetColumn(_nodeChoice, 1); toolbar.Children.Add(_nodeChoice);
@@ -172,6 +173,8 @@ internal sealed partial class MainWindow : Window
             if (enabled) { _lastProbe = DateTimeOffset.MinValue; _probeTask = ProbeSelectedAsync(); }
         };
         Content = _clientSurface = new Grid { Background = Skin.ChromeBrush, ClipToBounds = true, Children = { root, _notification } }; SizeChanged += (_, _) => Responsive();
+        _clientSurface.Children.Insert(0,_chromeMaterial);Appearance.Changed+=ApplyWindowAppearance;ApplyWindowAppearance();
+        Closed+=(_,_)=>Appearance.Changed-=ApplyWindowAppearance;
         Closed += (_, _) => { foreach (var dialog in _dialogs.ToArray()) dialog.ForceClose(); };
         Deactivated += (_, _) =>
         {
@@ -233,6 +236,7 @@ internal sealed partial class MainWindow : Window
         _app.Logged += message => { _logs.Settings = _app.State.Logs; _logs.Add(message); _logDirty = true; };
         _logFilter.Changed += _ => { if (_page == "Logs") RefreshLog(true); };
         _poll.Tick += async (_, _) => await PollAsync();
+        PrepareStartupAnimation();
         Opened += async (_, _) => await StartRuntimeAsync();
         Closing += async (_, e) =>
         {
@@ -276,6 +280,7 @@ internal sealed partial class MainWindow : Window
         };
         KeyDown += (_, e) =>
         {
+            if(_startupAnimation is {} startup){if(e.Key==Key.Escape)startup.Finish();e.Handled=true;return;}
             if (_dialogs.Count > 0)
             {
                 if(!_dialogs[^1].IsKeyboardFocusWithin) { _dialogs[^1].Focus();e.Handled=true; }
@@ -348,7 +353,7 @@ internal sealed partial class MainWindow : Window
         Button Caption(string name, string path, WindowDecorationsElementRole role, Action action)
         {
             var button = new Button { Width = 46, Height = 32, MinHeight = 0, Padding = new(0), CornerRadius = new(0),
-                Content = new Avalonia.Controls.Shapes.Path { Data = Geometry.Parse(path), Stroke = Brushes.Gainsboro, StrokeThickness = 1,
+                Content = new Avalonia.Controls.Shapes.Path { Data = Geometry.Parse(path), Stroke = Skin.CaptionInk, StrokeThickness = 1,
                     Width = 10, Height = 10, IsHitTestVisible = false }, Classes = { "plain" }, Tag = "caption-" + name };
             Avalonia.Automation.AutomationProperties.SetName(button, UiText.Get(name));
             ToolTip.SetTip(button, UiText.Get(name));

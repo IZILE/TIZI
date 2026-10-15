@@ -23,11 +23,9 @@ internal sealed class MoreActionsSheet : Control
     internal bool Closing => _closing;
     private readonly TaskCompletionSource<int?> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Border _body;
-    private readonly TextBlock _sourceLabel = Ui.Text("More");
     private readonly ScrollViewer _scroll;
     private readonly DoubleTransition _transition;
     private readonly double _triggerOpacity;
-    private readonly Color _sourceColor;
     private int _generation;
     private bool _closing, _finished;
     static MoreActionsSheet() => AffectsArrange<MoreActionsSheet>(ProgressProperty);
@@ -35,10 +33,9 @@ internal sealed class MoreActionsSheet : Control
     internal MoreActionsSheet(Button trigger, string context, IReadOnlyList<string> labels)
     {
         Trigger = trigger; _triggerOpacity = trigger.Opacity;
-        _sourceColor = DialogOrigin.SurfaceColor(trigger);
         Focusable = true;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
-        _transition = new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(160), Easing = new SplineEasing(.16,1,.3,1) };
+        _transition = new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(280), Easing = new SplineEasing(.2,0,.2,1) };
         Transitions = new() { _transition };
         var rows = new StackPanel { Spacing = 6 };
         var buttons = new List<Button>();
@@ -57,11 +54,8 @@ internal sealed class MoreActionsSheet : Control
         var caption = new StackPanel { Spacing = 6, Children = { heading, Ui.Text(context, true, 12) } };
         var content = new Grid { RowDefinitions = new("Auto,16,*"), Children = { caption, _scroll } };
         Grid.SetRow(_scroll, 2);
-        _body = new Border { Padding = new(20), Child = content, Opacity = 0 };
-        _sourceLabel.HorizontalAlignment = HorizontalAlignment.Stretch;
-        _sourceLabel.TextAlignment = TextAlignment.Center; _sourceLabel.IsHitTestVisible = false;
+        _body = new Border { Padding = new(20), Child = content };
         VisualChildren.Add(_body); LogicalChildren.Add(_body);
-        VisualChildren.Add(_sourceLabel); LogicalChildren.Add(_sourceLabel);
         PropertyChanged += (_, change) => { if (change.Property == ProgressProperty) { UpdateClip(); InvalidateVisual(); } };
         DetachedFromVisualTree += (_, _) => Finish(null);
     }
@@ -70,15 +64,15 @@ internal sealed class MoreActionsSheet : Control
     {
         if (_finished) return;
         if (!_closing && Progress >= .999) { Focus(); return; }
-        ++_generation; _closing = false; _transition.Duration = TimeSpan.FromMilliseconds(160); _transition.Easing = new SplineEasing(.16,1,.3,1);
+        ++_generation; _closing = false; _transition.Duration = TimeSpan.FromMilliseconds(280); _transition.Easing = new SplineEasing(.2,0,.2,1);
         Trigger.Opacity = 0; Motion.Set(this, ProgressProperty, 1d); Focus();
     }
     internal async Task CloseAsync(int? action = null)
     {
         if (_closing || _finished) return;
         _closing = true; var generation = ++_generation;
-        _transition.Duration = TimeSpan.FromMilliseconds(120); _transition.Easing = new SplineEasing(.16,1,.3,1); Motion.Set(this, ProgressProperty, 0d); UpdateClip();
-        await Task.Delay(140);
+        _transition.Duration = TimeSpan.FromMilliseconds(220); _transition.Easing = new SplineEasing(.2,0,.2,1); Motion.Set(this, ProgressProperty, 0d); UpdateClip();
+        await Task.Delay(240);
         if (generation == _generation) Finish(action);
     }
     internal void DismissImmediately() => Finish(null);
@@ -93,7 +87,7 @@ internal sealed class MoreActionsSheet : Control
     {
         var width = Math.Min(360, Math.Max(0, available.Width - 32));
         var height = Math.Min(Math.Max(0, available.Height - 64), 108 + Actions.Count * 46);
-        _body.Measure(new(width, height)); _sourceLabel.Measure(available);
+        _body.Measure(new(width, height));
         return available;
     }
     protected override Size ArrangeOverride(Size final)
@@ -105,27 +99,23 @@ internal sealed class MoreActionsSheet : Control
         var x = Math.Clamp(origin.X, 16, Math.Max(16, final.Width - width - 16));
         var y = Math.Clamp(origin.Y, 40, Math.Max(40, final.Height - height - 16));
         TargetBounds = new(x, y, width, height);
-        _body.Arrange(TargetBounds); _sourceLabel.Arrange(SourceBounds);
+        _body.Arrange(new Rect(VisibleBounds.Position,TargetBounds.Size));
         UpdateClip(); return final;
     }
     private void UpdateClip()
     {
         var progress = Math.Clamp(Progress, 0, 1); var visible = VisibleBounds;
         var radius = 18 + 2 * progress;
-        _body.Clip = new RectangleGeometry(new Rect(visible.X - TargetBounds.X, visible.Y - TargetBounds.Y, visible.Width, visible.Height), radius, radius);
-        _body.Opacity = Math.Clamp((progress - .18) / .42, 0, 1);
+        _body.Clip = new RectangleGeometry(new Rect(visible.Size), radius, radius);
+        _body.Opacity = 1;
         _body.IsHitTestVisible = !_closing && progress > .7;
-        _sourceLabel.Opacity = Math.Clamp(1 - progress / .28, 0, 1);
     }
     public override void Render(DrawingContext context)
     {
         base.Render(context);
         context.DrawRectangle(Brushes.Transparent, null, new Rect(Bounds.Size));
         var p = Math.Clamp(Progress, 0, 1); var radius = 18 + 2 * p;
-        var target = Color.Parse("#303030");
-        byte Channel(byte a, byte b) => (byte)Math.Round(a + (b - a) * p);
-        var color = Color.FromRgb(Channel(_sourceColor.R, target.R), Channel(_sourceColor.G, target.G), Channel(_sourceColor.B, target.B));
-        context.DrawRectangle(new SolidColorBrush(color), null, VisibleBounds, radius, radius,
+        context.DrawRectangle(Skin.MoreFill, null, VisibleBounds, radius, radius,
             new BoxShadows(new BoxShadow { OffsetY = 10 * p, Blur = 30 * p, Color = Color.FromArgb((byte)(90 * p), 0, 0, 0) }));
     }
     protected override void OnPointerPressed(PointerPressedEventArgs e)

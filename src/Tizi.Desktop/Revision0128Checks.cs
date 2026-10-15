@@ -27,14 +27,6 @@ internal static class Revision0128Checks
             return data.Take(3).ToArray();
         }
         static Bitmap Frame(Window top){Layout(top);AvaloniaHeadlessPlatform.ForceRenderTimerTick();return top.CaptureRenderedFrame()!;}
-        static byte MinimumBlue(Bitmap image,Rect bounds,double scale)
-        {
-            var area=new PixelRect((int)Math.Ceiling(bounds.Left*scale),(int)Math.Ceiling(bounds.Top*scale),
-                (int)Math.Floor(bounds.Width*scale),(int)Math.Floor(bounds.Height*scale));
-            var pixels=new byte[area.Width*area.Height*4];var pin=GCHandle.Alloc(pixels,GCHandleType.Pinned);
-            try{image.CopyPixels(area,pin.AddrOfPinnedObject(),pixels.Length,area.Width*4);}finally{pin.Free();}
-            return Enumerable.Range(0,area.Width*area.Height).Select(i=>pixels[i*4+2]).Min();
-        }
         var node=NodeImport.Parse("ss://YWVzLTEyOC1nY206Zml4dHVyZQ@node.example:443#Blue%20node%20fixture")[0];
         var state=new AppState {Nodes=[node],SelectedNode=node.Id,Rules=[new("DOMAIN","fixture.example","DIRECT")],
             AutoUpdate=false,AutoUpdateProviders=false,RestoreConnection=false,CloseToTray=false};
@@ -63,7 +55,7 @@ internal static class Revision0128Checks
                 check(overlay.SourceBounds.Size==source.Bounds.Size,"Context-menu "+kind+" editing grows from its actual card instead of a vanished menu item");
                 check(kind=="node"?overlay.SourceColor==Color.Parse("#2979F5"):overlay.SourceColor==Color.Parse("#414141"),
                     kind+" editor starts with its visible blue/gray card color rather than transparent-white RGB");
-                check(overlay.HasSourcePreview,"The original "+kind+" card has a rendered content preview for its text crossfade");
+                check(!overlay.HasSourcePreview&&overlay.GetVisualChildren().Single() is Grid{Opacity:1},"The "+kind+" editor uses one live page without a card snapshot");
                 check(source.IsEffectivelyEnabled&&caption.IsEffectivelyEnabled&&window.Rail.For("Overview").IsEffectivelyEnabled,
                     "Opening "+kind+" editing keeps main-window controls visually enabled while the overlay intercepts input");
                 var folder=Path.Combine(output,kind+"-dialog-frames");Directory.CreateDirectory(folder);var samples=new List<object>();
@@ -80,13 +72,11 @@ internal static class Revision0128Checks
                             "The main connection-button appearance does not jump into a disabled tint when "+kind+" editing opens");
                         if(ms==0&&kind=="node")
                         {
-                            var textAreas=source.GetVisualDescendants().OfType<TextBlock>().Where(text=>!string.IsNullOrWhiteSpace(text.Text))
-                                .Select(text=>new Rect(text.TranslatePoint(default,window)!.Value,text.Bounds.Size)).ToArray();
-                            check(textAreas.All(area=>MinimumBlue(frame,area,window.RenderScaling)>=overlay.SourceColor.B-2),
-                                "The blue node preview preserves light text without black or colored subpixel fragments on its transparent snapshot");
+                            check(overlay.SurfaceColor==Skin.Chrome&&overlay.SourceContentOpacity==0,
+                                "The node editor begins with an opaque page surface and no ghosted source text");
                         }
-                        if(ms==16)check(overlay.SourceContentOpacity is >0 and <1 && overlay.SurfaceColor!=overlay.SourceColor && overlay.SurfaceColor!=Skin.Chrome,
-                            kind+" editor has simultaneous intermediate source-text opacity and an actual intermediate surface color");
+                        if(ms==16)check(overlay.SourceContentOpacity==0&&overlay.SurfaceColor==Skin.Chrome&&overlay.GetVisualChildren().Single() is Grid{Opacity:1},
+                            kind+" editor retains one opaque content layer while its rectangle moves");
                         if(ms==64)check(overlay.SurfaceColor==Skin.Chrome&&overlay.Progress<1,
                             kind+" editor is already gray while its shape is still expanding, without first forming a full blue sheet");
                         samples.Add(new {milliseconds=ms,geometry=overlay.Progress,visual=overlay.VisualProgress,color=overlay.SurfaceColor.ToString(),overlay.SourceContentOpacity,pixel});

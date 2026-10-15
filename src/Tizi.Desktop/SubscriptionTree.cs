@@ -127,10 +127,12 @@ internal sealed class SubscriptionTree : StackPanel
             _rotation.Transitions = new() { new DoubleTransition { Property = RotateTransform.AngleProperty, Duration = TimeSpan.FromMilliseconds(160), Easing = new SplineEasing(0.22, 0.7, 0.2, 1) } };
             var arrow = new Canvas { Width = 12, Height = 12, RenderTransform = _rotation, RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative), VerticalAlignment = VerticalAlignment.Center,
                 Children = { new Avalonia.Controls.Shapes.Path { Data = Geometry.Parse("M3,1 L8,6 L3,11"), Stroke = Skin.SecondaryBrush, StrokeThickness = 1.6, StrokeLineCap = PenLineCap.Round, StrokeJoin = PenLineJoin.Round } } };
-            Disclosure = new Button { Width = 16, Height = 28, MinHeight = 0, Padding = default, Background = Brushes.Transparent, BorderThickness = default, Classes = { "plain", "selection-item" }, Content = arrow };
+            // Keep the 16-by-28 layout slot and arrow center while extending the
+            // transparent hit target into the surrounding padding and label gap.
+            Disclosure = new Button { Width = 36, Height = 44, Margin = new(-10, -8, -10, -8), MinHeight = 0, Padding = default, Background = Brushes.Transparent, BorderThickness = default, Classes = { "plain", "selection-item" }, Content = arrow };
             Disclosure.Click += (_, _) => { _expanded = !_expanded; Animate(); };
             var label = new Grid { ColumnDefinitions = new("16,10,*,8,Auto"), Children = { Disclosure, _title, _count } }; Grid.SetColumn(_title, 2); Grid.SetColumn(_count, 4); _title.FontWeight = FontWeight.Medium;
-            Header = new Button { Content = label, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, MinHeight = 44, Padding = new(4, 6), Classes = { "plain", "disclosure" }, CornerRadius = new(8) };
+            Header = new Button { Content = label, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, MinHeight = 44, Padding = new(4, 6), Classes = { "plain", "disclosure" }, CornerRadius = new(8), ClipToBounds=false };
             AutomationProperties.SetAutomationId(Header, "subscription-" + key);
             Header.Click += (_, e) => { if (ReferenceEquals(e.Source, Header)) Selected?.Invoke(); };
             Ui.OnActivate(Header, () => { Selected?.Invoke(); _expanded = !_expanded; Animate(); });
@@ -158,7 +160,7 @@ internal sealed class SubscriptionTree : StackPanel
             _expiry.Text = UiText.Get("Expires") + " · " + UiFormat.Expiry(subscription?.Usage);
             _usage.Text = UiFormat.Usage(subscription?.Usage);
             _usage.Foreground = subscription?.Usage?.Used is not null ? Ui.DataAccent : Skin.SecondaryBrush;
-            _expiry.Foreground = subscription?.Usage?.IsExpired(DateTimeOffset.Now) == true ? new SolidColorBrush(Color.Parse("#FFB5A5")) : Skin.SecondaryBrush;
+            _expiry.Foreground = subscription?.Usage?.IsExpired(DateTimeOffset.Now) == true ? Skin.Error : Skin.SecondaryBrush;
             if (subscription?.Usage is { Used: { } used, Total: > 0 } usage) _quota.Value = Math.Clamp(used / (double)usage.Total.Value * 100, 0, 100);
             if (!_source.Select(n => n.Id).SequenceEqual(nodes.Select(n => n.Id))) _page = 0;
             if (_activeNode != selected && nodes.Any(n => n.Id == selected)) _expanded = true;

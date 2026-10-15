@@ -9,20 +9,18 @@ using Avalonia.Themes.Fluent;
 namespace Tizi.Desktop;
 
 /// <summary>
-/// The colours the interface is drawn in, taken from the Mac build rather than invented: every one names the
-/// Swift or AppKit value it comes from, so a change here can be checked against Compositor/*.swift. The Mac
-/// build asks for the dark appearance (<c>.preferredColorScheme(.dark)</c> in ContentView), so this port does
-/// too, and Fluent's own dark palette is then moved onto the Mac's greys and the Mac's blue where it differs.
+/// Shared surfaces retain the established dark appearance. Skin.Appearance supplies the semantic
+/// light palette while keeping the existing control geometry and interaction states.
 /// </summary>
-internal static class Skin
+internal static partial class Skin
 {
     // ---- What the Mac build writes down ----
 
     /// <summary><c>Color(white: 0.14)</c>: the editor's own background in ContentView.</summary>
-    public static readonly Color Chrome = Color.FromRgb(0x24, 0x24, 0x24);
+    public static Color Chrome => IsLight ? Color.Parse("#F0F1F4") : Color.FromRgb(0x24, 0x24, 0x24);
 
     /// <summary><c>NSColor(white: 0.105)</c>: the pasteboard drawn behind the picture in EditorCanvas.draw.</summary>
-    public static readonly Color Pasteboard = Color.FromRgb(0x1B, 0x1B, 0x1B);
+    public static Color Pasteboard => IsLight ? Color.Parse("#FAFAFC") : Color.FromRgb(0x1B, 0x1B, 0x1B);
 
     /// <summary>The transparency checker: <c>NSColor(white: 0.30)</c> with <c>0.35</c> squares, 10 points each.</summary>
     public static readonly Color CheckerBase = Color.FromRgb(0x4D, 0x4D, 0x4D);
@@ -61,9 +59,9 @@ internal static class Skin
     public static readonly Color AccentPressed = Color.FromRgb(0x00, 0x60, 0xC9);
 
     /// <summary><c>NSColor.labelColor</c> in the dark appearance: white at 0.85.</summary>
-    public static readonly Color Label = Color.FromArgb(0xD9, 0xFF, 0xFF, 0xFF);
+    public static Color Label => IsLight ? Color.Parse("#24282F") : Color.FromArgb(0xD9, 0xFF, 0xFF, 0xFF);
     /// <summary><c>NSColor.secondaryLabelColor</c>: white at 0.55, what `.secondary` resolves to.</summary>
-    public static readonly Color Secondary = Color.FromArgb(0x8C, 0xFF, 0xFF, 0xFF);
+    public static Color Secondary => IsLight ? Color.Parse("#616872") : Color.FromArgb(0x8C, 0xFF, 0xFF, 0xFF);
 
     // ---- How the app's own surfaces are painted with them ----
 
@@ -168,9 +166,9 @@ internal static class Skin
         }
 
         // The Mac's chrome, its label and its secondary text, where Fluent's own would be black, white and grey.
-        moved += Wear(dark, "SystemControlBackgroundAltHighBrush", Chrome);
-        moved += Wear(dark, "SystemControlForegroundBaseHighBrush", Label);
-        moved += Wear(dark, "SystemControlForegroundBaseMediumBrush", Secondary);
+        moved += Wear(dark, "SystemControlBackgroundAltHighBrush", Color.FromRgb(0x24,0x24,0x24));
+        moved += Wear(dark, "SystemControlForegroundBaseHighBrush", Color.FromArgb(0xD9,255,255,255));
+        moved += Wear(dark, "SystemControlForegroundBaseMediumBrush", Color.FromArgb(0x8C,255,255,255));
         return moved;
     }
 

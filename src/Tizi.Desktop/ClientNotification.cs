@@ -29,7 +29,7 @@ internal sealed class ClientNotification : Border
         Width = 520; MaxWidth = 520; Margin = new(24, 40, 24, 0);
         HorizontalAlignment = HorizontalAlignment.Center; VerticalAlignment = VerticalAlignment.Top;
         Padding = new(16, 12); CornerRadius = new(14); BorderThickness = new(0.5);
-        Background = new SolidColorBrush(Color.Parse("#F2313134")); BorderBrush = new SolidColorBrush(Color.Parse("#35FFFFFF"));
+        Background = Skin.NotificationFill; BorderBrush = Skin.NotificationEdge;
         BoxShadow = new BoxShadows(new BoxShadow { OffsetY = 8, Blur = 24, Color = Color.Parse("#50000000") });
         RenderTransform = Offset; Opacity = 0; IsVisible = false; IsHitTestVisible = false;
         var title = Ui.Text("Notice", size: 14); title.FontWeight = FontWeight.SemiBold; title.VerticalAlignment = VerticalAlignment.Center;
@@ -52,7 +52,7 @@ internal sealed class ClientNotification : Border
         _expiry.Stop(); _expiry.Interval = duration ?? TimeSpan.FromSeconds(6);
         _message.Text = message; ToolTip.SetTip(_message, message); AutomationProperties.SetName(this, UiText.Get("Notice") + ": " + message);
         IsError = isError && !isWarning; IsWarning = isWarning;
-        var tone = IsWarning ? new SolidColorBrush(Color.Parse("#F4C152")) : IsError ? new SolidColorBrush(Color.Parse("#FF8A94")) : Ui.DataAccent;
+        var tone = IsWarning ? Skin.Warning : IsError ? Skin.NotificationError : Ui.DataAccent;
         _icon.Child = new NavigationGlyph(IsWarning ? "Warning" : IsError ? "Error" : "Notice", tone);
         Showing = true; IsVisible = true; IsHitTestVisible = true;
         Motion.Set(this, ProgressProperty, 1); _expiry.Start();

@@ -126,9 +126,9 @@ internal static class Revision0130Checks
             check(overlay.SourceBounds==heading&&file.Opacity==1,"A File menu command grows from its persistent top heading while the heading stays visible");
             using(var clock=new UiAnimationClock(overlay))
             {
-                overlay.SetImmediately(0);overlay.Reveal();clock.Pulse(0);clock.Pulse(250);Layout(window);
-                check(overlay.Progress==1&&overlay.VisibleBounds==overlay.TargetBounds,"A top-menu sheet reaches its final shape within 250 milliseconds");
-                Save(window,Path.Combine(folder,"file-menu-import-open.png"));dialog.Close();clock.Pulse(251);clock.Pulse(441);Layout(window);
+                overlay.SetImmediately(0);overlay.Reveal();clock.Pulse(0);clock.Pulse(overlay.OpeningMilliseconds+10);Layout(window);
+                check(overlay.Progress==1&&overlay.VisibleBounds==overlay.TargetBounds,"A top-menu sheet reaches its final shape at the configured gentle duration");
+                Save(window,Path.Combine(folder,"file-menu-import-open.png"));dialog.Close();clock.Pulse(311);clock.Pulse(541);Layout(window);
                 check(overlay.Progress==0&&overlay.VisibleBounds==heading,"Retraction ends at the visible File heading rather than the vanished menu row");
             }
             await Until(()=>!dialog.IsVisible);check(file.Opacity==1,"The top menu heading is restored after the sheet closes");
@@ -140,7 +140,7 @@ internal static class Revision0130Checks
             var cards=window.PageView.GetVisualDescendants().OfType<SettingsCards>().Single(c=>c.IsEffectivelyVisible);
             using(var clock=new UiAnimationClock(cards))
             {
-            cards.Progress=0;clock.Pulse(0);cards.Progress=1;clock.Pulse(170);Layout(window);
+            cards.Progress=0;clock.Pulse(0);cards.Progress=1;clock.Pulse(260);Layout(window);
             var column=cards.Children.OfType<StackPanel>().Single(c=>c.Tag is "diagnostics-tools-column");
             foreach(var width in new[]{1032d,880d})
             {
@@ -166,10 +166,10 @@ internal static class Revision0130Checks
             {
                 var fromButton=window.SettingsSections!.ButtonAt(from);Click(window,fromButton,new(fromButton.Bounds.Width/2,fromButton.Bounds.Height/2));
                 var previous=window.PageView.GetVisualDescendants().OfType<SettingsCards>().Single();
-                using(var settle=new UiAnimationClock(previous)) {previous.Progress=0;settle.Pulse(0);previous.Progress=1;settle.Pulse(170);Layout(window);}
+                using(var settle=new UiAnimationClock(previous)) {previous.Progress=0;settle.Pulse(0);previous.Progress=1;settle.Pulse(260);Layout(window);}
                 using var clock=new UiAnimationClock(general,updateFace);clock.Pulse(0);
                 var returnButton=window.SettingsSections.ButtonAt(0);Click(window,returnButton,new(returnButton.Bounds.Width/2,returnButton.Bounds.Height/2));clock.Pulse(1);
-                for(var ms=0;ms<=176;ms+=8)
+                for(var ms=0;ms<=256;ms+=8)
                 {
                     clock.Pulse(1+ms);Layout(window);
                     check(updateFace.Background is ISolidColorBrush paint&&paint.Color==Color.Parse("#3A3A3A"),

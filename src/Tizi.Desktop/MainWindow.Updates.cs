@@ -24,7 +24,7 @@ internal sealed partial class MainWindow
         if (_versionUpdateButton is not { Content: TextBlock text } button) return;
         UiText.Set(text, TextBlock.TextProperty, HasNewVersion ? "New version found" : "Check for updates");
         if (HasNewVersion)
-        { if(!button.Classes.Contains("accent"))button.Classes.Add("accent"); button.Background = new SolidColorBrush(Color.Parse("#2979F5")); button.ClearValue(Button.BorderBrushProperty); text.Foreground = Skin.LabelBrush; }
+        { if(!button.Classes.Contains("accent"))button.Classes.Add("accent"); button.Background = Skin.Blue; button.ClearValue(Button.BorderBrushProperty); text.Foreground = Skin.OnAccent; }
         else
         { button.Classes.Remove("accent"); button.ClearValue(Button.BackgroundProperty); button.ClearValue(Button.BorderBrushProperty); text.Foreground = Skin.LabelBrush; }
     }

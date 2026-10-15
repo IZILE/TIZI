@@ -47,7 +47,7 @@ internal static class Revision0131Checks
             using(var clock=new UiAnimationClock(overlay))
             {
                 overlay.SetImmediately(0);overlay.Reveal();clock.Pulse(0);
-                foreach(var ms in new[]{0,16,32,64,120,240})
+                foreach(var ms in new[]{0,16,32,64,120,240,320})
                 {
                     clock.Pulse(ms);Layout(window);AvaloniaHeadlessPlatform.ForceRenderTimerTick();
                     using var image=window.CaptureRenderedFrame()!;
@@ -59,7 +59,7 @@ internal static class Revision0131Checks
                     frames.Add(new{ms,ink,overlay.Progress});
                     if(ms is 0 or 32 or 240)image.Save(Path.Combine(folder,"file-heading-"+ms+".png"),new PngBitmapEncoderOptions());
                 }
-                dialog.Close();clock.Pulse(241);clock.Pulse(431);Layout(window);
+                dialog.Close();clock.Pulse(321);clock.Pulse(561);Layout(window);
                 check(file.Opacity==1&&overlay.VisibleBounds==overlay.SourceBounds,"Closing still returns to the visible heading");
             }
             await Until(()=>!dialog.IsVisible);File.WriteAllText(Path.Combine(folder,"heading-frames.json"),JsonSerializer.Serialize(frames));

@@ -125,7 +125,7 @@ internal static class Revision0126Checks
                 var firstLegend = preview.GetVisualDescendants().OfType<Button>().Single(b => b.Tag is "chart-series-0");
                 var badges = monitor.IpQuality;
                 var legendText = firstLegend.GetVisualDescendants().OfType<TextBlock>().Single();
-                check(badges.Badges.All(b => b.Background is ISolidColorBrush brush && brush.Color.A == 255 && ((TextBlock)b.Child!).Foreground == legendText.Foreground && ((TextBlock)b.Child!).FontSize == legendText.FontSize), "IP result pills share the traffic legend typography and keep fully opaque emphasis backgrounds");
+                check(badges.Badges.All(b => b.Background is ISolidColorBrush brush && brush.Color.A == 255 && ((TextBlock)b.Child!).Foreground is ISolidColorBrush ink&&legendText.Foreground is ISolidColorBrush legendInk&&ink.Color==legendInk.Color && ((TextBlock)b.Child!).FontSize == legendText.FontSize), "IP result pills share the traffic legend typography and keep fully opaque emphasis backgrounds");
                 check(badges.TranslatePoint(new Point(badges.Bounds.Width, 0), preview)!.Value.X < firstLegend.TranslatePoint(default, preview)!.Value.X && Math.Abs(badges.TranslatePoint(default, preview)!.Value.Y - firstLegend.TranslatePoint(default, preview)!.Value.Y) < 1,
                     "The three compact IP result pills precede the chart legend on the same row");
                 Capture(preview, "overview-ip-label-design.png");

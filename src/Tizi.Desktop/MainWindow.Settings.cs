@@ -17,6 +17,7 @@ internal sealed partial class MainWindow
     internal SegmentedChoice? SettingsSections { get; private set; }
     internal bool SettingsDirty { get; private set; }
     private StableChoice? _settingsLanguage;
+    private StableChoice? _settingsAppearance;
     private Control? _settingsView;
     private Action? _syncGeneralOptions;
     private string? _settingsFingerprint;
@@ -89,6 +90,16 @@ internal sealed partial class MainWindow
         var general = Card("General", "Language");
         var language = _settingsLanguage = Choice(["简体中文", "English"], UiText.Language == "en" ? "English" : "简体中文");
         language.SelectionChanged += (_, _) => { var next = language.SelectedIndex == 1 ? "en" : "zh-CN"; if (!_syncing && UiText.Language != next) SetLanguage(next); }; general.Children.Add(language);
+        general.Children.Add(Heading("Appearance"));
+        var appearance=_settingsAppearance=Choice(["Dark","Light","Follow system"],Appearance.Current.Theme switch {"Light"=>"Light","System"=>"Follow system",_=>"Dark"});appearance.Tag="settings-appearance";general.Children.Add(appearance);
+        void ChangeAppearance()
+        {
+            if(_syncing)return;
+            try{Appearance.Set(appearance.SelectedIndex switch {1=>"Light",2=>"System",_=>"Dark"},!_preview);}
+            catch(Exception failure) when(failure is IOException or UnauthorizedAccessException)
+            {appearance.SelectedIndex=Appearance.Current.Theme switch {"Light"=>1,"System"=>2,_=>0};ShowError(failure.Message);}
+        }
+        appearance.SelectionChanged+=(_,_)=>ChangeAppearance();
         general.Children.Add(Heading("Version updates")); general.Children.Add(Ui.Value("TIZI " + AppVersion, true)); general.Children.Add(_versionUpdateButton = Ui.Button("Check for updates", ShowUpdates)); RefreshUpdateButton();
         var startup = Card("General", "Startup and closing");
         var login = Option("Start TIZI when I sign in", state.StartAtLogin); startup.Children.Add(login);
@@ -197,7 +208,7 @@ internal sealed partial class MainWindow
         }));
         var savedDraft = Draft();
         var error = Ui.Value(""); error.Tag = "settings-error"; error.TextWrapping = TextWrapping.Wrap;
-        error.Foreground = new SolidColorBrush(Color.Parse("#FF9B8F")); error.IsVisible = false;
+        error.Foreground = Skin.ErrorStrong; error.IsVisible = false;
         var draftStatus = _settingsDraftStatus = Ui.Text("Unsaved changes", true, 13);
         draftStatus.Tag = "settings-draft-status"; draftStatus.TextWrapping = TextWrapping.Wrap; draftStatus.IsVisible = false;
         _settingsStatusKey = "Unsaved changes";
@@ -301,14 +312,11 @@ internal sealed class SettingsCards : Panel
     private Rect[] _from = [];
     private double _fromHeight;
     private int _generation;
-    private readonly GhostSurface _ghosts;
     internal int Columns { get; private set; } = 1;
     static SettingsCards() => AffectsMeasure<SettingsCards>(ProgressProperty);
     internal SettingsCards()
     {
-        _ghosts=new GhostSurface(this) { IsHitTestVisible=false, ZIndex=-1 }; VisualChildren.Add(_ghosts);
-        Transitions = new() { new DoubleTransition { Property=ProgressProperty, Duration=TimeSpan.FromMilliseconds(160), Easing=new SplineEasing(.16,1,.3,1) } };
-        PropertyChanged += (_,e) => { if(e.Property==ProgressProperty) _ghosts.InvalidateVisual(); };
+        Transitions = new() { new DoubleTransition { Property=ProgressProperty, Duration=TimeSpan.FromMilliseconds(240), Easing=new SplineEasing(.2,0,.2,1) } };
         AttachedToVisualTree += (_, _) =>
         {
             var generation = _generation;
@@ -322,8 +330,7 @@ internal sealed class SettingsCards : Panel
         var generation=++_generation;
         Dispatcher.UIThread.Post(() => { if(generation==_generation && VisualRoot is not null) { Motion.SettlePaint(this); Progress=1; } },DispatcherPriority.Loaded);
     }
-    internal Rect[] DisplayedCards() => Children.Select(c=>c.Bounds).Concat(
-        _from.Skip(Children.Count).Select(r=>new Rect(r.X,r.Y,r.Width,r.Height*(1-Math.Clamp(Progress,0,1))))).Where(r=>r.Height>.1).ToArray();
+    internal Rect[] DisplayedCards() => Children.Select(c=>c.Bounds).Where(r=>r.Height>.1).ToArray();
     protected override Size MeasureOverride(Size available)
     {
         var width = double.IsFinite(available.Width) ? available.Width : 900; Columns = width >= 760 ? 2 : 1;
@@ -337,8 +344,6 @@ internal sealed class SettingsCards : Panel
     }
     protected override Size ArrangeOverride(Size final)
     {
-        if(!VisualChildren.Contains(_ghosts)) VisualChildren.Add(_ghosts);
-        _ghosts.Measure(final); _ghosts.Arrange(new Rect(0,0,final.Width,Math.Max(final.Height,_fromHeight)));
         var cell = (final.Width - (Columns - 1) * 18) / Columns; var top = 0d;
         for (var i = 0; i < Children.Count; i += Columns)
         {
@@ -355,15 +360,5 @@ internal sealed class SettingsCards : Panel
             top += height + 18;
         }
         return final;
-    }
-    private sealed class GhostSurface(SettingsCards owner) : Control
-    {
-        public override void Render(DrawingContext context)
-        {
-            var p=Math.Clamp(owner.Progress,0,1);
-            if(p>=1) return;
-            foreach(var rect in owner._from.Skip(owner.Children.Count))
-                context.DrawRectangle(Skin.ChromeBrush,null,new Rect(rect.X,rect.Y,rect.Width,rect.Height*(1-p)),14,14);
-        }
     }
 }

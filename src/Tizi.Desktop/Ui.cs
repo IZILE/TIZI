@@ -13,8 +13,8 @@ namespace Tizi.Desktop;
 
 internal static class Ui
 {
-    internal static readonly IBrush DataAccent = new SolidColorBrush(Color.Parse("#82B4FF"));
-    internal static readonly IBrush SelectionBrush = new SolidColorBrush(Color.Parse("#414141"));
+    internal static readonly IBrush DataAccent = Skin.DataBlue;
+    internal static readonly IBrush SelectionBrush = Skin.SelectionFill;
     internal static bool OwnButtonEvent(Button button, RoutedEventArgs e) => e.Source is Visual source
         && (source as Button ?? source.GetVisualAncestors().OfType<Button>().FirstOrDefault()) == button;
     internal static void OnActivate(Button button, Action action)
@@ -46,7 +46,8 @@ internal static class Ui
     { Text = value, FontSize = size, Foreground = secondary ? Skin.SecondaryBrush : Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
     internal static Button Button(string label, Action action, bool accent = false)
     {
-        var button = new Button { Content = Text(label), MinHeight = 36, Padding = new Thickness(16, 6), CornerRadius = new CornerRadius(18) }; if (accent) button.Classes.Add("accent"); button.Click += (_, _) => action(); return button;
+        var text=Text(label);if(accent)text.Foreground=Skin.OnAccent;
+        var button = new Button { Content = text, MinHeight = 36, Padding = new Thickness(16, 6), CornerRadius = new CornerRadius(18) }; if (accent) button.Classes.Add("accent"); button.Click += (_, _) => action(); return button;
     }
     internal static StackPanel Horizontal(params Control[] controls)
     { var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center }; foreach (var control in controls) row.Children.Add(control); return row; }
@@ -136,7 +137,7 @@ internal sealed class MovingRows : Grid
     private readonly Panel _rows;
     private readonly bool _nodeGrid;
     private bool _compactNodes;
-    internal static readonly IBrush CurrentNodeBrush = new SolidColorBrush(Color.Parse("#2979F5"));
+    internal static readonly IBrush CurrentNodeBrush = Skin.Blue;
     private readonly Canvas _cardGrounds = new() { IsHitTestVisible = false };
     private readonly Dictionary<string, Border> _grounds = [];
     private readonly SelectionIndicator _indicator = new() { CornerRadius = new CornerRadius(12), Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
@@ -210,10 +211,13 @@ internal sealed class MovingRows : Grid
                 value.Text = entry.Badge; value.Foreground = BadgeBrush(entry);
                 if (_nodeGrid && existing.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Tag is "row-subtitle") is { } existingSubtitle)
                     Motion.Set(existingSubtitle, TextBlock.ForegroundProperty, entry.Current ? CurrentSubtitleBrush : Skin.SecondaryBrush);
+                if(_nodeGrid&&existing.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t=>t.Tag is "row-title") is {} existingTitle)
+                    existingTitle.Foreground=entry.Current?Skin.OnAccent:Skin.LabelBrush;
                 _display[entry.Id] = entry; continue;
             }
             _display[entry.Id] = entry;
             var title = Ui.Value(entry.Country is null ? entry.Title : Tizi.Core.NodeRegion.StripFlag(entry.Title), size: 15); title.FontWeight = FontWeight.Medium;
+            title.Tag="row-title";if(_nodeGrid&&entry.Current)title.Foreground=Skin.OnAccent;
             var subtitle = Ui.Value(entry.Subtitle, true, 13); ToolTip.SetTip(title, entry.Title); ToolTip.SetTip(subtitle, entry.Subtitle);
             subtitle.Tag = "row-subtitle";
             if (_nodeGrid)

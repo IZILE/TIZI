@@ -157,8 +157,8 @@ public sealed class PopupRevealSurface : Avalonia.Controls.Decorator
         }
     }
     private VisualBrush? _headerBrush;
-    private static readonly IBrush SurfaceFill = Brush.Parse("#353535");
-    private static readonly IPen SurfaceEdge = new Pen(Brush.Parse("#25666666"), 0.5);
+    private static readonly IBrush SurfaceFill = Skin.PopupFill;
+    private static readonly IPen SurfaceEdge = new Pen(Skin.FieldEdge, 0.5);
     public static readonly StyledProperty<bool> RevealOnAttachProperty = AvaloniaProperty.Register<PopupRevealSurface, bool>(nameof(RevealOnAttach));
     public bool RevealOnAttach { get => GetValue(RevealOnAttachProperty); set => SetValue(RevealOnAttachProperty, value); }
     public static readonly StyledProperty<bool> GentleMenuMotionProperty = AvaloniaProperty.Register<PopupRevealSurface,bool>(nameof(GentleMenuMotion));
@@ -176,7 +176,7 @@ public sealed class PopupRevealSurface : Avalonia.Controls.Decorator
             if (change.Property == TriggerProperty || change.Property == GentleMenuMotionProperty)
             {
                 Transitions = new() { new DoubleTransition { Property = ProgressProperty,
-                    Duration = TimeSpan.FromMilliseconds(GentleMenuMotion ? 200 : Trigger is null ? 120 : 140),
+                    Duration = TimeSpan.FromMilliseconds(GentleMenuMotion ? 260 : Trigger is null ? 120 : 140),
                     Easing = GentleMenuMotion ? new SplineEasing(.2,0,.2,1) : new SplineEasing(0.16, 1, 0.3, 1) } };
                 InvalidateMeasure();
             }

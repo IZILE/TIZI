@@ -41,7 +41,7 @@ internal sealed class SubscriptionNodeChoice : ComboBox
             var flag = FlagImages.Control(node.CountryCode ?? NodeRegion.Match(node.Name)); flag.Width = 36; flag.Height = 28; flag.VerticalAlignment = VerticalAlignment.Center;
             var name = Ui.Value(node.Name, size: 15); name.FontWeight = FontWeight.Medium; name.TextTrimming = TextTrimming.CharacterEllipsis; name.Tag = "header-node-name";
             var details = Ui.Value(string.Join(" · ", new[] { option.SubscriptionName, node.Type.ToUpperInvariant(), NodeTransport.Summary(node) }.Where(s => s.Length > 0)), true, 12.5);
-            details.Foreground = new SolidColorBrush(Color.Parse("#BCC0C7")); details.Margin = new(0, 3, 0, 0);
+            details.Foreground = Skin.DetailInk; details.Margin = new(0, 3, 0, 0);
             details.TextTrimming = TextTrimming.CharacterEllipsis; details.TextAlignment = TextAlignment.Left; details.Tag = "header-node-details";
             // Both captions share the same text column. The flag never shifts their left edge.
             var badge = Ui.Value("—", true, 12); badge.Tag = "header-node-latency"; badge.IsVisible = false;
