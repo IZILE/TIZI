@@ -12,7 +12,7 @@ namespace Tizi.Desktop;
 internal static class Program
 {
     internal static string? PendingImportLink { get; private set; }
-    private static bool ImportLink(string value) => new[] { "clash://", "shadowrocket://", "clash-verge://", "tizi://" }.Any(prefix => value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+    private static bool ImportLink(string value) => new[] { "clash://", "shadowrocket://", "clash-verge://", "tizi://", "sub://" }.Any(prefix => value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     [STAThread]
     public static int Main(string[] args)
     {
@@ -67,6 +67,13 @@ internal static class Program
         {
             UserData.DirectoryPath = Path.Combine(Path.GetFullPath(workflowOutput), "settings"); Build(true).SetupWithoutStarting();
             var check = WorkflowChecks.RunAsync(workflowOutput);
+            while (!check.IsCompleted) { Avalonia.Threading.Dispatcher.UIThread.RunJobs(); Thread.Sleep(10); }
+            return check.GetAwaiter().GetResult();
+        }
+        if (args is ["--verify-subscription-imports", var samples, var sampleOutput])
+        {
+            UserData.DirectoryPath = Path.Combine(Path.GetFullPath(sampleOutput), "settings"); Build(true).SetupWithoutStarting();
+            var check = SubscriptionImportChecks.RunAsync(Path.GetFullPath(samples), Path.GetFullPath(sampleOutput));
             while (!check.IsCompleted) { Avalonia.Threading.Dispatcher.UIThread.RunJobs(); Thread.Sleep(10); }
             return check.GetAwaiter().GetResult();
         }

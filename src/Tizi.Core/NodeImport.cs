@@ -21,6 +21,15 @@ public static class NodeImport
             try { var decoded = DecodeBase64(text); if (decoded.Contains("://")) text = decoded.Trim(); }
             catch (FormatException) { }
         }
+        // Shadowrocket feeds may prefix the (also URL-safe Base64 encoded) link
+        // list with STATUS and REMARKS lines. They are metadata, not proxies or YAML.
+        while (text.StartsWith("STATUS=", StringComparison.OrdinalIgnoreCase) || text.StartsWith("REMARKS=", StringComparison.OrdinalIgnoreCase))
+        {
+            var end = text.IndexOf('\n');
+            if (end < 0) throw new FormatException("Subscription contains no connection nodes.");
+            text = text[(end + 1)..].Trim();
+            if (text.Length == 0) throw new FormatException("Subscription contains no connection nodes.");
+        }
         List<ProxyNode> nodes;
         if (text.StartsWith('{') || text.StartsWith('['))
         {

@@ -1340,5 +1340,7 @@
   "Timed out": "请求超时",
   "Responses API": "Responses 接口",
   "Chat Completions (compatible)": "Chat Completions（通用兼容）",
-  "Anthropic Messages": "Anthropic Messages 接口"
+  "Anthropic Messages": "Anthropic Messages 接口",
+  "Invalid subscription name.": "订阅名称格式无效。",
+  "Subscription contains no connection nodes.": "订阅中没有可连接的节点。"
 }

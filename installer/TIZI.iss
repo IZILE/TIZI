@@ -5,7 +5,7 @@
   #error Supply /DDeliveryDir.
 #endif
 #ifndef AppVersion
-  #define AppVersion "0.1.33"
+  #define AppVersion "0.1.34"
 #endif
 #define BrandIcon "TIZI-" + AppVersion + ".ico"
 [Setup]
@@ -109,7 +109,7 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usUninstall then begin
-    RemoveOwnImportProtocol('tizi'); RemoveOwnImportProtocol('clash'); RemoveOwnImportProtocol('shadowrocket');
+    RemoveOwnImportProtocol('tizi'); RemoveOwnImportProtocol('clash'); RemoveOwnImportProtocol('shadowrocket'); RemoveOwnImportProtocol('sub');
   end;
 end;
 #endif
@@ -119,7 +119,7 @@ begin
   if CurStep = ssPostInstall then begin
     SHChangeNotify($00002000, $0005, ExpandConstant('{app}\{#BrandIcon}'), 0);
 #ifndef TestInstall
-    RegisterImportProtocol('tizi'); RegisterImportProtocol('clash'); RegisterImportProtocol('shadowrocket');
+    RegisterImportProtocol('tizi'); RegisterImportProtocol('clash'); RegisterImportProtocol('shadowrocket'); RegisterImportProtocol('sub');
     SHChangeNotify($00002000, $0005, ExpandConstant('{autodesktop}\TIZI.lnk'), 0);
     SHChangeNotify($00002000, $0005, ExpandConstant('{autoprograms}\TIZI\TIZI.lnk'), 0);
     SHChangeNotify($00002000, $0005, ExpandConstant('{autoprograms}\TIZI\Uninstall TIZI.lnk'), 0);

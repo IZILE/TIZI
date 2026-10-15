@@ -105,7 +105,7 @@ internal sealed partial class MainWindow
         if (ImportDocument.RemoteUrl(text) is { } url) { await _app.AddSubscriptionAsync(new Uri(url).Host, url, document => ReviewImportAsync(document, token), token, commit); if (_editor is null) ShowImportResult(); return; }
         var document = await _app.ParseImportAsync(text, token);
         if (document.Warnings.Count > 0 && !await ReviewImportAsync(document, token)) throw new ImportReviewCancelledException();
-        await _app.ApplyImportAsync(document, cancellation: token, beforeCommit: commit);
+        await _app.ApplyImportAsync(document, downloaded => downloaded.Warnings.Any(w => !document.Warnings.Contains(w)) ? ReviewImportAsync(downloaded, token) : Task.FromResult(true), cancellation: token, beforeCommit: commit);
         if (_editor is null) ShowImportResult();
     }
     private async Task ImportContentsAsync(IReadOnlyList<string> texts)

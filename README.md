@@ -2,9 +2,9 @@
 
 TIZI 是面向 Windows 的代理客户端，提供节点与订阅管理、分流规则、网络监控和机场导航。
 
-[下载 TIZI 0.1.33](https://github.com/IZILE/TIZI/releases/tag/v0.1.33) · [更新说明](CHANGELOG.md)
+[下载 TIZI 0.1.34](https://github.com/IZILE/TIZI/releases/tag/v0.1.34) · [更新说明](CHANGELOG.md) · [订阅导入说明](docs/SUBSCRIPTIONS.md)
 
-- 链接、网址、二维码图片、剪贴板、JSON、Clash YAML 和部分 Shadowrocket .conf 导入。
+- 链接、网址、二维码图片、剪贴板、JSON、Clash YAML 和部分 Shadowrocket .conf 导入；兼容单条 Shadowrocket 订阅 JSON、`.url` / `sub://` 和带状态说明的订阅列表，详见 [订阅导入说明](docs/SUBSCRIPTIONS.md)。
 - JSON / YAML、常见协议分享链接、二维码及订阅地址导出。
 - 订阅和节点在同一页管理，显示到期日、用量、国家与 TCP / UDP 信息。
 - 用播放三角形、旋转弧线、完整梯子和红色断裂梯子表示连接状态；连接成功时，旋转线分段搭建为纵向梯子。
@@ -28,24 +28,10 @@ TIZI 是面向 Windows 的代理客户端，提供节点与订阅管理、分流
 
 支持程度与使用方法见 [安装与使用说明](docs/INSTALLING.md) 和 [功能对照](docs/FEATURES.md)。构建方法见 [BUILDING.md](BUILDING.md)。此版本仍需真实桌面与实际网络环境验证。机场信息展示可追溯的公开评价和排名，不提供自创的安全或 IP 质量评分。
 
-## 0.1.33 界面预览
+## 界面预览
 
-预览由 TIZI 0.1.33 的实际控件按默认 1032 × 722 尺寸渲染，使用离线模拟数据。弱网曲线中的实线连接有效测量，虚线表示超时或等待结果时的衔接，不代表新的实测延迟；其他示例不代表真实机场、出口 IP 或实际网络质量。
+以下保留 0.1.33 的默认 1032 × 722 控件预览与模拟数据；0.1.34 主要修复订阅导入，未更改这些页面布局。
 
-### 概览与弱网曲线衔接
+![概览与弱网曲线](docs/previews/0.1.33/poor-network-overview.png)
 
-![概览与弱网曲线衔接](docs/previews/0.1.33/poor-network-overview.png)
-
-### DNS 设置与滚动条布局
-
-![DNS 设置与滚动条布局](docs/previews/0.1.33/settings-dns-default.png)
-
-### 机场导航
-
-![机场导航](docs/previews/0.1.33/providers-default.png)
-
-### 顶部文件菜单弹层
-
-![顶部文件菜单弹层](docs/previews/0.1.33/file-heading-240.png)
-
-[其他预览](docs/previews/0.1.33/) · [历史 0.1.29 预览](docs/previews/0.1.29/)
+[更多 0.1.33 预览](docs/previews/0.1.33/) · [历史 0.1.29 预览](docs/previews/0.1.29/)

@@ -42,6 +42,8 @@ public sealed record ImportDocument(List<ProxyNode> Nodes, List<RoutingRule> Rul
         {
             var root = JsonNode.Parse(text, documentOptions: new JsonDocumentOptions { MaxDepth = 24 });
             if (root is JsonObject config && (config["proxies"] is JsonArray || config["rules"] is JsonArray)) return Config(config, subscriptionId, "Clash JSON");
+            if (root is JsonObject single && IsSubscription(single))
+                return new([], [], [SubscriptionObject(single)], [], "Shadowrocket subscription JSON");
             var entries = root is JsonArray array ? array : (root as JsonObject)?["servers"] as JsonArray ?? (root as JsonObject)?["configs"] as JsonArray;
             if (entries is not null)
             {
@@ -52,9 +54,7 @@ public sealed record ImportDocument(List<ProxyNode> Nodes, List<RoutingRule> Rul
                     try
                     {
                         var node = entries[i] as JsonObject ?? throw new FormatException("Invalid node object.");
-                        var type = node["type"]?.ToString().ToLowerInvariant();
-                        if (type is "subscribe" or "subscription")
-                        { var url = node["url"]?.ToString() ?? node["host"]?.ToString() ?? ""; var uri = SourceUpdates.WebUri(url); result.Subscriptions.Add(new Subscription { Name = node["remarks"]?.ToString() ?? node["name"]?.ToString() ?? uri.Host, Url = uri.AbsoluteUri }); }
+                        if (IsSubscription(node)) result.Subscriptions.Add(SubscriptionObject(node));
                         else result.Nodes.Add(NodeImport.FromOptions(node, subscriptionId));
                     }
                     catch (Exception e) when (e is FormatException or JsonException or UriFormatException) { result.Warnings.Add($"JSON #{i + 1}: {SafeReason(e)}"); }
@@ -64,6 +64,15 @@ public sealed record ImportDocument(List<ProxyNode> Nodes, List<RoutingRule> Rul
         }
         if (text.Contains("proxies:") || text.StartsWith("rules:")) return Config(NodeImport.ReadYaml(text), subscriptionId, "Clash YAML");
         return new(NodeImport.Parse(text, subscriptionId), [], [], [], text.Contains("proxies:") ? "Clash YAML" : "Share links / JSON");
+    }
+    private static bool IsSubscription(JsonObject node) => node["type"]?.ToString().Trim().ToLowerInvariant() is "subscribe" or "subscription";
+    private static Subscription SubscriptionObject(JsonObject node)
+    {
+        string? First(params string[] keys) => keys.Select(k => node[k]?.ToString()?.Trim()).FirstOrDefault(s => !string.IsNullOrEmpty(s));
+        var uri = SourceUpdates.WebUri(First("url", "host") ?? "");
+        var name = First("remarks", "name", "title") ?? uri.Host;
+        if (name.Length > 200 || name.Any(char.IsControl)) throw new FormatException("Invalid subscription name.");
+        return new Subscription { Name = name, Url = uri.AbsoluteUri };
     }
     private static ImportDocument Config(JsonObject config, Guid? subscription, string format)
     {

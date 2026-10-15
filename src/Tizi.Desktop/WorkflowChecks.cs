@@ -160,7 +160,7 @@ internal static class WorkflowChecks
             await badBatch.SubmitAsync();
             Check(!badBatch.Applied && badBatch.ErrorText is not null && badBatch.IsVisible && ReferenceEquals(atomicState, window.Controller.State), "Mixed valid and invalid batch stays open and commits no partial nodes");
             Check(atomicBytes.SequenceEqual(File.ReadAllBytes(vaultFile)) && !window.Controller.Engine.IsRunning, "Rejected batch leaves the encrypted profile byte-for-byte unchanged and disconnected"); badBatch.Close(); await badShown;
-            await using (var fixture = new SubscriptionFixture(batchLinks))
+            await using (var fixture = new SubscriptionFixture("STATUS=剩余流量：183 GB\r\nREMARKS=Example VPN\r\n" + batchLinks))
             {
                 var before = window.Controller.State.Subscriptions.Count;
                 var editor = window.CreateImportEditor(); var shown = editor.ShowDialog(window); editor.Field("text").Text = fixture.Url; await editor.SubmitAsync();
@@ -173,6 +173,18 @@ internal static class WorkflowChecks
                 Check(duplicate.Applied && duplicate.ErrorText is null && window.Controller.State.Subscriptions.Count == current.Subscriptions.Count && window.Controller.State.Nodes.Select(n => n.Id).ToHashSet().SetEquals(current.Nodes.Select(n => n.Id)), "Repeated subscription URL refreshes the existing subscription and preserves node identities"); await duplicateShown;
                 await window.ImportPayloadAsync(NodeExport.QrPng(fixture.Url), true);
                 Check(window.Controller.State.Subscriptions.Count == current.Subscriptions.Count && window.Controller.State.Nodes.Count == current.Nodes.Count && window.Controller.State.SelectedNode == current.SelectedNode, "Repeated QR subscription refreshes atomically without duplicating nodes or changing selection");
+                var subscriptionJson = new JsonObject { ["type"] = "Subscribe", ["host"] = fixture.Url, ["url"] = "", ["remarks"] = "", ["title"] = "Example VPN", ["port"] = "0" }.ToJsonString();
+                var subLink = "sub://" + Convert.ToBase64String(Encoding.UTF8.GetBytes(fixture.Url)).TrimEnd('=').Replace('+', '-').Replace('/', '_') + "#Example%20VPN";
+                foreach (var payload in new[] { subscriptionJson, "[" + subscriptionJson + "]", subLink, "shadowrocket://add/" + subLink, "clash://install-config?url=" + Uri.EscapeDataString(fixture.Url) })
+                {
+                    await TextBatch(payload);
+                    Check(window.Controller.State.Subscriptions.Count == current.Subscriptions.Count && window.Controller.State.Nodes.Select(n => n.Id).ToHashSet().SetEquals(current.Nodes.Select(n => n.Id)), "Subscription JSON or browser command downloads a metadata-prefixed feed through the actual editor without duplicates");
+                    Check(window.Controller.State.Nodes.Where(n => n.SubscriptionId == importedSubscription.Id).Zip(batch).All(p => JsonNode.DeepEquals(p.First.Options, p.Second.Options)), "Every mixed-protocol credential survives the subscription adapter");
+                }
+                await window.ImportPayloadAsync(Encoding.UTF8.GetBytes(subLink), false);
+                Check(window.Controller.State.Subscriptions.Count == current.Subscriptions.Count && window.Controller.State.Nodes.Select(n => n.Id).ToHashSet().SetEquals(current.Nodes.Select(n => n.Id)), "A .url file containing sub:// refreshes through the file payload path");
+                await window.ImportPayloadAsync(NodeExport.QrPng("shadowrocket://add/" + subLink), true);
+                Check(window.Controller.State.Subscriptions.Count == current.Subscriptions.Count && window.Controller.State.Nodes.Select(n => n.Id).ToHashSet().SetEquals(current.Nodes.Select(n => n.Id)) && window.Controller.State.SelectedNode == current.SelectedNode, "A nested Shadowrocket subscription QR retains all nodes and the current selection");
             }
             var original = window.Controller.State;
             var rejected = window.CreateImportEditor(); var rejection = rejected.ShowDialog(window); rejected.Field("text").Text = "{invalid json"; await rejected.SubmitAsync();

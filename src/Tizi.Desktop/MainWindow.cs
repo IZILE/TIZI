@@ -608,7 +608,7 @@ internal sealed partial class MainWindow : Window
         if (_preview) return;
         try
         {
-            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = UiText.Get("Import nodes"), AllowMultiple = false, FileTypeFilter = [new FilePickerFileType("Proxy configuration / QR") { Patterns = ["*.yaml", "*.yml", "*.json", "*.conf", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"] }, FilePickerFileTypes.All] });
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = UiText.Get("Import nodes"), AllowMultiple = false, FileTypeFilter = [new FilePickerFileType("Proxy configuration / QR") { Patterns = ["*.yaml", "*.yml", "*.json", "*.conf", "*.txt", "*.url", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"] }, FilePickerFileTypes.All] });
             if (files.Count == 0) return; await using var stream = await files[0].OpenReadAsync(); var extension = Path.GetExtension(files[0].Name).ToLowerInvariant();
             var image = extension is ".png" or ".jpg" or ".jpeg" or ".webp" or ".bmp";
             await ImportPayloadAsync(await ReadBoundedAsync(stream, image ? QrImport.MaxBytes : NodeImport.MaxBytes), image);
