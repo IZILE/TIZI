@@ -82,6 +82,28 @@ internal static class AiModelCatalogChecks
             await automatic.CloseSheetAsync();await automaticShown;
         }
         finally {automatic.ForceClose();automaticOwner.Close();await automaticOwner.Controller.DisposeAsync();}
+        var budgetOwner=new MainWindow(true,new(){AutoUpdate=false,RestoreConnection=false});budgetOwner.Show();
+        var presets=AiApiProfiles.Presets.Where(p=>p.Name!="Custom").ToArray();
+        var settings=new DiscoverySettings{ApiKey="synthetic-key-never-sent",Profiles=presets.ToDictionary(p=>p.Name,p=>new AiApiProfile(p.Protocol,p.Endpoint,p.Model,"synthetic-key-never-sent"))};
+        var budget=new AiSearchSettingsDialog(settings,_=>Task.CompletedTask,detectOnOpen:false);var budgetShown=budget.ShowDialog(budgetOwner);
+        var newer=new Dictionary<string,string>{{"OpenAI","gpt-6.1-mini"},{"DeepSeek","deepseek-v5-flash"},{"Qwen","qwen3.7-plus"},{"Kimi","kimi-k3"},{"GLM","glm-5.2-flash"},{"Gemini","gemini-3.8-flash"},{"Claude","claude-sonnet-4-6"}};
+        try
+        {
+            foreach(var preset in presets)
+            {
+                budget.ProviderChoice.SelectedItem=preset.Name;
+                var ids=new[]{preset.Model,newer[preset.Name]};
+                var text=preset.Protocol=="gemini"?System.Text.Json.JsonSerializer.Serialize(new{models=ids.Select(id=>new{name="models/"+id,supportedGenerationMethods=new[]{"generateContent"}})}):System.Text.Json.JsonSerializer.Serialize(new{data=ids.Select(id=>new{id})});
+                budget.ModelHttpClientFactory=()=>new HttpClient(new Reply(HttpStatusCode.OK,text));await budget.DetectModelsAsync();
+                check(Equals(budget.ModelField.SelectedItem,preset.Model)&&ids.All(id=>budget.ModelField.Items.Contains(id)),preset.Name+" retains its available default alongside a newer model in the real dropdown");
+            }
+            budget.ProviderChoice.SelectedItem="OpenAI";
+            budget.ModelHttpClientFactory=()=>new HttpClient(new Reply(HttpStatusCode.OK,"{\"data\":[{\"id\":\"gpt-5.4-mini\",\"deprecated\":true},{\"id\":\"gpt-6.1-mini\"}]}"));
+            await budget.DetectModelsAsync();
+            check(budget.ModelField.SelectedItem is null&&!budget.ModelField.Items.Contains("gpt-5.4-mini")&&budget.ModelField.Items.Contains("gpt-6.1-mini"),"A fresh catalog cannot restore a retired saved model or silently choose a replacement");
+            await budget.CloseSheetAsync();await budgetShown;
+        }
+        finally {budget.ForceClose();budgetOwner.Close();await budgetOwner.Controller.DisposeAsync();}
     }
     private sealed class Reply(HttpStatusCode status,string text):HttpMessageHandler
     {protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)=>Task.FromResult(new HttpResponseMessage(status){Content=new StringContent(text)});}

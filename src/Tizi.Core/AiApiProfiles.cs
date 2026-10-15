@@ -8,7 +8,7 @@ public static class AiApiProfiles
         new("OpenAI", "responses", "https://api.openai.com/v1/responses", "gpt-5.4-mini"),
         new("DeepSeek", "chat", "https://api.deepseek.com/chat/completions", "deepseek-flash"),
         new("Qwen", "chat", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", "qwen-plus"),
-        new("Kimi", "chat", "https://api.moonshot.cn/v1/chat/completions", "moonshot-v1-32k"),
+        new("Kimi", "chat", "https://api.moonshot.cn/v1/chat/completions", "kimi-k2.6"),
         new("GLM", "chat", "https://open.bigmodel.cn/api/paas/v4/chat/completions", "glm-4-flash"),
         new("Gemini", "gemini", "https://generativelanguage.googleapis.com/v1beta", "gemini-2.5-flash"),
         new("Claude", "claude", "https://api.anthropic.com/v1/messages", "claude-sonnet-4-5"),

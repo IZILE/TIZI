@@ -25,7 +25,8 @@ internal sealed class LogView : ListBox
     protected override Type StyleKeyOverride => typeof(ListBox);
     internal LogView()
     {
-        Background = Brushes.Transparent; BorderThickness = default; Padding = new(12, 10);
+        Background = Brushes.Transparent; BorderThickness = default; Padding = new(0, 10, Ui.PageScrollGutter, 10);
+        Margin = new(0, 0, -Ui.PageScrollGutter, 0);
         ItemsSource = _entries;
         ItemsPanel = new FuncTemplate<Panel?>(() => new VirtualizingStackPanel { CacheLength = .5 });
         ScrollViewer.SetHorizontalScrollBarVisibility(this, ScrollBarVisibility.Disabled);
@@ -58,6 +59,18 @@ internal sealed class LogView : ListBox
             foreach (var text in this.GetVisualDescendants().OfType<SelectableTextBlock>())
                 if (!ReferenceEquals(text, source)) text.SelectionStart = text.SelectionEnd = 0;
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+    }
+    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+    {
+        base.OnApplyTemplate(e);
+        if(e.NameScope.Find<ScrollViewer>("PART_ScrollViewer") is {} scroll)
+        {scroll.AllowAutoHide=false;Ui.OverlayScrollBar(scroll);}
+    }
+    protected override void PrepareContainerForItemOverride(Control element,object? item,int index)
+    {
+        base.PrepareContainerForItemOverride(element,item,index);
+        // Global list-row styling must not reintroduce padding around log text.
+        element.Theme=ItemContainerTheme;
     }
     internal static string FormatLine(ActivityEntry entry) => $"{entry.Time.ToLocalTime():MM-dd HH:mm:ss}  [{UiText.Get(entry.Category == LogCategory.Dns ? "DNS" : entry.Category.ToString())}] {entry.Message}";
     internal void Update(IEnumerable<ActivityEntry> source, LogCategory? category, bool force = false)

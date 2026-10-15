@@ -14,9 +14,9 @@ internal sealed class AiSearchSettingsDialog : CenteredDialog
     internal TextBox EndpointField { get; } = new() { Classes={"text-input"} };
     internal StableChoice ModelField { get; } = new() { Height=36,HorizontalAlignment=HorizontalAlignment.Stretch,MaxDropDownHeight=300,ScrollSelectedToTop=true };
     private string CurrentModel => ModelField.SelectedItem as string??"";
-    private void SetModels(IEnumerable<string> models,string selected)
+    private void SetModels(IEnumerable<string> models,string selected,bool includeSaved=true)
     {
-        var choices=AiModelChoices.ForSearch(_provider,models.Append(selected));
+        var choices=AiModelChoices.ForSearch(_provider,includeSaved?models.Append(selected):models,selected);
         ModelField.ItemsSource=choices;ModelField.SelectedItem=choices.Contains(selected)?selected:null;
         ModelField.PlaceholderText=UiText.Get("Choose a model");
     }
@@ -58,7 +58,7 @@ internal sealed class AiSearchSettingsDialog : CenteredDialog
             _switching=true;_protocols=AiApiProfiles.ProtocolsFor(provider);
             ProtocolChoice.ItemsSource=_protocols.Select(p=>p switch {"responses"=>"Responses API","chat"=>"Chat Completions (compatible)","claude"=>"Anthropic Messages",_=>"Gemini GenerateContent"}).ToArray();
             ProtocolChoice.SelectedIndex=Math.Max(0,Array.IndexOf(_protocols,profile.Protocol));EndpointField.Text=profile.Endpoint.Length>0?profile.Endpoint:AiApiProfiles.PresetEndpoint(provider,_protocols[ProtocolChoice.SelectedIndex]);
-            _models=AiModelChoices.ForSearch(provider,profile.Models??[]);
+            _models=[..profile.Models??[]];
             SetModels(_models,profile.Model);KeyField.Text=profile.ApiKey;_switching=false;
         }
         void Remember()=>_profiles[_provider]=new(_protocols[Math.Max(0,ProtocolChoice.SelectedIndex)],EndpointField.Text?.Trim()??"",CurrentModel.Length>0?CurrentModel:_profiles.GetValueOrDefault(_provider)?.Model??"",KeyField.Text?.Trim()??""){Models=[.._models]};
@@ -124,8 +124,8 @@ internal sealed class AiSearchSettingsDialog : CenteredDialog
             var found=await new AiModelCatalog(http).ListAsync(settings,cancellation.Token);
             if(_closed||request!=_modelRequest)return;
             if(provider!=_provider||protocol!=_protocols[Math.Max(0,ProtocolChoice.SelectedIndex)]||endpoint!=(EndpointField.Text?.Trim()??"")||key!=(KeyField.Text?.Trim()??""))return;
-            var current=CurrentModel;_models=AiModelChoices.ForSearch(provider,found);SetModels(_models,current);
-            ToolTip.SetTip(ModelField,UiText.Format("Detected {0} search models.",_models.Count));
+            var current=CurrentModel;_models=found;SetModels(_models,current,includeSaved:false);
+            ToolTip.SetTip(ModelField,UiText.Format("Detected {0} search models.",ModelField.ItemCount));
         }
         catch(OperationCanceledException)when(cancellation.IsCancellationRequested){}
         catch(Exception error)

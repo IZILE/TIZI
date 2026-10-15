@@ -50,6 +50,7 @@ internal static class WorkflowChecks
             UiText.Language = "zh-CN";
             await CenteredDialogChecks.RunAsync(output, Check);
             await LogViewChecks.RunAsync(output, Check);
+            await PageScrollChecks.RunAsync(output, Check);
             await SubscriptionRevision0126Checks.RunAsync(output, Check);
             await Revision0126PlusChecks.RunAsync(output, Check);
             await Revision0124Checks.RunAsync(output, Check);

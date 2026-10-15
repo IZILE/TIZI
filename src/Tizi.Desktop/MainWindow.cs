@@ -36,7 +36,9 @@ internal sealed partial class MainWindow : Window
     private readonly WrapPanel _pageActions = new() { Orientation = Orientation.Horizontal, ItemSpacing = 8, LineSpacing = 8 };
     private readonly Border _pageActionsHost = new() { Margin = new Thickness(0, 0, 0, 16) };
     private readonly StackPanel _inspector = new() { Spacing = 14, Margin = new Thickness(18) };
-    private readonly ContentControl _pageHost = new();
+    // Page scrollbars use the existing outer gutter beyond the content width.
+    // Each scroll viewer clips its own viewport; the host must not clip that gutter.
+    private readonly ContentControl _pageHost = new() { ClipToBounds=false };
     private readonly TextBlock _heading = Ui.Text("Overview", size: 24);
     private readonly TextBlock _count = Ui.Value("", true, 11);
     private EditorDialog? _editor;

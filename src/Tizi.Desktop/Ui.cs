@@ -53,6 +53,9 @@ internal static class Ui
     internal static Control Line() => new Border { Height = 0.5, Background = Skin.MenuRule, Margin = new Thickness(0, 8) };
     internal static void OverlayScrollBar(ScrollViewer scroll)
     {
+        if(scroll.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ScrollContentPresenter>()
+            .FirstOrDefault(p=>p.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault()==scroll) is {} current)
+            Grid.SetColumnSpan(current,2);
         scroll.TemplateApplied += (_, e) =>
         {
             if (e.NameScope.Find<Avalonia.Controls.Presenters.ScrollContentPresenter>("PART_ContentPresenter") is { } presenter)
