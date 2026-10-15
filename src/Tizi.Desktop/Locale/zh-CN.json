@@ -1359,5 +1359,14 @@
   "Anthropic Messages": "Anthropic Messages 接口",
   "Invalid subscription name.": "订阅名称格式无效。",
   "Invalid encoded subscription URL.": "订阅链接编码无效，请重新复制完整的订阅链接。",
-  "Subscription contains no connection nodes.": "订阅中没有可连接的节点。"
+  "Subscription contains no connection nodes.": "订阅中没有可连接的节点。",
+  "Choose a model": "请选择模型",
+  "No models returned. Check API access and reopen settings to retry.": "接口未返回模型，请检查接口权限后重新打开设置重试。",
+  "Choose a model from the list.": "请从下拉列表中选择模型。",
+  "Detected {0} search models.": "已获取 {0} 个搜索模型。",
+  "Model detection failed (HTTP {0}). Check the key and endpoint.": "获取模型失败（HTTP {0}），请检查密钥和接口地址。",
+  "Model detection timed out. Reopen settings to retry.": "获取模型超时，可重新打开设置重试。",
+  "Search was incomplete; previous results kept.": "搜索未完成，已保留原有结果。",
+  "Search output reached its length limit; previous results kept.": "模型返回内容达到长度上限，已保留原有结果。",
+  "AI returned no structured result. Retry or select another model.": "模型未返回有效结果，可重试或选择其他模型。"
 }

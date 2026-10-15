@@ -37,6 +37,29 @@ internal sealed class StableCaptionButton : Button
 
 internal sealed class StableChoice : ComboBox
 {
+    internal bool ScrollSelectedToTop { get; init; }
+    private int _opening;
+    private Avalonia.Controls.Primitives.Popup? _popup;
+    protected override void OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)
+    {
+        if(_popup is not null)_popup.Opened-=PopupOpened;
+        base.OnApplyTemplate(e);_popup=e.NameScope.Find<Avalonia.Controls.Primitives.Popup>("PART_Popup");
+        if(_popup is not null)_popup.Opened+=PopupOpened;
+    }
+    private void PopupOpened(object? sender,EventArgs args)
+    {
+        var generation=_opening;
+        if(ScrollSelectedToTop)Avalonia.Threading.Dispatcher.UIThread.Post(()=>
+        {if(generation==_opening)ChoiceScroll.SelectedAtTop(this);},Avalonia.Threading.DispatcherPriority.Loaded);
+    }
+    internal StableChoice()
+    {
+        PropertyChanged+=(_,change)=>
+        {
+            if(change.Property!=IsDropDownOpenProperty)return;
+            ++_opening;
+        };
+    }
     protected override Type StyleKeyOverride => typeof(ComboBox);
     protected override Size MeasureOverride(Size availableSize)
     {

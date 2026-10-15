@@ -85,10 +85,14 @@ internal static class Revision0131Checks
             await window.OpenProviderDetailsAsync(providers[0].Id.ToString());Layout(window);
             var details=window.GetVisualDescendants().OfType<ProviderDetailsPage>().Single();
             var detailsScroll=(ScrollViewer)details.Child!;
-            check(details.Margin.Right==0&&((Border)detailsScroll.Content!).Padding.Right==16,
-                "Airport detail content uses one existing margin instead of two stacked margins");
+            using(var clock=new UiAnimationClock(details,details.Offset)) {details.Opacity=0;details.Offset.X=18;clock.Pulse(0);details.Reveal();clock.Pulse(170);Layout(window);}
+            var detailBody=((Border)detailsScroll.Content!).Child!;
+            var detailLeft=detailBody.TranslatePoint(default,window.ContentSurface)!.Value.X;
+            var detailRight=window.ContentSurface.Bounds.Width-detailLeft-detailBody.Bounds.Width;
+            check(Math.Abs(detailLeft-detailRight)<.1,
+                "Airport detail content has equal outer margins while the bar uses the right blank strip");
             check(Math.Abs(detailsScroll.Viewport.Width-detailsScroll.Bounds.Width)<.1,"Airport detail scrollbar does not reserve another content column");
-            using(var clock=new UiAnimationClock(details,details.Offset)) {details.Opacity=0;details.Offset.X=18;clock.Pulse(0);details.Reveal();clock.Pulse(170);Layout(window);Save(window,Path.Combine(folder,"provider-detail-default.png"));}
+            Save(window,Path.Combine(folder,"provider-detail-default.png"));
         }
         finally{window.Close();await Until(()=>!window.IsVisible);}
     }

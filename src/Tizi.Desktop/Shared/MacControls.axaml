@@ -281,11 +281,10 @@
                           HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                           VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                           IsVisible="{TemplateBinding IsEditable, Converter={x:Static BoolConverters.Not}}" />
+          <TextBlock Name="choicePlaceholder" Text="{TemplateBinding PlaceholderText}" Foreground="#A9A9AE" VerticalAlignment="Center" IsVisible="False" IsHitTestVisible="False" />
           <TextBox Name="PART_EditableTextBox" BorderThickness="0" Background="Transparent" Padding="0" MinHeight="0" VerticalContentAlignment="Center"
                    Text="{TemplateBinding Text, Mode=TwoWay}" IsVisible="{TemplateBinding IsEditable}" />
-          <Path Name="choiceArrow" Grid.Column="2" Theme="{StaticResource MacChevronTheme}" RenderTransform="rotate(0deg)">
-            <Path.Transitions><Transitions><TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.14" Easing="0.16,1,0.3,1" /></Transitions></Path.Transitions>
-          </Path>
+          <Path Name="choiceArrow" Grid.Column="2" Theme="{StaticResource MacChevronTheme}" RenderTransform="rotate(0deg)" />
           </Grid>
           <Border Name="popupFeedback" Background="White" local:Motion.Opacity="0" IsHitTestVisible="False"
                   CornerRadius="{TemplateBinding CornerRadius}">
@@ -312,6 +311,7 @@
     <Style Selector="^:pointerover /template/ Border#popupFeedback"><Setter Property="local:Motion.Opacity" Value="0.04" /></Style>
     <Style Selector="^:pressed /template/ Border#popupFeedback"><Setter Property="local:Motion.Opacity" Value="0.1" /></Style>
     <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.4" /></Style>
+    <Style Selector="^[SelectedIndex=-1] /template/ TextBlock#choicePlaceholder"><Setter Property="IsVisible" Value="True" /></Style>
     <Style Selector="^.single-node /template/ Path#choiceArrow"><Setter Property="IsVisible" Value="False" /></Style>
     <Style Selector="^.header-node"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /></Style>
     <Style Selector="^.header-node[IsDropDownOpen=True]"><Setter Property="Background" Value="#353535" /></Style>

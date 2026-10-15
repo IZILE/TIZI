@@ -258,9 +258,9 @@ internal sealed partial class MainWindow
         SettingsSections.SelectedIndex = Math.Clamp(selectedSection, 0, sections.Length - 1);
         selected.Content = groups[sections[SettingsSections.SelectedIndex]];
         var scroll = new ScrollViewer { AllowAutoHide = false, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Content = selected };
-        Ui.OverlayScrollBar(scroll);
+        Ui.PageScrollBar(scroll);
         var footerContent = new Grid { ColumnDefinitions = new("*,16,Auto"), Children = { draftStatus, save } }; Grid.SetColumn(save, 2);
-        var footer = new Border { Padding = new(0, 16, 16, 0), Child = new StackPanel { Spacing = 10, Children = { error, footerContent } } };
+        var footer = new Border { Padding = new(0, 16, 0, 0), Child = new StackPanel { Spacing = 10, Children = { error, footerContent } } };
         var layout = new Grid { RowDefinitions = new("Auto,16,*,Auto"), Children = { SettingsSections, scroll, footer } }; Grid.SetRow(scroll, 2); Grid.SetRow(footer, 3);
         _settingsFingerprint = fingerprint; _settingsView = layout;
         if (!_settingsRuntimeSubscribed)

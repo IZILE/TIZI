@@ -15,6 +15,7 @@ internal sealed class ProviderDetailsPage : SecondPage
     internal ProviderDetailsPage(ProviderSite site, string currency, Action<string> open)
     {
         ProviderId = site.Id; Tag = "provider-details";
+        Margin = new(0,0,-Ui.PageScrollGutter,0);
         ClipToBounds = true;
         var body = new StackPanel { Spacing = 24 };
         var name = Wrap(site.Name, 25); name.FontWeight = FontWeight.SemiBold;

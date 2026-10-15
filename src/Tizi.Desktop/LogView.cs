@@ -25,7 +25,7 @@ internal sealed class LogView : ListBox
     protected override Type StyleKeyOverride => typeof(ListBox);
     internal LogView()
     {
-        Background = Brushes.Transparent; BorderThickness = default; Padding = new(12, 10, 16, 10);
+        Background = Brushes.Transparent; BorderThickness = default; Padding = new(12, 10);
         ItemsSource = _entries;
         ItemsPanel = new FuncTemplate<Panel?>(() => new VirtualizingStackPanel { CacheLength = .5 });
         ScrollViewer.SetHorizontalScrollBarVisibility(this, ScrollBarVisibility.Disabled);

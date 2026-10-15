@@ -9,10 +9,17 @@ namespace Tizi.Desktop;
 
 internal sealed class AiSearchSettingsDialog : CenteredDialog
 {
-    internal StableChoice ProviderChoice { get; } = new();
+    internal StableChoice ProviderChoice { get; } = new() { ScrollSelectedToTop=true };
     internal StableChoice ProtocolChoice { get; } = new();
     internal TextBox EndpointField { get; } = new() { Classes={"text-input"} };
-    internal ComboBox ModelField { get; } = new() { IsEditable=true,Height=36,HorizontalAlignment=HorizontalAlignment.Stretch,MaxDropDownHeight=300 };
+    internal StableChoice ModelField { get; } = new() { Height=36,HorizontalAlignment=HorizontalAlignment.Stretch,MaxDropDownHeight=300,ScrollSelectedToTop=true };
+    private string CurrentModel => ModelField.SelectedItem as string??"";
+    private void SetModels(IEnumerable<string> models,string selected)
+    {
+        var choices=AiModelChoices.ForSearch(_provider,models.Append(selected));
+        ModelField.ItemsSource=choices;ModelField.SelectedItem=choices.Contains(selected)?selected:null;
+        ModelField.PlaceholderText=UiText.Get("Choose a model");
+    }
     internal TextBox KeyField { get; } = new() { PasswordChar='●',Classes={"text-input"} };
     internal ClientNotification Notification { get; } = new();
     private string[] _protocols=[];
@@ -51,14 +58,13 @@ internal sealed class AiSearchSettingsDialog : CenteredDialog
             _switching=true;_protocols=AiApiProfiles.ProtocolsFor(provider);
             ProtocolChoice.ItemsSource=_protocols.Select(p=>p switch {"responses"=>"Responses API","chat"=>"Chat Completions (compatible)","claude"=>"Anthropic Messages",_=>"Gemini GenerateContent"}).ToArray();
             ProtocolChoice.SelectedIndex=Math.Max(0,Array.IndexOf(_protocols,profile.Protocol));EndpointField.Text=profile.Endpoint.Length>0?profile.Endpoint:AiApiProfiles.PresetEndpoint(provider,_protocols[ProtocolChoice.SelectedIndex]);
-            _models=(profile.Models??[]).Where(m=>m.Length is >0 and <=80&&!m.Any(char.IsControl)).Distinct().Take(500).ToList();
-            ModelField.ItemsSource=_models.Append(profile.Model).Where(m=>m.Length>0).Distinct().ToArray();ModelField.Text=profile.Model;KeyField.Text=profile.ApiKey;_switching=false;
+            _models=AiModelChoices.ForSearch(provider,profile.Models??[]);
+            SetModels(_models,profile.Model);KeyField.Text=profile.ApiKey;_switching=false;
         }
-        void Remember()=>_profiles[_provider]=new(_protocols[Math.Max(0,ProtocolChoice.SelectedIndex)],EndpointField.Text?.Trim()??"",ModelField.Text?.Trim()??"",KeyField.Text?.Trim()??""){Models=[.._models]};
+        void Remember()=>_profiles[_provider]=new(_protocols[Math.Max(0,ProtocolChoice.SelectedIndex)],EndpointField.Text?.Trim()??"",CurrentModel.Length>0?CurrentModel:_profiles.GetValueOrDefault(_provider)?.Model??"",KeyField.Text?.Trim()??""){Models=[.._models]};
         void ClearModels()
         {
-            if(_switching||_saving)return;CancelModelDetection();_autoConfiguration=null;_models=[];var current=ModelField.Text;
-            ModelField.ItemsSource=string.IsNullOrEmpty(current)?Array.Empty<string>():new[]{current};ModelField.Text=current;
+            if(_switching||_saving)return;CancelModelDetection();_autoConfiguration=null;_models=[];SetModels([],CurrentModel);
         }
         EndpointField.PropertyChanged+=(_,change)=>{if(change.Property==TextBox.TextProperty)ClearModels();};
         KeyField.PropertyChanged+=(_,change)=>{if(change.Property==TextBox.TextProperty)ClearModels();};
@@ -84,6 +90,7 @@ internal sealed class AiSearchSettingsDialog : CenteredDialog
             CancelModelDetection();
             try
             {
+                if(CurrentModel.Length==0)throw new FormatException("Choose a model from the list.");
                 Remember();var profile=_profiles[_provider];var settings=original with {Provider=_provider,Protocol=profile.Protocol,Endpoint=profile.Endpoint,Model=profile.Model,ApiKey=profile.ApiKey,Profiles=new(_profiles)};
                 _=AiApiProfiles.Endpoint(settings);
                 if(settings.Model.Length is 0 or >80||settings.Model.Any(char.IsControl))throw new FormatException("Enter a valid model name.");
@@ -108,7 +115,7 @@ internal sealed class AiSearchSettingsDialog : CenteredDialog
         var provider=_provider;var protocol=_protocols[Math.Max(0,ProtocolChoice.SelectedIndex)];var endpoint=EndpointField.Text?.Trim()??"";var key=KeyField.Text?.Trim()??"";
         if(automatic)
         {if(key.Length==0||_autoConfiguration==(provider,protocol,endpoint,key))return;_autoConfiguration=(provider,protocol,endpoint,key);}
-        var settings=new DiscoverySettings{Provider=provider,Protocol=protocol,Endpoint=endpoint,Model=ModelField.Text?.Trim()??"",ApiKey=key};
+        var settings=new DiscoverySettings{Provider=provider,Protocol=protocol,Endpoint=endpoint,Model=CurrentModel,ApiKey=key};
         using var cancellation=new CancellationTokenSource();_modelsCancellation=cancellation;var request=++_modelRequest;_detecting=true;
         ToolTip.SetTip(ModelField,UiText.Get("Loading models…"));
         try
@@ -117,15 +124,15 @@ internal sealed class AiSearchSettingsDialog : CenteredDialog
             var found=await new AiModelCatalog(http).ListAsync(settings,cancellation.Token);
             if(_closed||request!=_modelRequest)return;
             if(provider!=_provider||protocol!=_protocols[Math.Max(0,ProtocolChoice.SelectedIndex)]||endpoint!=(EndpointField.Text?.Trim()??"")||key!=(KeyField.Text?.Trim()??""))return;
-            var current=ModelField.Text;_models=found;ModelField.ItemsSource=found.Append(current??"").Where(m=>m.Length>0).Distinct().ToArray();ModelField.Text=current;
-            ToolTip.SetTip(ModelField,UiText.Format("Detected {0} models.",found.Count));
+            var current=CurrentModel;_models=AiModelChoices.ForSearch(provider,found);SetModels(_models,current);
+            ToolTip.SetTip(ModelField,UiText.Format("Detected {0} search models.",_models.Count));
         }
         catch(OperationCanceledException)when(cancellation.IsCancellationRequested){}
         catch(Exception error)
         {
             if(!_closed&&request==_modelRequest)
             {
-                var message=error is HttpRequestException http&&http.StatusCode is { } status?UiText.Format("Model detection failed (HTTP {0}). You can enter a model manually.",(int)status):UiText.Get(error is OperationCanceledException?"Model detection timed out. You can enter a model manually.":error.Message);
+                var message=error is HttpRequestException http&&http.StatusCode is { } status?UiText.Format("Model detection failed (HTTP {0}). Check the key and endpoint.",(int)status):UiText.Get(error is OperationCanceledException?"Model detection timed out. Reopen settings to retry.":error.Message);
                 ToolTip.SetTip(ModelField,message);if(!automatic)Notification.Show(message);
             }
         }

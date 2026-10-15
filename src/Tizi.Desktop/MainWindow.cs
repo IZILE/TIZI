@@ -111,13 +111,14 @@ internal sealed partial class MainWindow : Window
         _preview = preview; _app = new AppController(preview);
         _listScroll = new ScrollViewer { Content = _rows, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
         _subscriptionScroll = new ScrollViewer { Content = _subscriptionTree, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, AllowAutoHide = false };
-        // Use the existing right margin for the bar without changing any card widths.
-        Ui.OverlayScrollBar(_subscriptionScroll); Ui.OverlayScrollBar(_listScroll);
+        // Keep card edges aligned with the header; the bar uses the outer page margin.
+        Ui.PageScrollBar(_subscriptionScroll); Ui.PageScrollBar(_listScroll);
         _subscriptionTree.Margin = new(0, 0, 16, 0); _rows.Margin = new(0, 0, 16, 0); _overview.Margin = new(0, 0, 16, 0);
         _listScroll.AllowAutoHide = false;
         // Keep the panel and its scroll presenter together across page visits.
         // Rewrapping the same panel gives it two visual parents on re-entry.
         _overviewScroll = new ScrollViewer { Content = _overview, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, AllowAutoHide = false };
+        Ui.PageScrollBar(_overviewScroll);
         _count.TextWrapping = TextWrapping.Wrap; _count.TextTrimming = TextTrimming.None;
         if (state is not null) _app.SetPreview(state);
         Title = ""; Avalonia.Automation.AutomationProperties.SetName(this, "TIZI");

@@ -2,7 +2,7 @@
 
 TIZI 是面向 Windows 的代理客户端，提供节点与订阅管理、分流规则、网络监控和机场导航。
 
-[下载 TIZI 0.1.35](https://github.com/IZILE/TIZI/releases/tag/v0.1.35) · [更新说明](CHANGELOG.md) · [订阅导入说明](docs/SUBSCRIPTIONS.md)
+[下载 TIZI 0.1.36](https://github.com/IZILE/TIZI/releases/tag/v0.1.36) · [更新说明](CHANGELOG.md) · [订阅导入说明](docs/SUBSCRIPTIONS.md)
 
 - 链接、网址、二维码图片、剪贴板、JSON、Clash YAML 和部分 Shadowrocket .conf 导入；兼容单条 Shadowrocket 订阅 JSON、`.url` / `sub://` 和带状态说明的订阅列表，详见 [订阅导入说明](docs/SUBSCRIPTIONS.md)。
 - JSON / YAML、常见协议分享链接、二维码及订阅地址导出。
@@ -30,10 +30,10 @@ TIZI 是面向 Windows 的代理客户端，提供节点与订阅管理、分流
 
 ## 界面预览
 
-以下使用默认 1032 × 722 窗口和模拟数据。更新状态中的 0.1.36 为预览数据。
+以下使用默认 1032 × 722 窗口和模拟数据。
 
-![发现新版本](docs/previews/0.1.35/update-available-blue.png)
+![设置与对称边距](docs/previews/0.1.36/settings-dns.png)
 
-![模型选择](docs/previews/0.1.35/ai-model-picker.png)
+![模型选择](docs/previews/0.1.36/ai-model-picker.png)
 
-[更新页面预览](docs/previews/0.1.35/update-details-blue.png) · [概览与弱网曲线](docs/previews/0.1.33/poor-network-overview.png) · [历史预览](docs/previews/0.1.29/)
+[当前模型置顶](docs/previews/0.1.36/ai-model-picker-open.png) · [概览与弱网曲线](docs/previews/0.1.33/poor-network-overview.png) · [更新提示](docs/previews/0.1.35/update-available-blue.png)

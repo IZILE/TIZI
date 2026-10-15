@@ -43,6 +43,7 @@ public sealed class AiModelCatalog(HttpClient http)
             var entries = (settings.Protocol == "gemini" ? root["models"] : root["data"]) as JsonArray ?? throw new FormatException("Invalid model list.");
             foreach (var item in entries.OfType<JsonObject>())
             {
+                if(item["deprecated"]?.ToString().Equals("true",StringComparison.OrdinalIgnoreCase)==true||item["status"]?.ToString() is "deprecated" or "retired" or "disabled")continue;
                 if (settings.Protocol == "gemini" && item["supportedGenerationMethods"] is JsonArray methods && !methods.Any(m => m?.ToString() == "generateContent")) continue;
                 var id = item[settings.Protocol == "gemini" ? "name" : "id"]?.ToString().Trim();
                 if (id?.StartsWith("models/", StringComparison.Ordinal) == true) id = id[7..];
@@ -53,7 +54,7 @@ public sealed class AiModelCatalog(HttpClient http)
             if (string.IsNullOrEmpty(cursor)) break;
             if (cursor.Length > 2048 || !cursors.Add(cursor) || page == 4) throw new FormatException("Model list pagination is incomplete.");
         }
-        if (models.Count == 0) throw new FormatException("No models returned. You can enter a model manually.");
+        if (models.Count == 0) throw new FormatException("No models returned. Check API access and reopen settings to retry.");
         return models.Order(StringComparer.OrdinalIgnoreCase).ToList();
     }
 }

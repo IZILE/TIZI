@@ -26,6 +26,9 @@ public class AiApiCompatibilityTests
         if(preset.Protocol=="claude"){Assert.Equal(settings.ApiKey,handler.Headers["x-api-key"]);Assert.Contains("anthropic-version",handler.Headers.Keys);Assert.DoesNotContain("Authorization",handler.Headers.Keys);}
         else if(preset.Protocol=="gemini"){Assert.Equal(settings.ApiKey,handler.Headers["x-goog-api-key"]);Assert.Contains(":generateContent",handler.Url!.AbsoluteUri);}
         else{Assert.Equal("Bearer "+settings.ApiKey,handler.Headers["Authorization"]);Assert.Contains("messages",handler.Body);}
+        var request=JsonNode.Parse(handler.Body)!;
+        if(provider=="DeepSeek"){Assert.Equal("disabled",request["thinking"]!["type"]!.ToString());Assert.True(request["max_tokens"]!.GetValue<int>()>8192);}
+        else Assert.Null(request["thinking"]);
     }
     [Fact]public async Task UnfetchedOfficialUrlsCannotBecomeProviderEvidence()
     {
@@ -49,6 +52,15 @@ public class AiApiCompatibilityTests
         Assert.Equal(endpoint,handler.Url!.AbsoluteUri);Assert.Single(result);Assert.Equal(1,evidence.Requests);
         Assert.DoesNotContain("\"web_search\"",handler.Body);Assert.Contains("https://example.com/guide",handler.Body);
         Assert.Equal(protocol=="claude"?settings.ApiKey:"Bearer "+settings.ApiKey,handler.Headers[protocol=="claude"?"x-api-key":"Authorization"]);
+        var request=JsonNode.Parse(handler.Body)!;
+        Assert.Equal(protocol=="responses"?"none":"disabled",request[protocol=="responses"?"reasoning":"thinking"]![protocol=="responses"?"effort":"type"]!.ToString());
+        Assert.True(request[protocol=="responses"?"max_output_tokens":"max_tokens"]!.GetValue<int>()>8192);
+    }
+    [Fact] public async Task TruncatedDeepSeekOutputIsIdentifiedRatherThanParsedAsAnEmptySearch()
+    {
+        using var http=new HttpClient(new Handler("{\"choices\":[{\"finish_reason\":\"length\",\"message\":{\"content\":\"{\\\"providers\\\":[\"}}]}"));
+        var error=await Assert.ThrowsAsync<FormatException>(()=>new ProviderDiscovery(http,research:new Evidence()).SearchAsync(new(){Provider="DeepSeek",Protocol="chat",Endpoint="https://api.deepseek.com/chat/completions",Model="deepseek-flash",ApiKey="synthetic-key-never-sent"},"fixture"));
+        Assert.Contains("length limit",error.Message);
     }
     [Fact] public void ProviderProtocolChoicesSeparateFormatsFromVendorNames()
     {

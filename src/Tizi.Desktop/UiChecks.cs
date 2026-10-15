@@ -424,7 +424,7 @@ internal static class UiChecks
                             {
                                 var contentRight = content.TranslatePoint(new Point(content.Bounds.Width, 0), window)!.Value.X;
                                 var barLeft = bar.TranslatePoint(default, window)!.Value.X;
-                                Check(barLeft - contentRight >= (page is "Nodes" or "Providers" or "Settings" ? 4 : 8), $"{language}/{width}/{page}: scrollbar stays within its existing right gutter without covering content ({barLeft - contentRight:0.##} px)");
+                                Check(barLeft - contentRight >= 4, $"{language}/{width}/{page}: scrollbar stays within its existing right gutter without covering content ({barLeft - contentRight:0.##} px)");
                             }
                         }
                         if (page is "Overview" or "Settings") Check(scrolls.Any(s => s.Extent.Height > s.Viewport.Height + 1), $"{language}/{width}/{page}: minimum window exercises overflow");

@@ -49,7 +49,8 @@ internal static class UpdatePreviewChecks
         {
             Requests++;
             if(Fail)return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
-            var release=new JsonObject{["tag_name"]="v0.1.36",["draft"]=false,["prerelease"]=false,["html_url"]="https://github.com/IZILE/TIZI/releases/tag/v0.1.36",["body"]="- 改进订阅导入兼容性。\n- 优化模型选择与机场搜索。\n- 优化版本更新体验。",["assets"]=new JsonArray(new JsonObject{["name"]="TIZI-Setup.exe",["browser_download_url"]="https://github.com/IZILE/TIZI/releases/download/v0.1.36/TIZI-Setup.exe"},new JsonObject{["name"]="SHA256SUMS.txt",["browser_download_url"]="https://github.com/IZILE/TIZI/releases/download/v0.1.36/SHA256SUMS.txt"})};
+            var current=typeof(MainWindow).Assembly.GetName().Version!;var tag="v"+new Version(current.Major,current.Minor,current.Build+1).ToString(3);
+            var release=new JsonObject{["tag_name"]=tag,["draft"]=false,["prerelease"]=false,["html_url"]="https://github.com/IZILE/TIZI/releases/tag/"+tag,["body"]="- 改进订阅导入兼容性。\n- 优化模型选择与机场搜索。\n- 优化版本更新体验。",["assets"]=new JsonArray(new JsonObject{["name"]="TIZI-Setup.exe",["browser_download_url"]=$"https://github.com/IZILE/TIZI/releases/download/{tag}/TIZI-Setup.exe"},new JsonObject{["name"]="SHA256SUMS.txt",["browser_download_url"]=$"https://github.com/IZILE/TIZI/releases/download/{tag}/SHA256SUMS.txt"})};
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent(release.ToJsonString())});
         }
     }

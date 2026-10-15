@@ -59,6 +59,14 @@ internal static class Ui
                 Grid.SetColumnSpan(presenter, 2);
         };
     }
+    internal const double PageScrollGutter = 16;
+    internal static void PageScrollBar(ScrollViewer scroll)
+    {
+        // The page already has 28 px of outer space. Let the bar use that space,
+        // rather than subtracting its gutter from the visible content width.
+        scroll.Margin = new(scroll.Margin.Left, scroll.Margin.Top, -PageScrollGutter, scroll.Margin.Bottom);
+        OverlayScrollBar(scroll);
+    }
     internal static ScrollViewer Scroll(Control content, Thickness margin = default, bool overlayScrollbar = false)
     {
         var scroll = new ScrollViewer
