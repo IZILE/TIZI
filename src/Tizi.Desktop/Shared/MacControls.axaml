@@ -281,7 +281,7 @@
                           HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                           VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                           IsVisible="{TemplateBinding IsEditable, Converter={x:Static BoolConverters.Not}}" />
-          <TextBox Name="PART_EditableTextBox" BorderThickness="0" Background="Transparent" Padding="0"
+          <TextBox Name="PART_EditableTextBox" BorderThickness="0" Background="Transparent" Padding="0" MinHeight="0" VerticalContentAlignment="Center"
                    Text="{TemplateBinding Text, Mode=TwoWay}" IsVisible="{TemplateBinding IsEditable}" />
           <Path Name="choiceArrow" Grid.Column="2" Theme="{StaticResource MacChevronTheme}" RenderTransform="rotate(0deg)">
             <Path.Transitions><Transitions><TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.14" Easing="0.16,1,0.3,1" /></Transitions></Path.Transitions>
@@ -428,6 +428,8 @@
   <Style Selector="TextBox.search-entry:focus /template/ Border#PART_BorderElement"><Setter Property="local:Motion.BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /></Style>
   <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox /template/ Border#PART_BorderElement"><Setter Property="local:Motion.Background" Value="Transparent" /><Setter Property="local:Motion.BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /></Style>
   <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox:focus /template/ Border#PART_BorderElement"><Setter Property="local:Motion.BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /></Style>
+  <Style Selector="ComboBox /template/ TextBox#PART_EditableTextBox /template/ Border#PART_BorderElement"><Setter Property="local:Motion.Background" Value="Transparent" /><Setter Property="local:Motion.BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /></Style>
+  <Style Selector="ComboBox /template/ TextBox#PART_EditableTextBox:focus /template/ Border#PART_BorderElement"><Setter Property="local:Motion.BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /></Style>
   <Style Selector="Slider">
     <Setter Property="Theme" Value="{StaticResource MacSliderTheme}" />
   </Style>

@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 namespace Tizi.Core;
 
 /// <summary>Manual, bounded web research. Imported text is data; it cannot change settings or connect a node.</summary>
-public sealed class ProviderDiscovery(HttpClient http, Action<string>? inspectResponse = null, IWebResearch? research = null)
+public sealed class ProviderDiscovery(HttpClient http, Action<string>? inspectResponse = null, IWebResearch? research = null,IReadOnlyList<string>? candidates=null)
 {
     public const int ResultsPerSearch = 15;
     public static JsonObject Request(DiscoverySettings settings, string query, int limit = ResultsPerSearch)
@@ -47,8 +47,8 @@ public sealed class ProviderDiscovery(HttpClient http, Action<string>? inspectRe
     public async Task<List<ProviderSite>> SearchAsync(DiscoverySettings settings, string query, int limit = ResultsPerSearch, CancellationToken cancellation = default)
     {
         if (string.IsNullOrWhiteSpace(settings.ApiKey)) throw new InvalidOperationException("Configure an AI API key in Settings first.");
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation); timeout.CancelAfter(TimeSpan.FromSeconds(settings.Protocol=="responses"?100:240));
-        if (settings.Protocol != "responses" || AiApiProfiles.Endpoint(settings).Host != "api.openai.com") return await CompatibleAiDiscovery.SearchAsync(http,settings,query,limit,research,timeout.Token);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation); timeout.CancelAfter(TimeSpan.FromSeconds(settings.Protocol=="responses"&&AiApiProfiles.Endpoint(settings).Host=="api.openai.com"?100:240));
+        if (settings.Protocol != "responses" || AiApiProfiles.Endpoint(settings).Host != "api.openai.com") return await CompatibleAiDiscovery.SearchAsync(http,settings,query,limit,research,timeout.Token,candidates);
         using var request = new HttpRequestMessage(HttpMethod.Post, AiApiProfiles.Endpoint(settings)) { Content = new StringContent(Request(settings, query, limit).ToJsonString(), Encoding.UTF8, "application/json") };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey.Trim());
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);

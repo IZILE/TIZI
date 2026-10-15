@@ -31,12 +31,12 @@ public sealed class SourceUpdates(HttpClient http)
         while ((count = await stream.ReadAsync(buffer, timeout.Token).ConfigureAwait(false)) > 0)
         { if (bytes.Length + count > maximum) throw new InvalidDataException("Download is too large."); bytes.Write(buffer, 0, count); }
         string? Header(string name) => response.Headers.TryGetValues(name, out var values) ? values.FirstOrDefault() : null;
-        var title = Header("profile-title");
-        if (title?.StartsWith("base64:", StringComparison.OrdinalIgnoreCase) == true) try { title = NodeImport.DecodeBase64(title[7..]); } catch (FormatException) { title = null; }
-        if (title?.Length > 200 || title?.Any(char.IsControl) == true) title = null;
         var website = Header("profile-web-page-url");
         if (website is not null) try { website = WebUri(website).AbsoluteUri; } catch (FormatException) { website = null; }
-        return new(new UTF8Encoding(false, true).GetString(bytes.ToArray()), SubscriptionMetadata.Parse(Header("subscription-userinfo")), title, website);
+        var text = new UTF8Encoding(false, true).GetString(bytes.ToArray());
+        var disposition = response.Content.Headers.ContentDisposition;
+        var title = SubscriptionNaming.ResponseTitle(Header("profile-title"), text, disposition?.FileNameStar ?? disposition?.FileName, website);
+        return new(text, SubscriptionMetadata.Parse(Header("subscription-userinfo")), title, website);
     }
     public async Task<List<ProxyNode>> SubscriptionAsync(Subscription subscription, IReadOnlyList<ProxyNode> previous, CancellationToken cancellation = default)
         => (await RefreshSubscriptionAsync(subscription, previous, cancellation).ConfigureAwait(false)).Nodes;
@@ -70,7 +70,7 @@ public sealed class SourceUpdates(HttpClient http)
             used.Add(match.Id);
             return node with { Id = match.Id, CountryCode = match.CountryCode ?? node.CountryCode };
         }).ToList();
-        var name = downloaded.Title is { Length: > 0 } title && (string.IsNullOrWhiteSpace(subscription.Name) || subscription.Name == WebUri(subscription.Url).Host) ? title : subscription.Name;
+        var name = downloaded.Title is { Length: > 0 } title && SubscriptionNaming.IsPlaceholder(subscription) ? title : subscription.Name;
         return new(nodes, subscription with { Name = name, UpdatedAt = DateTimeOffset.Now, LastError = null, Usage = downloaded.Usage, Website = downloaded.Website }, document.Rules, document.Warnings);
     }
     private static string Fingerprint(ProxyNode node) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(node.Name + "\n" + node.Options.ToJsonString())));

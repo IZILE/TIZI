@@ -19,9 +19,9 @@ internal sealed partial class MainWindow
         if (_editor is not null) { ShowError("Close the current editor before importing a link."); return; }
         try
         {
-            var url = ImportDocument.RemoteUrl(link) ?? throw new FormatException("This command is not a subscription import.");
+            var subscription = ImportDocument.RemoteSubscription(link) ?? throw new FormatException("This command is not a subscription import.");
             // The browser can fill an import dialog, but cannot connect or silently replace a profile.
-            OpenSubscriptionDialog(url);
+            _ = CreateSubscriptionEditor(subscription.Url, SubscriptionNaming.IsPlaceholder(subscription) ? "" : subscription.Name).ShowDialog(this);
         }
         catch (Exception e) when (e is FormatException or UriFormatException) { ShowError(e.Message); }
     }
@@ -102,7 +102,7 @@ internal sealed partial class MainWindow
     {
         var token = session?.Token ?? _app.Cancellation;
         Action? commit = session is null ? null : session.BeginCommit;
-        if (ImportDocument.RemoteUrl(text) is { } url) { await _app.AddSubscriptionAsync(new Uri(url).Host, url, document => ReviewImportAsync(document, token), token, commit); if (_editor is null) ShowImportResult(); return; }
+        if (ImportDocument.RemoteSubscription(text) is { } subscription) { await _app.AddSubscriptionAsync(subscription.Name, subscription.Url, document => ReviewImportAsync(document, token), token, commit); if (_editor is null) ShowImportResult(); return; }
         var document = await _app.ParseImportAsync(text, token);
         if (document.Warnings.Count > 0 && !await ReviewImportAsync(document, token)) throw new ImportReviewCancelledException();
         await _app.ApplyImportAsync(document, downloaded => downloaded.Warnings.Any(w => !document.Warnings.Contains(w)) ? ReviewImportAsync(downloaded, token) : Task.FromResult(true), cancellation: token, beforeCommit: commit);
@@ -114,7 +114,7 @@ internal sealed partial class MainWindow
         var documents = new List<ImportDocument>();
         foreach (var text in texts)
         {
-            if (ImportDocument.RemoteUrl(text) is { } url) documents.Add(new([], [], [new Subscription { Name = new Uri(url).Host, Url = url }], [], "Subscription URL"));
+            if (ImportDocument.RemoteSubscription(text) is { } subscription) documents.Add(new([], [], [subscription], [], "Subscription URL"));
             else documents.Add(await _app.ParseImportAsync(text));
         }
         var all = new ImportDocument(documents.SelectMany(d => d.Nodes).ToList(), documents.SelectMany(d => d.Rules).ToList(), documents.SelectMany(d => d.Subscriptions).ToList(), documents.SelectMany(d => d.Warnings).ToList(), "QR / clipboard");

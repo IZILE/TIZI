@@ -5,7 +5,7 @@
   #error Supply /DDeliveryDir.
 #endif
 #ifndef AppVersion
-  #define AppVersion "0.1.34"
+  #define AppVersion "0.1.35"
 #endif
 #define BrandIcon "TIZI-" + AppVersion + ".ico"
 [Setup]

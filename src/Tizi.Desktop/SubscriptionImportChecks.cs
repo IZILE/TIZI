@@ -14,7 +14,7 @@ namespace Tizi.Desktop;
 // never reads a sample manifest. Reports contain counts, not subscription URLs.
 internal static class SubscriptionImportChecks
 {
-    private sealed record Sample(string Label, string File);
+    private sealed record Sample(string Label, string File, string? ExpectedNamePrefix = null, bool BrowserCommand = false);
     internal static async Task<int> RunAsync(string manifest, string output)
     {
         Directory.CreateDirectory(output);
@@ -58,6 +58,7 @@ internal static class SubscriptionImportChecks
                 var saved = window.Controller.State;
                 Check(saved.Subscriptions.Count == 1 && saved.Nodes.Count > 0 && saved.Nodes.All(n => n.SubscriptionId == saved.Subscriptions[0].Id), "one subscription owns every imported node");
                 Check(saved.Subscriptions[0].Usage is not null && saved.Subscriptions[0].UpdatedAt is not null, "real source usage and refresh time retained");
+                if (sample.ExpectedNamePrefix is { } prefix) Check(saved.Subscriptions[0].Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase), "subscription title recognized after text import");
                 var ids = saved.Nodes.Select(n => n.Id).ToHashSet(); var selection = saved.SelectedNode;
                 stage = "file payload";
                 await Finish(window.ImportPayloadAsync(Encoding.UTF8.GetBytes(text), false), window);
@@ -65,11 +66,21 @@ internal static class SubscriptionImportChecks
                 stage = "QR payload";
                 await Finish(window.ImportPayloadAsync(NodeExport.QrPng(text), true), window);
                 Check(window.Controller.State.Subscriptions.Count == 1 && window.Controller.State.Nodes.Select(n => n.Id).ToHashSet().SetEquals(ids) && window.Controller.State.SelectedNode == selection, "QR import preserves node identities and selection");
+                if (sample.ExpectedNamePrefix is { } repeatedPrefix) Check(window.Controller.State.Subscriptions[0].Name.StartsWith(repeatedPrefix, StringComparison.OrdinalIgnoreCase), "subscription title retained across file and QR imports");
+                if (sample.BrowserCommand)
+                {
+                    var remote = ImportDocument.RemoteSubscription(text)!;
+                    window.ReceiveImportLink(text); window.UpdateLayout();
+                    var browserEditor = window.OpenDialogs.OfType<EditorDialog>().Single();
+                    Check(browserEditor.Field("url").Text == remote.Url && browserEditor.Field("name").Text == remote.Name, "browser command fills URL and name separately");
+                    await Finish(browserEditor.SubmitAsync(), window);
+                    Check(browserEditor.Applied && browserEditor.ErrorText is null && window.Controller.State.Nodes.Select(n => n.Id).ToHashSet().SetEquals(ids), "browser editor imports without Base64 error or duplicate nodes");
+                }
                 var persisted = new Vault(UserData.DirectoryPath).Read<AppState>("settings.dat")!;
                 var current = window.Controller.State;
                 Check(persisted.Nodes.Count == current.Nodes.Count && persisted.Nodes.All(n => current.Nodes.Any(old => n.Id == old.Id && JsonNode.DeepEquals(n.Options, old.Options))) && persisted.Rules.Contains(state.Rules[0]), "encrypted persistence retains every parameter and existing rules");
                 Check(!window.Controller.Engine.IsRunning && !window.Controller.Connected && !window.Controller.Busy && window.IsEnabled, "import leaves application usable without connecting");
-                results.Add(new { label, passed = true, nodes = saved.Nodes.Count, rules = saved.Rules.Count, formats = new[] { "text editor", "file payload", "QR payload" }, parametersPreserved = true, duplicateFree = true, usageRetained = true });
+                results.Add(new { label, passed = true, nodes = saved.Nodes.Count, rules = saved.Rules.Count, formats = sample.BrowserCommand ? new[] { "text editor", "file payload", "QR payload", "browser editor" } : new[] { "text editor", "file payload", "QR payload" }, parametersPreserved = true, duplicateFree = true, usageRetained = true, nameRecognized = sample.ExpectedNamePrefix is not null });
                 window.Close(); await window.Controller.DisposeAsync(); window = null;
             }
             var after = new WindowsProxyRegistry().Read();

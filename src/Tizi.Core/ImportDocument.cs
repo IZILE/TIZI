@@ -6,16 +6,31 @@ namespace Tizi.Core;
 
 public sealed record ImportDocument(List<ProxyNode> Nodes, List<RoutingRule> Rules, List<Subscription> Subscriptions, List<string> Warnings, string Format)
 {
-    public static string? RemoteUrl(string input)
+    public static string? RemoteUrl(string input) => RemoteSubscription(input)?.Url;
+    public static Subscription? RemoteSubscription(string input)
     {
-        input = Unwrap(input);
+        input = Unwrap(input, out var name);
         if (Uri.TryCreate(input, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" && uri.UserInfo.Length == 0 && uri.Fragment.Length == 0)
-            return SourceUpdates.WebUri(input).AbsoluteUri;
+            return new Subscription { Url = SourceUpdates.WebUri(input).AbsoluteUri, Name = name ?? uri.Host };
         return null;
     }
-    private static string Unwrap(string input)
+    private static string Unwrap(string input, out string? name)
     {
-        input = input.Trim();
+        input = input.Trim(); name = null;
+        static string? Title(string query, string? fragment = null)
+        {
+            var pairs = query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Split('=', 2)).Where(s => s.Length == 2).ToArray();
+            foreach (var key in new[] { "remarks", "name", "title" })
+                foreach (var pair in pairs.Where(p => p[0].Equals(key, StringComparison.OrdinalIgnoreCase)))
+                    if (SubscriptionNaming.Clean(Uri.UnescapeDataString(pair[1].Replace('+', ' '))) is { } title) return title;
+            return fragment is null ? null : SubscriptionNaming.Clean(Uri.UnescapeDataString(fragment));
+        }
+        static string Nested(string payload)
+        {
+            // A literal nested URI already owns its escaping. Decode only an encoded wrapper.
+            var separator = payload.IndexOf("://", StringComparison.Ordinal);
+            return separator > 0 && Uri.CheckSchemeName(payload[..separator]) ? payload : Uri.UnescapeDataString(payload);
+        }
         for (var i = 0; i < 3; i++)
         {
             if (input.StartsWith("clash://", StringComparison.OrdinalIgnoreCase) || input.StartsWith("clash-verge://", StringComparison.OrdinalIgnoreCase) || input.StartsWith("tizi://", StringComparison.OrdinalIgnoreCase))
@@ -23,11 +38,22 @@ public sealed record ImportDocument(List<ProxyNode> Nodes, List<RoutingRule> Rul
                 if (!Uri.TryCreate(input, UriKind.Absolute, out var command) || command.Host is not ("install-config" or "import")) throw new FormatException("This command is not a subscription import.");
                 var values = command.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Split('=', 2)).Where(s => s.Length == 2 && s[0].Equals("url", StringComparison.OrdinalIgnoreCase)).ToArray();
                 if (values.Length != 1) throw new FormatException("Import command requires one subscription URL.");
+                name ??= Title(command.Query);
                 input = Uri.UnescapeDataString(values[0][1]);
             }
-            else if (input.StartsWith("shadowrocket://add/", StringComparison.OrdinalIgnoreCase)) input = Uri.UnescapeDataString(input[19..]);
-            else if (input.StartsWith("shadowrocket://config/add/", StringComparison.OrdinalIgnoreCase)) input = Uri.UnescapeDataString(input[26..]);
-            else if (input.StartsWith("sub://", StringComparison.OrdinalIgnoreCase)) input = NodeImport.DecodeBase64(input[6..].Split('#')[0]);
+            else if (input.StartsWith("shadowrocket://add/", StringComparison.OrdinalIgnoreCase)) input = Nested(input[19..]);
+            else if (input.StartsWith("shadowrocket://config/add/", StringComparison.OrdinalIgnoreCase)) input = Nested(input[26..]);
+            else if (input.StartsWith("sub://", StringComparison.OrdinalIgnoreCase))
+            {
+                var payload = input[6..]; var fragmentAt = payload.IndexOf('#');
+                var fragment = fragmentAt < 0 ? null : payload[(fragmentAt + 1)..];
+                if (fragmentAt >= 0) payload = payload[..fragmentAt];
+                var queryAt = payload.IndexOf('?');
+                name ??= Title(queryAt < 0 ? "" : payload[(queryAt + 1)..], fragment);
+                if (queryAt >= 0) payload = payload[..queryAt];
+                try { input = NodeImport.DecodeBase64(Uri.UnescapeDataString(payload)); }
+                catch (FormatException) { throw new FormatException("Invalid encoded subscription URL."); }
+            }
             else break;
         }
         if (input.StartsWith("shadowrocket://", StringComparison.OrdinalIgnoreCase)) throw new FormatException("This Shadowrocket command is not a node or subscription import.");
@@ -36,7 +62,7 @@ public sealed record ImportDocument(List<ProxyNode> Nodes, List<RoutingRule> Rul
     public static ImportDocument Parse(string input, Guid? subscriptionId = null)
     {
         if (Encoding.UTF8.GetByteCount(input) > NodeImport.MaxBytes) throw new FormatException("Import is too large (4 MB maximum).");
-        var text = Unwrap(input.Trim('\uFEFF', ' ', '\t', '\n', '\r'));
+        var text = Unwrap(input.Trim('\uFEFF', ' ', '\t', '\n', '\r'), out _);
         if (text.StartsWith("[General]", StringComparison.OrdinalIgnoreCase) || text.StartsWith("[Proxy]", StringComparison.OrdinalIgnoreCase) || text.Contains("\n[Proxy]", StringComparison.OrdinalIgnoreCase) || text.StartsWith("[Rule]", StringComparison.OrdinalIgnoreCase)) return Conf(text, subscriptionId);
         if (text.StartsWith('{') || text.StartsWith('['))
         {

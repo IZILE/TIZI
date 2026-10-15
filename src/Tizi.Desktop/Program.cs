@@ -77,6 +77,12 @@ internal static class Program
             while (!check.IsCompleted) { Avalonia.Threading.Dispatcher.UIThread.RunJobs(); Thread.Sleep(10); }
             return check.GetAwaiter().GetResult();
         }
+        if (args is ["--preview-updates", var updateOutput])
+        {
+            UserData.DirectoryPath=Path.Combine(Path.GetFullPath(updateOutput),"settings");Build(true).SetupWithoutStarting();
+            var check=UpdatePreviewChecks.RunAsync(updateOutput,(okay,message)=>{if(!okay)throw new InvalidOperationException(message);});
+            while(!check.IsCompleted){Avalonia.Threading.Dispatcher.UIThread.RunJobs();Thread.Sleep(10);}check.GetAwaiter().GetResult();return 0;
+        }
         if (args is ["--verify-profile-view", var sourceDirectory, var profileOutput])
         {
             UserData.DirectoryPath = Path.Combine(Path.GetFullPath(profileOutput), "settings"); Build(true).SetupWithoutStarting();

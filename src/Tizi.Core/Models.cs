@@ -71,7 +71,10 @@ public sealed record DiscoverySettings
     public string Query { get; init; } = "查找面向个人日常上网、提供 Shadowsocks / Trojan / VLESS / WireGuard 或 Clash 订阅的机场服务，比较官网价格、流量额度、地区与退款政策。排除面向爬虫或企业数据采集的住宅代理池。";
     public ProviderSearchOptions Search { get; init; } = new();
 }
-public sealed record AiApiProfile(string Protocol, string Endpoint, string Model, string ApiKey);
+public sealed record AiApiProfile(string Protocol, string Endpoint, string Model, string ApiKey)
+{
+    public List<string> Models { get; init; } = [];
+}
 public sealed record RoutingRule(string Type, string Value, string Action)
 {
     public bool NoResolve { get; init; }

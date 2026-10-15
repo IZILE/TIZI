@@ -84,7 +84,7 @@ internal static class Revision0122Checks
         Click(window,window.PageHeading);check(window.SelectedItems.Count==0,"A blank content click clears multiple selection and retracts its management action");
         typeof(MainWindow).GetMethod("Exit",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.Invoke(window,null);await Until(()=>!window.IsVisible);
         DiscoverySettings? saved=null;var original=new DiscoverySettings{ApiKey="synthetic-key-never-sent"};
-        var api=new AiSearchSettingsDialog(original,value=>{saved=value;return Task.CompletedTask;});api.Show();Layout(api);
+        var api=new AiSearchSettingsDialog(original,value=>{saved=value;return Task.CompletedTask;},detectOnOpen:false);api.Show();Layout(api);
         CenteredDialogChecks.Ready(api);
         if(api.Content is DialogSurface surface){using var clock=new UiAnimationClock(surface,surface.Scale,surface.Offset);surface.Reveal();clock.Pulse(0);clock.Pulse(220);Layout(api);}
         api.ProviderChoice.SelectedItem="DeepSeek";Layout(api);

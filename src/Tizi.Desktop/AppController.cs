@@ -262,6 +262,7 @@ internal sealed partial class AppController : IAsyncDisposable
         foreach (var imported in document.Subscriptions.DistinctBy(s => SourceUpdates.Normalize(s.Url)))
         {
             var subscription = State.Subscriptions.FirstOrDefault(s => SourceUpdates.Normalize(s.Url) == SourceUpdates.Normalize(imported.Url)) ?? imported;
+            if (SubscriptionNaming.IsPlaceholder(subscription) && !SubscriptionNaming.IsPlaceholder(imported)) subscription = subscription with { Name = imported.Name };
             var refreshed = await new SourceUpdates(_http).RefreshSubscriptionAsync(subscription, State.Nodes, stop.Token);
             nodes.AddRange(refreshed.Nodes); subscriptions.Add(refreshed.Subscription); rules.AddRange(refreshed.Rules); warnings.AddRange(refreshed.Warnings);
         }
@@ -281,8 +282,9 @@ internal sealed partial class AppController : IAsyncDisposable
     }
     internal Task AddSubscriptionAsync(string name, string url, Func<ImportDocument, Task<bool>>? review = null, CancellationToken cancellation = default, Action? beforeCommit = null)
     {
-        url = ImportDocument.RemoteUrl(url) ?? throw new FormatException("Enter a valid HTTP or HTTPS address without a fragment or embedded login.");
-        return ApplyImportAsync(new([], [], [new Subscription { Name = name, Url = url }], [], "Subscription URL"), review, cancellation, beforeCommit);
+        var subscription = ImportDocument.RemoteSubscription(url) ?? throw new FormatException("Enter a valid HTTP or HTTPS address without a fragment or embedded login.");
+        if (!string.IsNullOrWhiteSpace(name) && !name.Equals(new Uri(subscription.Url).Host, StringComparison.OrdinalIgnoreCase)) subscription = subscription with { Name = name };
+        return ApplyImportAsync(new([], [], [subscription], [], "Subscription URL"), review, cancellation, beforeCommit);
     }
     internal async Task UpdateSubscriptionAsync(Guid id)
     {
@@ -360,7 +362,8 @@ internal sealed partial class AppController : IAsyncDisposable
             token.ThrowIfCancellationRequested();
             using var http = SearchHttpClientFactory?.Invoke() ?? new HttpClient(new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(12) }) { Timeout = Timeout.InfiniteTimeSpan };
             // No controller operation lock is held while the remote search is pending.
-            var found = await new ProviderDiscovery(http).SearchAsync(requestState.Discovery, query, cancellation: token);
+            var candidates=requestState.Providers.SelectMany(p=>new[]{p.Url}.Concat(p.Profile?.Sources??[]).Concat(new[]{p.Profile?.SubscriptionSource??""})).Distinct().ToArray();
+            var found = await new ProviderDiscovery(http,candidates:candidates).SearchAsync(requestState.Discovery, query, cancellation: token);
             await CommitLatestAsync(state => ProviderDirectory.CacheSearch(state, found, options, DateTimeOffset.Now)
                 with { Discovery = state.Discovery with { Query = query } }, token);
         }

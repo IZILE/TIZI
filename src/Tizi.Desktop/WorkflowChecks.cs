@@ -166,6 +166,7 @@ internal static class WorkflowChecks
                 var editor = window.CreateImportEditor(); var shown = editor.ShowDialog(window); editor.Field("text").Text = fixture.Url; await editor.SubmitAsync();
                 Check(editor.Applied && window.Controller.State.Subscriptions.Count == before + 1, "Subscription URL downloads a localhost fixture and creates one subscription"); await shown;
                 var importedSubscription = window.Controller.State.Subscriptions.Last();
+                Check(importedSubscription.Name == "Example VPN", "A bare subscription URL uses the feed REMARKS name instead of the download host");
                 Check(window.Controller.State.Nodes.Count(n => n.SubscriptionId == importedSubscription.Id) == 3, "Subscription URL imports every node in the batch under one subscription");
                 Check(window.Controller.State.Subscriptions.Last().Usage?.Total == 1000000, "Subscription usage headers survive import");
                 var current = window.Controller.State;
@@ -185,6 +186,24 @@ internal static class WorkflowChecks
                 Check(window.Controller.State.Subscriptions.Count == current.Subscriptions.Count && window.Controller.State.Nodes.Select(n => n.Id).ToHashSet().SetEquals(current.Nodes.Select(n => n.Id)), "A .url file containing sub:// refreshes through the file payload path");
                 await window.ImportPayloadAsync(NodeExport.QrPng("shadowrocket://add/" + subLink), true);
                 Check(window.Controller.State.Subscriptions.Count == current.Subscriptions.Count && window.Controller.State.Nodes.Select(n => n.Id).ToHashSet().SetEquals(current.Nodes.Select(n => n.Id)) && window.Controller.State.SelectedNode == current.SelectedNode, "A nested Shadowrocket subscription QR retains all nodes and the current selection");
+                var siteCommand = "shadowrocket://add/sub://" + Convert.ToBase64String(Encoding.UTF8.GetBytes(fixture.Url)) + "?remarks=Website%20VPN";
+                var oldDomain = window.Controller.State with { Subscriptions = window.Controller.State.Subscriptions.Select(s => s.Id == importedSubscription.Id ? s with { Name = new Uri(s.Url).Host } : s).ToList() };
+                await window.Controller.ApplyAsync(oldDomain);
+                var beforeBrowserImport = window.Controller.State;
+                window.ReceiveImportLink(siteCommand); Layout(window);
+                var browserEditor = window.OpenDialogs.OfType<EditorDialog>().Single();
+                Check(browserEditor.Field("url").Text == fixture.Url && browserEditor.Field("name").Text == "Website VPN" && ReferenceEquals(beforeBrowserImport, window.Controller.State), "The website Shadowrocket command opens a populated editor without committing or connecting");
+                await browserEditor.SubmitAsync();
+                Check(browserEditor.Applied && browserEditor.ErrorText is null && window.Controller.State.Subscriptions.Single(s => s.Id == importedSubscription.Id).Name == "Website VPN", "Submitting the website command repairs a legacy domain name with the link's title");
+                Check(window.Controller.State.Nodes.Select(n => n.Id).ToHashSet().SetEquals(current.Nodes.Select(n => n.Id)) && window.Controller.State.SelectedNode == current.SelectedNode, "Browser import keeps matching node identities and selection");
+                await window.Controller.ApplyAsync(window.Controller.State with { Subscriptions = window.Controller.State.Subscriptions.Select(s => s.Id == importedSubscription.Id ? s with { Name = new Uri(s.Url).Host } : s).ToList() });
+                var jsonName = subscriptionJson.Replace("Example VPN", "JSON title"); await TextBatch(jsonName);
+                Check(window.Controller.State.Subscriptions.Single(s => s.Id == importedSubscription.Id).Name == "JSON title", "JSON title upgrades an existing auto-generated domain name");
+                await window.Controller.ApplyAsync(window.Controller.State with { Subscriptions = window.Controller.State.Subscriptions.Select(s => s.Id == importedSubscription.Id ? s with { Name = "My manual title" } : s).ToList() });
+                window.ReceiveImportLink(siteCommand); Layout(window); browserEditor = window.OpenDialogs.OfType<EditorDialog>().Single();
+                await browserEditor.SubmitAsync();
+                Check(browserEditor.Applied && window.Controller.State.Subscriptions.Single(s => s.Id == importedSubscription.Id).Name == "My manual title", "A repeated browser command preserves a manually customized subscription name");
+                Check(UiText.Get("Invalid encoded subscription URL.") == "订阅链接编码无效，请重新复制完整的订阅链接。", "Invalid encoded subscription errors have an actionable Chinese translation");
             }
             var original = window.Controller.State;
             var rejected = window.CreateImportEditor(); var rejection = rejected.ShowDialog(window); rejected.Field("text").Text = "{invalid json"; await rejected.SubmitAsync();
@@ -566,6 +585,8 @@ internal static class WorkflowChecks
             await Revision0131Checks.RunAsync(output, Check);
             Revision0132Checks.Run(output, Check);
             Revision0133Checks.Run(output, Check);
+            await AiModelCatalogChecks.RunAsync(output,Check);
+            await UpdatePreviewChecks.RunAsync(Path.Combine(output,"update-preview"),Check);
             var proxyAfter = new WindowsProxyRegistry().Read(); Check(proxyBefore.All(p => p.Value is null ? proxyAfter[p.Key] is null : p.Value.Same(proxyAfter[p.Key])), "All workflow checks leave Windows proxy settings unchanged");
             File.WriteAllText(Path.Combine(output, "workflow-checks.json"), JsonSerializer.Serialize(new { passed = checks.Count, checks, syntheticData = true, nativeTaskbarVerified = false, userNodeConnected = false, binary = VerificationStamp.Current() }, new JsonSerializerOptions { WriteIndented = true })); return 0;
         }

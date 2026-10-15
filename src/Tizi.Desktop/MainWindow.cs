@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Chrome;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
@@ -307,6 +308,8 @@ internal sealed partial class MainWindow : Window
         await LoadActivityLogAsync();
         if (Environment.GetCommandLineArgs().Contains("--background") && _app.State.StartHidden && _tray is not null) Hide();
         if (_app.Ready && (Environment.GetCommandLineArgs().Contains("--connect-once") && _app.State.Capture == CaptureMode.Tun || _app.State.RestoreConnection && _app.State.LastConnected)) Connect();
+        if (_app.Ready && !DesktopChecks.Active && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
+            Dispatcher.UIThread.Post(() => _ = CheckStartupUpdatesAsync(), DispatcherPriority.Background);
     }
     internal void RestoreFromBackground()
     {
@@ -617,8 +620,9 @@ internal sealed partial class MainWindow : Window
         catch (Exception e) { ShowError(e.Message); }
     }
     private void AddSubscription() => OpenSubscriptionDialog("");
-    private void OpenSubscriptionDialog(string url) => Dialog("Add subscription", [new("url", "Subscription URL", url, Secret: true), new("name", "Name (optional)")], async (values, session) =>
-    { var url = ImportDocument.RemoteUrl(values["url"]) ?? throw new FormatException("Enter a valid HTTP or HTTPS address without a fragment or embedded login."); var name = string.IsNullOrWhiteSpace(values["name"]) ? new Uri(url).Host : values["name"]; Required(name); await _app.AddSubscriptionAsync(name, url, document => ReviewImportAsync(document, session.Token), session.Token, session.BeginCommit); }, "Add");
+    private void OpenSubscriptionDialog(string url, string name = "") { if (!_preview) _ = CreateSubscriptionEditor(url, name).ShowDialog(this); }
+    internal EditorDialog CreateSubscriptionEditor(string url, string name = "") => CreateEditor("Add subscription", [new("url", "Subscription URL", url, Secret: true), new("name", "Name (optional)", name)], async (values, session) =>
+    { var subscription = ImportDocument.RemoteSubscription(values["url"]) ?? throw new FormatException("Enter a valid HTTP or HTTPS address without a fragment or embedded login."); var name = string.IsNullOrWhiteSpace(values["name"]) ? subscription.Name : values["name"]; Required(name); await _app.AddSubscriptionAsync(name, subscription.Url, document => ReviewImportAsync(document, session.Token), session.Token, session.BeginCommit); }, "Add");
     private void AddProvider() => Dialog("Add website", [new("name", "Name"), new("url", "Website URL", "https://"), new("region", "Region (optional)")], async values =>
     {
         Required(values["name"]); var uri = SourceUpdates.WebUri(values["url"]); if (_app.State.Providers.Count >= 500) throw new FormatException("Maximum 500 websites.");

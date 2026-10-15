@@ -47,4 +47,35 @@ public sealed class SubscriptionImportTests
     [InlineData("file:///C:/private")]
     [InlineData("https://user:password@feed.example.test/feed")]
     public void SingleSubscriptionObjectStillRejectsUnsafeUrls(string url) => Assert.Throws<FormatException>(() => ImportDocument.Parse(new JsonObject { ["type"] = "Subscribe", ["host"] = url }.ToJsonString()));
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WebsiteShadowrocketRemarksAreSeparatedFromBase64AndSurviveWrapping(bool urlSafe)
+    {
+        var url = Url + "&token=a%2Bb%252Fc";
+        var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(url));
+        if (urlSafe) encoded = encoded.TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var sub = "sub://" + encoded + "?remarks=" + Uri.EscapeDataString("Example VPN 100% + 中文") + "#Unused";
+        foreach (var payload in new[] { sub, "shadowrocket://add/" + sub, "shadowrocket://add/" + Uri.EscapeDataString(sub), "shadowrocket://config/add/" + sub })
+        {
+            var imported = ImportDocument.RemoteSubscription(payload)!;
+            Assert.Equal(url, imported.Url); Assert.Equal("Example VPN 100% + 中文", imported.Name);
+        }
+    }
+    [Fact] public void CommandNamesAndFragmentsDecodeOnceWithoutChangingUrlEscapes()
+    {
+        var url = Url + "&token=a%2Bb%252Fc";
+        var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(url));
+        Assert.Equal("Example VPN", ImportDocument.RemoteSubscription("sub://" + encoded + "?remarks=Example+VPN")!.Name);
+        Assert.Equal("100%20 VPN", ImportDocument.RemoteSubscription("shadowrocket://add/sub://" + encoded + "#100%2520%20VPN")!.Name);
+        var clash = ImportDocument.RemoteSubscription("clash://install-config?url=" + Uri.EscapeDataString(url) + "&name=Example%20VPN")!;
+        Assert.Equal(url, clash.Url); Assert.Equal("Example VPN", clash.Name);
+        Assert.Equal(url, ImportDocument.RemoteUrl("shadowrocket://add/" + url));
+        Assert.Equal("feed.example.test", ImportDocument.RemoteSubscription(Url)!.Name);
+    }
+    [Theory]
+    [InlineData("sub://bad!payload?remarks=Example")]
+    [InlineData("shadowrocket://add/sub://%%%?remarks=Example")]
+    public void InvalidEncodedLinkReportsAnActionableError(string link) => Assert.Equal("Invalid encoded subscription URL.", Assert.Throws<FormatException>(() => ImportDocument.RemoteSubscription(link)).Message);
 }
