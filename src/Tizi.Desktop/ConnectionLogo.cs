@@ -68,8 +68,8 @@ internal sealed class ConnectionLogo : Control
         HorizontalAlignment=HorizontalAlignment.Center;VerticalAlignment=VerticalAlignment.Center;
         Transitions=new()
         {
-            new DoubleTransition { Property=AssemblyProperty,Duration=TimeSpan.FromMilliseconds(900),Easing=Ease },
-            new DoubleTransition { Property=MorphProgressProperty,Duration=TimeSpan.FromMilliseconds(900),Easing=new LinearEasing() }
+            new DoubleTransition { Property=AssemblyProperty,Duration=TimeSpan.FromMilliseconds(540),Easing=Ease },
+            new DoubleTransition { Property=MorphProgressProperty,Duration=TimeSpan.FromMilliseconds(540),Easing=new LinearEasing() }
         };
         Snapshot(); _waiting.Tick+=(_,_)=>InvalidateVisual();
     }

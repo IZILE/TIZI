@@ -72,7 +72,6 @@ internal sealed partial class MainWindow
     {
         if (_preview || _shutdown || _probing) return;
         var options = _app.State.Latency;
-        _monitor.Chart.LatencyGapSeconds = Math.Max(3, options.CurveIntervalSeconds * 2.5);
         if (!_app.Connected && !explicitRequest) return;
         if (DesktopChecks.Active) { if (explicitRequest) ShowError("Desktop verification mode: node connections are disabled."); return; }
         var node = _app.State.Nodes.FirstOrDefault(n => n.Id == _app.State.SelectedNode); if (node is null) return;
@@ -235,7 +234,7 @@ internal sealed partial class MainWindow
         var details = _providerDetails = new ProviderDetailsPage(site, _app.State.Discovery.Search.Currency, OpenUrl);
         _providerListActions = _pageActions.Children.ToArray(); _pageActions.Children.Clear();
         var back = Ui.Button("Back", () => _ = ReturnProviderListAsync()); back.Tag = "provider-details-back";
-        _pageActions.Children.Add(back); _pageActions.Children.Add(Ui.Button("Open official website", () => OpenUrl(site.Url), true));
+        _pageActions.Children.Add(back); _pageActions.Children.Add(Ui.Button("Official website", () => OpenUrl(site.Url), true));
         _pageActionsHost.IsVisible = true; _search.IsVisible = _count.IsVisible = _paging.IsVisible = false;
         _pageHost.Content = details;
         Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (ReferenceEquals(_providerDetails, details)) details.Reveal(); }, Avalonia.Threading.DispatcherPriority.Loaded);
@@ -244,7 +243,7 @@ internal sealed partial class MainWindow
     internal async Task ReturnProviderListAsync()
     {
         if (_providerDetails is not { IsHitTestVisible: true } details) return;
-        details.Dismiss(); await Task.Delay(300);
+        details.Dismiss(); await Task.Delay(160);
         if (_shutdown || _page != "Providers" || !ReferenceEquals(_providerDetails, details)) return;
         _providerDetails = null; _pageActions.Children.Clear();
         if (_providerListActions is { } actions) foreach (var action in actions) _pageActions.Children.Add(action);

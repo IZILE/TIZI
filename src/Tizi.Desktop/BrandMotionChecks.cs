@@ -62,9 +62,9 @@ internal static class BrandMotionChecks
                     clock.Pulse(1+frame*8);Layout(top);var s=bubble.Shape();
                     samples.Add(new { milliseconds=frame*8,bubble.Progress,bud=Box(s.Bud),s.Bulge,s.Neck,s.Joined,anchor=Box(anchor.Bounds),remove=Box(remove.Bounds),remove.Opacity,remove.IsHitTestVisible });
                     Save(top,Path.Combine(fission,frame.ToString("D3")+".png"));
-                    if(frame==20)check(s.Bulge>7 && s.Joined && s.Neck>5 && anchor.Bounds==original,"The original button's surface stretches while its text box and hit target stay fixed");
-                    if(frame==65)check(s.Joined && s.Neck is > 1 and < 2 && !remove.IsHitTestVisible,"A full-sized new lobe remains attached by a thin neck before release and cannot be activated early");
-                    if(frame==67)check(!s.Joined && s.Neck==0 && s.Bud.X>anchor.Bounds.Right+8,"The next separation frame drops the neck and recoils into a real gap");
+                    if(frame==12)check(s.Bulge>7 && s.Joined && s.Neck>5 && anchor.Bounds==original,"The original button's surface stretches while its text box and hit target stay fixed");
+                    if(frame==31)check(s.Joined && s.Neck is > 1 and < 2 && !remove.IsHitTestVisible,"A full-sized new lobe remains attached by a thin neck before release and cannot be activated early");
+                    if(frame==33)check(!s.Joined && s.Neck==0 && s.Bud.X>anchor.Bounds.Right+8,"The next separation frame drops the neck and recoils into a real gap");
                 }
                 check(bubble.Progress==1 && remove.Opacity==1 && remove.IsHitTestVisible && Math.Abs(remove.Bounds.X-anchor.Bounds.Right-8)<.01,"The two settled buttons have normal-size text, an eight-pixel gap and independent hit targets");
                 Click(top,anchor);Click(top,remove);check(anchorCalls==1 && removeCalls==1,"The original and new button still dispatch their own actions exactly once");
@@ -96,8 +96,8 @@ internal static class BrandMotionChecks
                 clock.Pulse(1201+frame*20);Layout(top);var curves=button.Logo.Curves();
                 pieces.Add(new { milliseconds=frame*20,button.Logo.MorphProgress,button.Logo.ArtworkOpacity,curves });
                 Save(top,Path.Combine(assembly,frame.ToString("D3")+".png"));
-                if(frame==10)check(curves.Chunk(2).Any(pair=>Distance(pair[0].End,pair[1].Start)>2),"The three original arcs have visibly separated pieces before the ladder is complete");
-                if(frame==24)check(Math.Abs(curves[1].Start.X-curves[1].End.X)<.6 && Math.Abs(curves[2].Start.X-curves[2].End.X)<.6 && Math.Abs(curves[5].Start.Y-curves[5].End.Y)>.7,"Both rails dock before the final bottom rung, so the result reads as construction rather than one simultaneous morph");
+                if(frame==6)check(curves.Chunk(2).Any(pair=>Distance(pair[0].End,pair[1].Start)>2),"The three original arcs have visibly separated pieces before the ladder is complete");
+                if(frame==14)check(Math.Abs(curves[1].Start.X-curves[1].End.X)<.6 && Math.Abs(curves[2].Start.X-curves[2].End.X)<.6 && Math.Abs(curves[5].Start.Y-curves[5].End.Y)>.7,"Both rails dock before the final bottom rung, so the result reads as construction rather than one simultaneous morph");
             }
             check(button.Logo.ArtworkOpacity==1 && ConnectionLogo.ArtworkBounds.Height==32 && !button.Logo.Waiting,"The settled success state uses the exact approved vertical ladder asset and stops the spinner timer");
             Save(top,Path.Combine(output,"connected.png"));

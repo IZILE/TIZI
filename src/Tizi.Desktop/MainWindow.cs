@@ -110,12 +110,8 @@ internal sealed partial class MainWindow : Window
         _preview = preview; _app = new AppController(preview);
         _listScroll = new ScrollViewer { Content = _rows, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
         _subscriptionScroll = new ScrollViewer { Content = _subscriptionTree, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, AllowAutoHide = false };
-        _subscriptionScroll.TemplateApplied += (_, e) =>
-        {
-            // Keep the bar visible when needed, over the tree's existing 16-pixel right margin.
-            // Its appearance must never change the width of subscription cards or usage tracks.
-            if (e.NameScope.Find<Avalonia.Controls.Presenters.ScrollContentPresenter>("PART_ContentPresenter") is { } presenter) Grid.SetColumnSpan(presenter, 2);
-        };
+        // Use the existing right margin for the bar without changing any card widths.
+        Ui.OverlayScrollBar(_subscriptionScroll); Ui.OverlayScrollBar(_listScroll);
         _subscriptionTree.Margin = new(0, 0, 16, 0); _rows.Margin = new(0, 0, 16, 0); _overview.Margin = new(0, 0, 16, 0);
         _listScroll.AllowAutoHide = false;
         // Keep the panel and its scroll presenter together across page visits.
@@ -129,6 +125,7 @@ internal sealed partial class MainWindow : Window
         ExtendClientAreaToDecorationsHint = true;
         ExtendClientAreaTitleBarHeightHint = 32;
         Width = 1032; Height = 722; MinWidth = 880; MinHeight = 620; Background = Skin.ChromeBrush; ShowInTaskbar = true;
+        TransparencyLevelHint = [WindowTransparencyLevel.None]; TransparencyBackgroundFallback = Skin.ChromeBrush;
         PropertyChanged += (_, change) => { if (change.Property == WindowStateProperty && WindowState != WindowState.Minimized) _restoreState = WindowState; };
         using var icon = typeof(MainWindow).Assembly.GetManifestResourceStream("Tizi.Desktop.AppIcon.ico"); if (icon is not null) Icon = new WindowIcon(icon);
         UiText.WireChoices(this);
@@ -170,7 +167,7 @@ internal sealed partial class MainWindow : Window
         {
             if (enabled) { _lastProbe = DateTimeOffset.MinValue; _probeTask = ProbeSelectedAsync(); }
         };
-        Content = _clientSurface = new Grid { ClipToBounds = true, Children = { root, _notification } }; SizeChanged += (_, _) => Responsive();
+        Content = _clientSurface = new Grid { Background = Skin.ChromeBrush, ClipToBounds = true, Children = { root, _notification } }; SizeChanged += (_, _) => Responsive();
         Closed += (_, _) => { foreach (var dialog in _dialogs.ToArray()) dialog.ForceClose(); };
         Deactivated += (_, _) =>
         {
@@ -212,6 +209,7 @@ internal sealed partial class MainWindow : Window
         _search.TextChanged += (_, _) => { _pageIndex = 0; RefreshRows(); };
         _connect.Click += (_, _) => Connect();
         _nodeChoice.NodeChosen += id => { if (!_app.Busy && _app.State.Nodes.FirstOrDefault(n => n.Id == id) is { } node) Run(() => _app.SelectAsync(node)); };
+        _app.NodeAutoSwitched += message => ShowNotice(message);
         _nodeChoice.DropDownVisibilityChanged += open =>
         {
             _nodeChoice.UpdateLatencies(_latencies);
@@ -231,15 +229,7 @@ internal sealed partial class MainWindow : Window
         _app.Logged += message => { _logs.Settings = _app.State.Logs; _logs.Add(message); _logDirty = true; };
         _logFilter.Changed += _ => { if (_page == "Logs") RefreshLog(true); };
         _poll.Tick += async (_, _) => await PollAsync();
-        Opened += async (_, _) =>
-        {
-            if (_preview || _opened) return; _opened = true;
-            CreateTray(); await _app.InitializeAsync(); _poll.Start();
-            if (Program.PendingImportLink is { } importLink) ReceiveImportLink(importLink);
-            await LoadActivityLogAsync();
-            if (Environment.GetCommandLineArgs().Contains("--background") && _app.State.StartHidden && _tray is not null) Hide();
-            if (_app.Ready && (Environment.GetCommandLineArgs().Contains("--connect-once") && _app.State.Capture == CaptureMode.Tun || _app.State.RestoreConnection && _app.State.LastConnected)) Connect();
-        };
+        Opened += async (_, _) => await StartRuntimeAsync();
         Closing += async (_, e) =>
         {
             ActiveMoreSheet?.DismissImmediately();
@@ -301,7 +291,22 @@ internal sealed partial class MainWindow : Window
             Width = Math.Min(Width, screen.WorkingArea.Width / screen.Scaling - 48); Height = Math.Min(Height, screen.WorkingArea.Height / screen.Scaling - 48);
             Position = new PixelPoint(screen.WorkingArea.X + (int)((screen.WorkingArea.Width - Width * screen.Scaling) / 2), screen.WorkingArea.Y + (int)((screen.WorkingArea.Height - Height * screen.Scaling) / 2));
         }
-        _presentedOnce = true; UpdateLayout(); base.Show();
+        _presentedOnce = true;
+        NativeCaption.Attach(this); UpdateLayout(); Motion.SettlePaint(this);
+        InitialPresentation = new FirstFramePresentation(this, _clientSurface);
+        InitialPresentation.Prepare();
+        try { base.Show(); }
+        catch { InitialPresentation.Abort(); throw; }
+    }
+    internal FirstFramePresentation? InitialPresentation { get; private set; }
+    private async Task StartRuntimeAsync()
+    {
+        if (_preview || _opened) return; _opened = true;
+        CreateTray(); await _app.InitializeAsync(); _poll.Start();
+        if (Program.PendingImportLink is { } importLink) ReceiveImportLink(importLink);
+        await LoadActivityLogAsync();
+        if (Environment.GetCommandLineArgs().Contains("--background") && _app.State.StartHidden && _tray is not null) Hide();
+        if (_app.Ready && (Environment.GetCommandLineArgs().Contains("--connect-once") && _app.State.Capture == CaptureMode.Tun || _app.State.RestoreConnection && _app.State.LastConnected)) Connect();
     }
     internal void RestoreFromBackground()
     {
@@ -315,7 +320,11 @@ internal sealed partial class MainWindow : Window
     private Menu BuildMenu()
     {
         MenuItem Item(string text, Action action) { var item = new MenuItem { [!MenuItem.HeaderProperty] = UiText.Bind(text) }; item.Click += (_, _) => action(); return item; }
-        MenuItem Group(string text, params Control[] items) => new() { [!MenuItem.HeaderProperty] = UiText.Bind(text), ItemsSource = items };
+        MenuItem Group(string text, params Control[] items)
+        {
+            var heading = new MenuItem { [!MenuItem.HeaderProperty] = UiText.Bind(text), ItemsSource = items };
+            DialogOrigin.RegisterMenu(heading); return heading;
+        }
         return new Menu { ItemsSource = new[]
         {
             Group("File", Item("Import nodes…", ImportText), Item("Import file…", ImportFile), Item("From clipboard", ImportClipboard), Item("Add subscription…", AddSubscription), Item("Export…", ExportNodes), new Separator(), Item("Exit", Exit)),

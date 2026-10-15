@@ -124,7 +124,7 @@ internal sealed class SubscriptionTree : StackPanel
             else ContextMenu = ItemContextMenu.Create(this, () => Selected?.Invoke(),
                 [("Remove manual nodes", () => SubscriptionActionRequested?.Invoke("remove"))]);
             Transitions = new() { new BrushTransition { Property = BackgroundProperty, Duration = TimeSpan.FromMilliseconds(140), Easing = new SplineEasing(0, 0, .58, 1) } };
-            _rotation.Transitions = new() { new DoubleTransition { Property = RotateTransform.AngleProperty, Duration = TimeSpan.FromMilliseconds(220), Easing = new SplineEasing(0.22, 0.7, 0.2, 1) } };
+            _rotation.Transitions = new() { new DoubleTransition { Property = RotateTransform.AngleProperty, Duration = TimeSpan.FromMilliseconds(160), Easing = new SplineEasing(0.22, 0.7, 0.2, 1) } };
             var arrow = new Canvas { Width = 12, Height = 12, RenderTransform = _rotation, RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative), VerticalAlignment = VerticalAlignment.Center,
                 Children = { new Avalonia.Controls.Shapes.Path { Data = Geometry.Parse("M3,1 L8,6 L3,11"), Stroke = Skin.SecondaryBrush, StrokeThickness = 1.6, StrokeLineCap = PenLineCap.Round, StrokeJoin = PenLineJoin.Round } } };
             Disclosure = new Button { Width = 16, Height = 28, MinHeight = 0, Padding = default, Background = Brushes.Transparent, BorderThickness = default, Classes = { "plain", "selection-item" }, Content = arrow };
@@ -206,7 +206,7 @@ internal sealed class AnimatedReveal : Decorator
     internal AnimatedReveal()
     {
         ClipToBounds = true;
-        Transitions = new() { new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(220), Easing = new ElasticEasing() } };
+        Transitions = new() { new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(160), Easing = new ElasticEasing() } };
     }
     protected override Size MeasureOverride(Size available)
     {

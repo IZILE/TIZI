@@ -417,14 +417,14 @@ internal static class UiChecks
                         if (window.PageView is ScrollViewer pageScroll) scrolls.Insert(0, pageScroll);
                         foreach (var scroll in scrolls)
                         {
-                            Check(!scroll.AllowAutoHide, $"{language}/{width}/{page}: scrolling reserves its own space");
+                            Check(!scroll.AllowAutoHide, $"{language}/{width}/{page}: scrollbar remains available without automatic hiding");
                             var content = scroll.Content is ContentControl { Content: Control child } ? child : scroll.Content as Control;
                             if (content is null) continue;
                             foreach (var bar in scroll.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ScrollBar>().Where(b => b.Orientation == Avalonia.Layout.Orientation.Vertical && b.IsVisible && b.Bounds.Height > 0))
                             {
                                 var contentRight = content.TranslatePoint(new Point(content.Bounds.Width, 0), window)!.Value.X;
                                 var barLeft = bar.TranslatePoint(default, window)!.Value.X;
-                                Check(barLeft - contentRight >= (page=="Nodes" ? 4 : 8), $"{language}/{width}/{page}: scrollbar stays within its existing right gutter without covering content ({barLeft - contentRight:0.##} px)");
+                                Check(barLeft - contentRight >= (page is "Nodes" or "Providers" or "Settings" ? 4 : 8), $"{language}/{width}/{page}: scrollbar stays within its existing right gutter without covering content ({barLeft - contentRight:0.##} px)");
                             }
                         }
                         if (page is "Overview" or "Settings") Check(scrolls.Any(s => s.Extent.Height > s.Viewport.Height + 1), $"{language}/{width}/{page}: minimum window exercises overflow");

@@ -51,12 +51,25 @@ internal static class Ui
     internal static StackPanel Horizontal(params Control[] controls)
     { var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center }; foreach (var control in controls) row.Children.Add(control); return row; }
     internal static Control Line() => new Border { Height = 0.5, Background = Skin.MenuRule, Margin = new Thickness(0, 8) };
-    internal static ScrollViewer Scroll(Control content, Thickness margin = default) => new()
+    internal static void OverlayScrollBar(ScrollViewer scroll)
     {
+        scroll.TemplateApplied += (_, e) =>
+        {
+            if (e.NameScope.Find<Avalonia.Controls.Presenters.ScrollContentPresenter>("PART_ContentPresenter") is { } presenter)
+                Grid.SetColumnSpan(presenter, 2);
+        };
+    }
+    internal static ScrollViewer Scroll(Control content, Thickness margin = default, bool overlayScrollbar = false)
+    {
+        var scroll = new ScrollViewer
+        {
         AllowAutoHide = false, Margin = margin,
         HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
         Content = new Border { Padding = new(0, 0, 16, 0), Child = content }
-    };
+        };
+        if (overlayScrollbar) OverlayScrollBar(scroll);
+        return scroll;
+    }
     internal static NavigationGlyph Icon(string page) => new(page);
 }
 internal sealed class NavigationRail : Border
@@ -230,7 +243,7 @@ internal sealed class MovingRows : Grid
                 Grid.SetRow(specs, 2); Grid.SetColumnSpan(specs, 4); row.Children.Add(specs);
                 var evidence = Ui.Value(profile?.ReviewSummary is { Length: > 0 } review ? review : UiText.Get("No saved reviews"), true, 12); evidence.TextWrapping = TextWrapping.Wrap; evidence.MaxLines = 2;
                 var footer = new Grid { ColumnDefinitions = new("*,12,Auto"), Children = { evidence } };
-                var link = Ui.Button("Open website", () => SourceRequested?.Invoke(provider.Url), true); link.MinHeight = 30; link.Padding = new(12, 4); link.CornerRadius = new(15); Grid.SetColumn(link, 2); footer.Children.Add(link);
+                var link = Ui.Button("Official website", () => SourceRequested?.Invoke(provider.Url), true); link.MinHeight = 30; link.Padding = new(12, 4); link.CornerRadius = new(15); Grid.SetColumn(link, 2); footer.Children.Add(link);
                 Grid.SetRow(footer, 3); Grid.SetColumnSpan(footer, 4); row.Children.Add(footer);
             }
             _buttons[entry.Id].Content = row;

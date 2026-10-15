@@ -20,6 +20,7 @@ internal class CenteredDialog : ContentControl
     private MainWindow? _host;
     private Control? _source;
     private double _sourceOpacity;
+    private bool _sourceHidden;
     private bool _prepared, _closing, _closed;
     private readonly TaskCompletionSource<object?> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal DialogOverlay? Overlay { get; private set; }
@@ -47,8 +48,8 @@ internal class CenteredDialog : ContentControl
         var width=double.IsFinite(Width)?Width:620;
         var height=SizeToContent.HasFlag(SizeToContent.Height)?(double?)null:double.IsFinite(Height)?Height:null;
         var origin=DialogOrigin.Take(owner);_source=origin?.Control;
-        var snapshot=DialogOrigin.Capture(_source);
-        if(_source is not null) { _sourceOpacity=_source.Opacity;_source.Opacity=0; }
+        var snapshot=origin?.KeepSourceVisible == true ? null : DialogOrigin.Capture(_source);
+        if(_source is not null && origin?.KeepSourceVisible != true) { _sourceHidden=true;_sourceOpacity=_source.Opacity;_source.Opacity=0; }
         var padding=Padding;var maxHeight=MaxHeight;Content=null;Padding=default;
         Width=Height=double.NaN;MinWidth=MinHeight=0;MaxWidth=MaxHeight=double.PositiveInfinity;
         HorizontalAlignment=HorizontalAlignment.Stretch;VerticalAlignment=VerticalAlignment.Stretch;
@@ -68,7 +69,7 @@ internal class CenteredDialog : ContentControl
     }
     internal Task CloseSheetAsync(object? result=null)
     { Close(result);return _closing||_closed?_completion.Task:Task.CompletedTask; }
-    private async Task FinishAfterMotionAsync(object? result) { await Task.Delay(240);Finish(result); }
+    private async Task FinishAfterMotionAsync(object? result) { await Task.Delay((Overlay?.ClosingMilliseconds??120)+20);Finish(result); }
     internal bool CloseForOwner()
     {
         if(_closed)return true;
@@ -81,7 +82,7 @@ internal class CenteredDialog : ContentControl
         if(_closed)return;_closed=true;
         foreach(var child in OwnedDialogs.ToArray())child.ForceClose();
         IsVisible=false;_host?.DetachDialog(this);
-        if(_source is not null) { _source.Opacity=_sourceOpacity;Dispatcher.UIThread.Post(()=>{if(_source.IsEffectivelyVisible&&_source.IsEffectivelyEnabled)_source.Focus();}); }
+        if(_source is not null) { if(_sourceHidden)_source.Opacity=_sourceOpacity;Dispatcher.UIThread.Post(()=>{if(_source.IsEffectivelyVisible&&_source.IsEffectivelyEnabled)_source.Focus();}); }
         try { Closed?.Invoke(this,EventArgs.Empty); }
         finally { _completion.TrySetResult(result); }
     }
@@ -89,10 +90,22 @@ internal class CenteredDialog : ContentControl
 
 internal sealed record DialogOrigin(Control? Control, Rect ScreenBounds, Color Color, double Radius, string Label)
 {
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<MenuItem, MenuItem> MenuHeadings = new();
     private static DialogOrigin? _last;
     private static long _remembered;
+    internal bool KeepSourceVisible => Control is MenuItem item && MenuHeadings.TryGetValue(item,out var heading) && ReferenceEquals(item,heading);
+    internal static void RegisterMenu(MenuItem heading)
+    {
+        void Register(MenuItem item)
+        {
+            MenuHeadings.Remove(item); MenuHeadings.Add(item, heading);
+            foreach (var child in item.Items.OfType<MenuItem>()) Register(child);
+        }
+        Register(heading);
+    }
     internal static void Remember(Control control)
     {
+        if (control is MenuItem item && MenuHeadings.TryGetValue(item, out var heading)) control = heading;
         if (control.GetVisualAncestors().OfType<MoreActionsSheet>().FirstOrDefault() is { } actions) control = actions.Trigger;
         if (control.Bounds.Width <= 0 || control.Bounds.Height <= 0 || !control.IsVisible) return;
         var scale = TopLevel.GetTopLevel(control)?.RenderScaling ?? 1;
@@ -175,6 +188,8 @@ internal sealed class DialogOverlay : Control
     private Bitmap? _snapshot;
     private readonly DoubleTransition _transition, _visualTransition;
     internal bool HasSourcePreview => _snapshot is not null;
+    internal int OpeningMilliseconds => _origin?.KeepSourceVisible == true ? 240 : 160;
+    internal int ClosingMilliseconds => _origin?.KeepSourceVisible == true ? 180 : 120;
     internal Color SourceColor => _origin?.Color ?? Skin.Chrome;
     internal double SourceContentOpacity => _preview?.Opacity ?? _label.Opacity;
     internal Color SurfaceColor
@@ -198,7 +213,7 @@ internal sealed class DialogOverlay : Control
         var body = new Border { Padding = padding, Child = content };
         _body = new Grid { RowDefinitions = new("Auto,16,*"), Children = { caption, body } };
         Grid.SetRow(body, 2);
-        _label = Ui.Value(origin?.Label ?? "", size: 14); _label.TextAlignment = TextAlignment.Center; _label.VerticalAlignment = VerticalAlignment.Center;
+        _label = Ui.Value(origin?.KeepSourceVisible == true ? "" : origin?.Label ?? "", size: 14); _label.TextAlignment = TextAlignment.Center; _label.VerticalAlignment = VerticalAlignment.Center;
         VisualChildren.Add(_body); LogicalChildren.Add(_body); VisualChildren.Add(_label); LogicalChildren.Add(_label);
         _snapshot=snapshot;
         if(snapshot is not null)
@@ -207,14 +222,14 @@ internal sealed class DialogOverlay : Control
             RenderOptions.SetBitmapInterpolationMode(_preview,BitmapInterpolationMode.HighQuality);
             VisualChildren.Add(_preview);LogicalChildren.Add(_preview);
         }
-        _transition = new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(260), Easing = new SplineEasing(.16,1,.3,1) };
-        _visualTransition=new DoubleTransition {Property=VisualProgressProperty,Duration=TimeSpan.FromMilliseconds(260),Easing=new LinearEasing()};
+        _transition = new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(OpeningMilliseconds), Easing = origin?.KeepSourceVisible == true ? new SplineEasing(.2,0,.2,1) : new SplineEasing(.16,1,.3,1) };
+        _visualTransition=new DoubleTransition {Property=VisualProgressProperty,Duration=TimeSpan.FromMilliseconds(OpeningMilliseconds),Easing=new LinearEasing()};
         Transitions = new() { _transition,_visualTransition };
         PropertyChanged += (_, e) => { if (e.Property == ProgressProperty || e.Property==VisualProgressProperty) { UpdateClip(); InvalidateVisual(); } };
         DetachedFromVisualTree+=(_,_)=> {if(_preview is not null)_preview.Source=null;_snapshot?.Dispose();_snapshot=null;};
     }
-    internal void Reveal() { Retracting = false; _transition.Duration = _visualTransition.Duration = TimeSpan.FromMilliseconds(260); Motion.Set(this, ProgressProperty, 1d);Motion.Set(this,VisualProgressProperty,1d); UpdateClip(); }
-    internal void Dismiss() { Retracting = true; _transition.Duration = _visualTransition.Duration = TimeSpan.FromMilliseconds(220); Motion.Set(this, ProgressProperty, 0d);Motion.Set(this,VisualProgressProperty,0d); UpdateClip(); }
+    internal void Reveal() { Retracting = false; _transition.Duration = _visualTransition.Duration = TimeSpan.FromMilliseconds(OpeningMilliseconds); Motion.Set(this, ProgressProperty, 1d);Motion.Set(this,VisualProgressProperty,1d); UpdateClip(); }
+    internal void Dismiss() { Retracting = true; _transition.Duration = _visualTransition.Duration = TimeSpan.FromMilliseconds(ClosingMilliseconds); Motion.Set(this, ProgressProperty, 0d);Motion.Set(this,VisualProgressProperty,0d); UpdateClip(); }
     internal void SetImmediately(double value) { var transitions = Transitions; Transitions = null; Progress = VisualProgress = value; Transitions = transitions; }
     protected override Size MeasureOverride(Size available)
     {
@@ -254,7 +269,17 @@ internal sealed class DialogOverlay : Control
     private double Radius(double p) => (_origin?.Radius ?? 18) + (18 - (_origin?.Radius ?? 18)) * p;
     public override void Render(DrawingContext context)
     {
-        base.Render(context); var p = Math.Clamp(Progress, 0, 1);var t=Math.Clamp(VisualProgress,0,1);
+        base.Render(context);
+        if (_origin?.KeepSourceVisible == true)
+        {
+            var top=Math.Clamp(SourceBounds.Bottom,0,Bounds.Height);
+            using (context.PushClip(new Rect(0,top,Bounds.Width,Bounds.Height-top))) DrawSurface(context);
+        }
+        else DrawSurface(context);
+    }
+    private void DrawSurface(DrawingContext context)
+    {
+        var p = Math.Clamp(Progress, 0, 1);var t=Math.Clamp(VisualProgress,0,1);
         context.DrawRectangle(new SolidColorBrush(Color.FromArgb((byte)(88 * t), 0, 0, 0)), null, new Rect(Bounds.Size));
         context.DrawRectangle(new SolidColorBrush(SurfaceColor),
             new Pen(new SolidColorBrush(Color.FromArgb((byte)(34 * p), 255, 255, 255)), .5), VisibleBounds, Radius(p), Radius(p),

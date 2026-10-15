@@ -223,7 +223,7 @@ public sealed class EngineClient : IAsyncDisposable
         SourceUpdates.WebUri(url);
         if (timeoutMs is < 500 or > 15000) throw new ArgumentOutOfRangeException(nameof(timeoutMs));
         using var response = await Api.GetAsync($"/proxies/{node.CoreName}/delay?timeout={timeoutMs}&expected=200-299&url=" + Uri.EscapeDataString(url), cancellation).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode) throw new HttpRequestException($"Latency test failed (HTTP {(int)response.StatusCode}): " + Redact(await response.Content.ReadAsStringAsync(cancellation).ConfigureAwait(false)));
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException($"Latency test failed (HTTP {(int)response.StatusCode}): " + Redact(await response.Content.ReadAsStringAsync(cancellation).ConfigureAwait(false)), null, response.StatusCode);
         using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellation).ConfigureAwait(false), cancellationToken: cancellation).ConfigureAwait(false); return doc.RootElement.GetProperty("delay").GetInt32();
     }
     public async Task CheckConnectionAsync(string url, CancellationToken cancellation = default)

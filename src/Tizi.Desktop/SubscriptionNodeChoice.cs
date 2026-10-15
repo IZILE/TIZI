@@ -1,10 +1,13 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Avalonia.Threading;
 using Tizi.Core;
 
 namespace Tizi.Desktop;
@@ -14,6 +17,7 @@ internal sealed class SubscriptionNodeChoice : ComboBox
 {
     private sealed record Option(ProxyNode Node, string SubscriptionName) { public override string ToString() => Node.Name; }
     private bool _refreshing;
+    private int _openingGeneration;
     private ProxyNode[] _candidates = [];
     private readonly Dictionary<TextBlock, Guid> _badges = [];
     private IReadOnlyDictionary<Guid, string> _latencies = new Dictionary<Guid, string>();
@@ -57,7 +61,27 @@ internal sealed class SubscriptionNodeChoice : ComboBox
         {
             if (!_refreshing && CanSwitch && SelectedItem is Option option && _candidates.Any(n => n.Id == option.Node.Id)) NodeChosen?.Invoke(option.Node.Id);
         };
-        PropertyChanged += (_, e) => { if (e.Property == IsDropDownOpenProperty) DropDownVisibilityChanged?.Invoke(IsDropDownOpen); };
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property != IsDropDownOpenProperty) return;
+            var generation = ++_openingGeneration;
+            if (IsDropDownOpen) Dispatcher.UIThread.Post(() => ScrollSelectedToTop(generation), DispatcherPriority.Loaded);
+            DropDownVisibilityChanged?.Invoke(IsDropDownOpen);
+        };
+    }
+    private void ScrollSelectedToTop(int generation)
+    {
+        if (!IsDropDownOpen || generation != _openingGeneration) return;
+        var popup = this.GetVisualDescendants().OfType<Popup>().FirstOrDefault();
+        if (popup?.Child is not { } body) return;
+        body.UpdateLayout();
+        var scroll = body.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        if (scroll?.Content is not ItemsPresenter presenter || ContainerFromIndex(SelectedIndex) is not { } row) return;
+        // A small trailing scroll area lets even the last node align with the top;
+        // the collection and every node's original index remain untouched.
+        presenter.Margin = new(0, 0, 0, Math.Max(0, scroll.Viewport.Height - row.Bounds.Height));
+        body.UpdateLayout();
+        if (row.TranslatePoint(default, presenter) is { } point) scroll.Offset = new(0, point.Y);
     }
     internal void UpdateLatencies(IReadOnlyDictionary<Guid, string> values)
     {

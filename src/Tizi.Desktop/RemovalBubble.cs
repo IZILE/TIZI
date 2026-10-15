@@ -7,23 +7,24 @@ using Avalonia.Media;
 namespace Tizi.Desktop;
 
 /// <summary>One deformable surface grows a second lobe, holds a neck, then releases it.</summary>
-internal sealed class RemovalBubble : Decorator
+internal sealed class RemovalBubble : Control
 {
     internal static readonly StyledProperty<double> ProgressProperty = AvaloniaProperty.Register<RemovalBubble, double>(nameof(Progress));
     internal double Progress { get => GetValue(ProgressProperty); set => SetValue(ProgressProperty, value); }
     internal Button? Anchor { get; private set; }
     internal Button Remove { get; }
-    private readonly Canvas _parts = new() { ClipToBounds = false };
+    private readonly DoubleTransition _transition;
     private bool _open;
     private double _anchorWidth, _removeWidth;
     internal const double BreakPoint = .8;
     internal readonly record struct Surface(Rect Bud, double Bulge, double Neck, bool Joined);
-    static RemovalBubble() { AffectsMeasure<RemovalBubble>(ProgressProperty); AffectsRender<RemovalBubble>(ProgressProperty); }
+    static RemovalBubble() { AffectsMeasure<RemovalBubble>(ProgressProperty); AffectsArrange<RemovalBubble>(ProgressProperty); AffectsRender<RemovalBubble>(ProgressProperty); }
     internal RemovalBubble(Button button)
     {
-        Remove = button; Child = _parts; _parts.Children.Add(button); ClipToBounds = false;
+        Remove = button; VisualChildren.Add(button); LogicalChildren.Add(button); ClipToBounds = false;
         button.Classes.Add("fission-part"); button.IsVisible = false;
-        Transitions = new() { new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(660), Easing = new LinearEasing() } };
+        _transition = new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(320), Easing = new LinearEasing() };
+        Transitions = new() { _transition };
         PropertyChanged += (_, e) =>
         {
             if (e.Property != ProgressProperty) return;
@@ -33,13 +34,14 @@ internal sealed class RemovalBubble : Decorator
     }
     internal void AttachAnchor(Button anchor)
     {
-        Anchor = anchor; anchor.Classes.Add("fission-part"); _parts.Children.Insert(0, anchor);
+        Anchor = anchor; anchor.Classes.Add("fission-part"); VisualChildren.Insert(0, anchor); LogicalChildren.Insert(0, anchor);
     }
     internal void SetOpen(bool open)
     {
         if (_open == open) return; _open = open;
         if (open) Remove.IsVisible = true;
         else Remove.IsHitTestVisible = false;
+        _transition.Duration = TimeSpan.FromMilliseconds(open ? 320 : 180);
         Motion.Set(this, ProgressProperty, open ? 1d : 0d);
     }
     private static double Smooth(double t) { t = Math.Clamp(t, 0, 1); return t * t * (3 - 2 * t); }
@@ -58,7 +60,10 @@ internal sealed class RemovalBubble : Decorator
     }
     protected override Size MeasureOverride(Size available)
     {
-        _parts.Measure(new(double.PositiveInfinity, available.Height));
+        // This panel owns both placements. A Canvas could independently rearrange a
+        // changed count label back to (0,0) without rerunning the outer arrangement.
+        Anchor?.Measure(new(double.PositiveInfinity, available.Height));
+        Remove.Measure(new(double.PositiveInfinity, available.Height));
         _anchorWidth = Anchor?.DesiredSize.Width ?? 0;
         if (Remove.IsVisible) _removeWidth = Remove.DesiredSize.Width;
         var height = Math.Max(Anchor?.DesiredSize.Height ?? 36, Remove.DesiredSize.Height);
@@ -66,10 +71,11 @@ internal sealed class RemovalBubble : Decorator
     }
     protected override Size ArrangeOverride(Size final)
     {
-        _parts.Arrange(new Rect(final));
         Anchor?.Arrange(new Rect(0, 0, _anchorWidth, final.Height));
         var surface = Shape(); Remove.Arrange(new Rect(surface.Bud.X, 0, _removeWidth, final.Height));
         Remove.Opacity = Smooth((Progress - .64) / .28);
+        var radius = Math.Min(surface.Bud.Width, surface.Bud.Height) / 2;
+        Remove.Clip = new RectangleGeometry(new Rect(0, surface.Bud.Y, surface.Bud.Width, surface.Bud.Height), radius, radius);
         return final;
     }
     public override void Render(DrawingContext context)

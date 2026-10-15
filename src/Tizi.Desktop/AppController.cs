@@ -54,6 +54,7 @@ internal sealed partial class AppController : IAsyncDisposable
     internal AppController(bool preview = false)
     {
         _qualityPreview=preview;
+        InitializeAutomaticSwitch();
         Ready = preview;
         _vault = new Vault(UserData.DirectoryPath); _lease = new ProxyLease(new WindowsProxyRegistry(), _vault);
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) }; _timer.Tick += async (_, _) => await AutoUpdateAsync();
@@ -494,6 +495,7 @@ internal sealed partial class AppController : IAsyncDisposable
     }
     public async ValueTask DisposeAsync()
     {
+        await StopAutomaticSwitchAsync();
         if (Ready && !_closing && State.LastConnected != Connected) { State = State with { LastConnected = Connected }; await SaveAsync(); }
         _closing = true; _connectionReady = false; _connectedTimestamp = null; _timer.Stop(); _logTimer.Stop(); _lifetime.Cancel();
         _qualityCancellation?.Cancel();await _qualityTask;

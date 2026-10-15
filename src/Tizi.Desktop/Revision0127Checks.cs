@@ -73,7 +73,7 @@ internal static class Revision0127Checks
                 Click(window,new(12,window.ClientSize.Height-12));await Until(()=>window.ActiveMoreSheet is null);
             }
             check(trigger.Opacity==1&&window.GetVisualDescendants().OfType<MoreActionsSheet>().Count()==0,"Repeated real opening/outside-dismissal removes every More input layer");
-            var site=window.PageView.GetVisualDescendants().OfType<Button>().Single(b=>b.Content is TextBlock text&&text.Text==UiText.Get("Open website"));
+            var site=window.PageView.GetVisualDescendants().OfType<Button>().Single(b=>b.Content is TextBlock text&&text.Text==UiText.Get("Official website"));
             check(site.Classes.Contains("accent"),"Provider-card Open website uses the shared blue accent button");
 
             var deactivations=0;window.Deactivated+=(_,_)=>deactivations++;

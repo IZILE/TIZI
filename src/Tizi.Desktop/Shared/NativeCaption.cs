@@ -11,7 +11,8 @@ internal static class NativeCaption
     private static readonly Dictionary<nint, nint> CaptionIcons = [];
     internal static void Attach(Window window)
     {
-        if (!OperatingSystem.IsWindows() || Attached.TryGetValue(window, out _)) return;
+        if (!OperatingSystem.IsWindows() || Attached.TryGetValue(window, out _)
+            || window.TryGetPlatformHandle() is not { HandleDescriptor: "HWND" }) return;
         Attached.Add(window, new object());
         Win32Properties.AddWndProcHookCallback(window, Hook);
         if (window.TryGetPlatformHandle() is { HandleDescriptor: "HWND" } handle)

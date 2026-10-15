@@ -38,7 +38,7 @@ internal sealed class MoreActionsSheet : Control
         _sourceColor = DialogOrigin.SurfaceColor(trigger);
         Focusable = true;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
-        _transition = new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(260), Easing = new SplineEasing(.16,1,.3,1) };
+        _transition = new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(160), Easing = new SplineEasing(.16,1,.3,1) };
         Transitions = new() { _transition };
         var rows = new StackPanel { Spacing = 6 };
         var buttons = new List<Button>();
@@ -70,15 +70,15 @@ internal sealed class MoreActionsSheet : Control
     {
         if (_finished) return;
         if (!_closing && Progress >= .999) { Focus(); return; }
-        ++_generation; _closing = false; _transition.Duration = TimeSpan.FromMilliseconds(260); _transition.Easing = new SplineEasing(.16,1,.3,1);
+        ++_generation; _closing = false; _transition.Duration = TimeSpan.FromMilliseconds(160); _transition.Easing = new SplineEasing(.16,1,.3,1);
         Trigger.Opacity = 0; Motion.Set(this, ProgressProperty, 1d); Focus();
     }
     internal async Task CloseAsync(int? action = null)
     {
         if (_closing || _finished) return;
         _closing = true; var generation = ++_generation;
-        _transition.Duration = TimeSpan.FromMilliseconds(220); _transition.Easing = new SplineEasing(.16,1,.3,1); Motion.Set(this, ProgressProperty, 0d); UpdateClip();
-        await Task.Delay(240);
+        _transition.Duration = TimeSpan.FromMilliseconds(120); _transition.Easing = new SplineEasing(.16,1,.3,1); Motion.Set(this, ProgressProperty, 0d); UpdateClip();
+        await Task.Delay(140);
         if (generation == _generation) Finish(action);
     }
     internal void DismissImmediately() => Finish(null);

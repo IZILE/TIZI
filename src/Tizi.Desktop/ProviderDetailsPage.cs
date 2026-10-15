@@ -15,7 +15,7 @@ internal sealed class ProviderDetailsPage : SecondPage
     internal ProviderDetailsPage(ProviderSite site, string currency, Action<string> open)
     {
         ProviderId = site.Id; Tag = "provider-details";
-        Margin = new(0, 0, 16, 0); ClipToBounds = true;
+        ClipToBounds = true;
         var body = new StackPanel { Spacing = 24 };
         var name = Wrap(site.Name, 25); name.FontWeight = FontWeight.SemiBold;
         var heading = new StackPanel { Spacing = 9, Children = { name, Wrap(new Uri(site.Url).Host, 13, true) } };
@@ -67,7 +67,7 @@ internal sealed class ProviderDetailsPage : SecondPage
             if (profile.Sources.Count > 0) body.Children.Add(Disclosure(UiText.Get("Official sources"), sources));
             body.Children.Add(Wrap(UiText.Get("Researched") + " · " + profile.ResearchedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), 12, true));
         }
-        Child = Ui.Scroll(body);
+        Child = Ui.Scroll(body, overlayScrollbar: true);
     }
     private static TextBlock Wrap(string text, double size, bool muted = false)
     { var block = Ui.Value(text, muted, size); block.TextWrapping = TextWrapping.Wrap; block.TextTrimming = TextTrimming.None; block.LineHeight = size * 1.55; return block; }

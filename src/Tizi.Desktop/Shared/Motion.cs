@@ -3,6 +3,7 @@ using Avalonia.Animation;
 using Avalonia.Data;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 
 namespace Tizi.Desktop;
 
@@ -25,6 +26,22 @@ internal sealed class Motion : AvaloniaObject
         });
         BackgroundProperty.Changed.AddClassHandler<Border>((subject, args) => Set(subject, Border.BackgroundProperty, args.GetNewValue<IBrush?>()));
         BorderBrushProperty.Changed.AddClassHandler<Border>((subject, args) => Set(subject, Border.BorderBrushProperty, args.GetNewValue<IBrush?>()));
+    }
+
+    internal static void SettlePaint(Control owner)
+    {
+        // Retained settings controls briefly lose template paint when reparented.
+        // Complete only that re-entry paint; normal hover/state transitions stay live.
+        foreach (var subject in owner.GetVisualDescendants().OfType<Border>())
+        {
+            var transitions = subject.Transitions; subject.Transitions = null;
+            try
+            {
+                if (GetBackground(subject) is { } background) subject.Background = background;
+                if (GetBorderBrush(subject) is { } border) subject.BorderBrush = border;
+            }
+            finally { subject.Transitions = transitions; }
+        }
     }
 
     public static double GetOpacity(Animatable subject) => subject.GetValue(OpacityProperty);

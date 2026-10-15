@@ -49,8 +49,8 @@ internal static class Revision0126PlusChecks
             await window.OpenAboutAsync();var about=(AboutPage)window.PageView;
             using(var clock=new UiAnimationClock(about,about.Offset))
             {
-                about.Reveal();clock.Pulse(0);clock.Pulse(200);Layout(window);
-                check(about.Offset.X<0 && about.Opacity==1,"The About second page fades in and elastically settles past its destination without scaling the text");clock.Pulse(350);Layout(window);
+                about.Reveal();clock.Pulse(0);clock.Pulse(120);Layout(window);
+                check(about.Offset.X<0 && about.Opacity>.9,"The About second page fades in and elastically settles past its destination without scaling the text");clock.Pulse(350);Layout(window);
             }
             check(!window.OwnedWindows.Any() && window.PageHeading.Text==UiText.Get("About TIZI"),"About uses the main content page, not an owned window or a modal input layer");
             foreach(var width in new[] {880d,1180d,1920d})

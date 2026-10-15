@@ -20,6 +20,11 @@ internal static class Program
         if (args is ["--apply-update", var updateParent, var updateTicks, var updateFile, var updateHash, var updateTarget])
             return UpdateInstaller.Apply(int.Parse(updateParent), long.Parse(updateTicks), updateFile, updateHash, updateTarget);
         if (args is ["--desktop-qa", var desktopOutput]) { DesktopChecks.Prepare(desktopOutput); return Build(false).StartWithClassicDesktopLifetime(args); }
+        if (args is ["--verify-first-frame", var frameOutput])
+        {
+            frameOutput = Path.GetFullPath(frameOutput); DesktopChecks.Prepare(frameOutput);
+            Build(false).SetupWithoutStarting(); return NativePresentationChecks.Run(frameOutput);
+        }
         if (args is ["--verify-wireguard-sample", var qr1, var qr2, var userData, var searchVault, var importReport]) return ImportChecks.WireGuardSample(qr1, qr2, userData, searchVault, importReport);
         if (args is ["--import-ikuuu-cache", var ikuuuData, var ikuuuReport]) return ImportChecks.IKuuuCache(ikuuuData, ikuuuReport);
         if (args is ["--configure-search-stdin", var vault]) return DiscoveryChecks.Configure(vault);

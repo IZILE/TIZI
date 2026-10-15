@@ -23,7 +23,7 @@
     <Setter Property="FocusAdorner" Value="{x:Null}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Grid>
+        <Grid Background="Transparent">
           <Border Name="buttonFace" local:Motion.Background="{TemplateBinding Background}" local:Motion.BorderBrush="{TemplateBinding BorderBrush}"
                   BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
             <Border.Transitions><Transitions>
@@ -58,8 +58,8 @@
     <Style Selector="^.fission-part /template/ Border#buttonFace"><Setter Property="IsVisible" Value="False" /></Style>
     <Style Selector="^.accent.connection-error"><Setter Property="Background" Value="#DF3D4B" /><Setter Property="BorderBrush" Value="#A0FF929B" /></Style>
     <Style Selector="^.connection-action /template/ Border#buttonFace"><Setter Property="Transitions"><Transitions>
-      <BrushTransition Property="Background" Duration="0:0:0.9" Easing="0.22,0.7,0.2,1" />
-      <BrushTransition Property="BorderBrush" Duration="0:0:0.9" Easing="0.22,0.7,0.2,1" />
+      <BrushTransition Property="Background" Duration="0:0:0.54" Easing="0.22,0.7,0.2,1" />
+      <BrushTransition Property="BorderBrush" Duration="0:0:0.54" Easing="0.22,0.7,0.2,1" />
     </Transitions></Setter></Style>
     <Style Selector="^.accent /template/ Border#feedback"><Setter Property="local:Motion.Background" Value="Black" /></Style>
     <!-- A moving selection owns the only backplate. Hover and press tint its content instead. -->
@@ -174,7 +174,7 @@
           <ContentPresenter Name="PART_HeaderPresenter" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}" RecognizesAccessKey="True" VerticalAlignment="Center" />
         </Border>
         <Popup Name="PART_Popup" Placement="BottomEdgeAlignedLeft" PlacementTarget="PART_LayoutRoot" VerticalOffset="-0.5" ShouldUseOverlayLayer="True" WindowManagerAddShadowHint="False" IsLightDismissEnabled="False" IsOpen="{TemplateBinding IsSubMenuOpen, Mode=TwoWay}">
-          <local:PopupRevealSurface>
+          <local:PopupRevealSurface GentleMenuMotion="True">
             <Border Background="#353535" BorderBrush="#25666666" BorderThickness="0.5,0,0.5,0.5" Padding="4" CornerRadius="0,8,8,8">
               <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" MaxHeight="480">
                 <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" Grid.IsSharedSizeScope="True" />
@@ -284,7 +284,7 @@
           <TextBox Name="PART_EditableTextBox" BorderThickness="0" Background="Transparent" Padding="0"
                    Text="{TemplateBinding Text, Mode=TwoWay}" IsVisible="{TemplateBinding IsEditable}" />
           <Path Name="choiceArrow" Grid.Column="2" Theme="{StaticResource MacChevronTheme}" RenderTransform="rotate(0deg)">
-            <Path.Transitions><Transitions><TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.24" Easing="0.16,1,0.3,1" /></Transitions></Path.Transitions>
+            <Path.Transitions><Transitions><TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.14" Easing="0.16,1,0.3,1" /></Transitions></Path.Transitions>
           </Path>
           </Grid>
           <Border Name="popupFeedback" Background="White" local:Motion.Opacity="0" IsHitTestVisible="False"

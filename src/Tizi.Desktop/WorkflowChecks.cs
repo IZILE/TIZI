@@ -248,7 +248,7 @@ internal static class WorkflowChecks
             var provider = window.Controller.State.Providers[0];
             var providerRows = window.PageView.GetVisualDescendants().OfType<MovingRows>().Single();
             var providerCard = providerRows.For(provider.Id.ToString());
-            var providerLink = providerCard.GetVisualDescendants().OfType<Button>().Single(b => b.Content is TextBlock t && t.Text == UiText.Get("Open website"));
+            var providerLink = providerCard.GetVisualDescendants().OfType<Button>().Single(b => b.Content is TextBlock t && t.Text == UiText.Get("Official website"));
             var sourceRequests = new List<string>(); var providerSelections = 0;
             providerRows.SourceRequested += sourceRequests.Add; providerRows.Chosen += _ => providerSelections++;
             Click(window, providerLink);
@@ -550,6 +550,10 @@ internal static class WorkflowChecks
             await Revision0127Checks.RunAsync(output, Check);
             await Revision0128Checks.RunAsync(output, Check);
             TagAlignmentChecks.Run(output, Check);
+            await Revision0130Checks.RunAsync(output, Check);
+            await Revision0131Checks.RunAsync(output, Check);
+            Revision0132Checks.Run(output, Check);
+            Revision0133Checks.Run(output, Check);
             var proxyAfter = new WindowsProxyRegistry().Read(); Check(proxyBefore.All(p => p.Value is null ? proxyAfter[p.Key] is null : p.Value.Same(proxyAfter[p.Key])), "All workflow checks leave Windows proxy settings unchanged");
             File.WriteAllText(Path.Combine(output, "workflow-checks.json"), JsonSerializer.Serialize(new { passed = checks.Count, checks, syntheticData = true, nativeTaskbarVerified = false, userNodeConnected = false, binary = VerificationStamp.Current() }, new JsonSerializerOptions { WriteIndented = true })); return 0;
         }

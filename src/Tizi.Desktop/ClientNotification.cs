@@ -39,7 +39,7 @@ internal sealed class ClientNotification : Border
         _icon = new Border { Width = 24, Height = 24, Child = new NavigationGlyph("Notice", Ui.DataAccent), VerticalAlignment = VerticalAlignment.Center };
         var row = new Grid { ColumnDefinitions = new("24,12,*,8,24"), RowDefinitions = new("Auto,4,Auto"), Children = { _icon, title, _message, dismiss } };
         Grid.SetColumn(title, 2); Grid.SetColumn(_message, 2); Grid.SetRow(_message, 2); Grid.SetColumn(dismiss, 4); Child = row;
-        Transitions = new() { new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(340), Easing = new SplineEasing(0.18, 0.8, 0.25, 1) } };
+        Transitions = new() { new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(200), Easing = new SplineEasing(0.18, 0.8, 0.25, 1) } };
         PropertyChanged += (_, change) => { if (change.Property == ProgressProperty || change.Property == BoundsProperty) Place(); };
         _expiry.Tick += (_, _) => Dismiss();
         PointerEntered += (_, _) => _expiry.Stop();

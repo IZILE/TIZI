@@ -28,10 +28,27 @@ internal sealed class TrafficChart : Control
     internal event Action<string>? HoverChanged;
     internal int SampleCount => _traffic.Count;
     internal int LatencyCount => _delays.Count;
-    internal double LatencyGapSeconds { get; set; } = 3;
     internal Rect Plot => new(78, 22, Math.Max(0, Bounds.Width - 144), Math.Max(0, Bounds.Height - 50));
     internal double SpeedMaximum => NiceMaximum(_traffic.Select(s => Math.Max(s.Up, s.Down)).DefaultIfEmpty(0).Max(), 100000);
     internal double LatencyMaximum => NiceMaximum(_delays.Select(s => s.Value ?? 0).DefaultIfEmpty(0).Max(), 100);
+    internal readonly record struct DelaySegment(DateTimeOffset FromTime, double From, DateTimeOffset ToTime, double To, bool Estimated);
+    // Missing measurements keep their null value. Only their visual connector holds the last
+    // measured height; the dashed stroke and hover text distinguish it from a new measurement.
+    internal IEnumerable<DelaySegment> LatencySegments()
+    {
+        (DateTimeOffset Time, double Value, bool Missing)? previous = null;
+        foreach (var sample in _delays)
+        {
+            if (previous is null && sample.Value is null) continue;
+            var value = sample.Value ?? previous!.Value.Value;
+            if (previous is { } from && sample.Time > from.Time)
+                yield return new(from.Time, from.Value, sample.Time, value,
+                    from.Missing || sample.Value is null);
+            previous = (sample.Time, value, sample.Value is null);
+        }
+        if (previous is { } last && DisplayTime > last.Time)
+            yield return new(last.Time, last.Value, DisplayTime, last.Value, true);
+    }
     internal TrafficChart()
     {
         Height = 220; ClipToBounds = true;
@@ -103,6 +120,17 @@ internal sealed class TrafficChart : Control
         Label("−60 s", plot.Left, plot.Bottom + 10); Label("−30 s", plot.Center.X, plot.Bottom + 10, true); Label(UiText.Get("Now"), plot.Right, plot.Bottom + 10, true);
         var cursor=DisplayTime;
         double X(DateTimeOffset time) => plot.Left + (1 - (cursor - time).TotalSeconds / 60) * plot.Width;
+        void Segment(DateTimeOffset fromTime, double fromValue, DateTimeOffset toTime, double toValue, double maximum, IBrush brush, bool estimated = false)
+        {
+            var from = new Point(X(fromTime), plot.Bottom - Math.Clamp(fromValue / maximum, 0, 1) * plot.Height);
+            var to = new Point(X(toTime), plot.Bottom - Math.Clamp(toValue / maximum, 0, 1) * plot.Height);
+            // Shared horizontal tangents join the measured curve and missing-data connectors
+            // without overshooting peaks, even when a slow probe takes several seconds.
+            var path = new StreamGeometry();
+            using (var line = path.Open())
+            { line.BeginFigure(from, false); var third = (to.X - from.X) / 3; line.CubicBezierTo(new(from.X + third, from.Y), new(to.X - third, to.Y), to); line.EndFigure(false); }
+            using (context.PushClip(plot)) context.DrawGeometry(null, new Pen(brush, 2, estimated ? DashStyle.Dash : null, lineCap: PenLineCap.Round), path);
+        }
         void Line(IEnumerable<(DateTimeOffset Time, double? Value)> source, double maximum, IBrush brush, double maximumGap)
         {
             Point? previous = null; DateTimeOffset previousTime = default;
@@ -112,11 +140,7 @@ internal sealed class TrafficChart : Control
                 var point = new Point(X(sample.Time), plot.Bottom - Math.Clamp(value / maximum, 0, 1) * plot.Height);
                 if (previous is { } from && sample.Time > previousTime && (sample.Time - previousTime).TotalSeconds <= maximumGap)
                 {
-                    // Horizontal endpoint tangents keep adjacent segments continuous without
-                    // creating values above a measured peak or below a measured trough.
-                    var path=new StreamGeometry();using(var line=path.Open())
-                    { line.BeginFigure(from,false);var third=(point.X-from.X)/3;line.CubicBezierTo(new(from.X+third,from.Y),new(point.X-third,point.Y),point);line.EndFigure(false); }
-                    using(context.PushClip(plot))context.DrawGeometry(null,new Pen(brush,2,lineCap:PenLineCap.Round),path);
+                    Segment(previousTime, (plot.Bottom - from.Y) / plot.Height * maximum, sample.Time, value, maximum, brush);
                 }
                 previous = point; previousTime = sample.Time;
             }
@@ -131,7 +155,8 @@ internal sealed class TrafficChart : Control
         }
         if (_visible[0]) Line(Speeds(false), speedMax, DownloadColor, 3);
         if (_visible[1]) Line(Speeds(true), speedMax, UploadColor, 3);
-        if (_visible[2]) Line(_delays.Select(s => (s.Time, (double?)s.Value)), delayMax, LatencyColor, LatencyGapSeconds);
+        if (_visible[2]) foreach (var segment in LatencySegments())
+            Segment(segment.FromTime, segment.From, segment.ToTime, segment.To, delayMax, LatencyColor, segment.Estimated);
         if (_hoverX is { } hover)
         {
             context.DrawLine(new Pen(Skin.SecondaryBrush, 1, DashStyle.Dash), new(hover, plot.Top), new(hover, plot.Bottom));

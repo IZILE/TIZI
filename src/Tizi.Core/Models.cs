@@ -115,6 +115,7 @@ public sealed record AppState
     public LatencySettings Latency { get; init; } = new();
     public LogSettings Logs { get; init; } = new();
     public IpQualitySettings IpQuality { get; init; } = new();
+    public bool AutoSwitchOnTimeout { get; init; }
 }
 public static class UserData
 {

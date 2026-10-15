@@ -14,7 +14,7 @@ internal class SecondPage : Border
     {
         RenderTransform=Offset;Opacity=0;ClipToBounds=true;
         Transitions=new() { new DoubleTransition { Property=OpacityProperty,Duration=TimeSpan.FromMilliseconds(160),Easing=new SplineEasing(.16,1,.3,1) } };
-        Offset.Transitions=new() { new DoubleTransition { Property=TranslateTransform.XProperty,Duration=TimeSpan.FromMilliseconds(300),Easing=new ElasticEasing() } };
+        Offset.Transitions=new() { new DoubleTransition { Property=TranslateTransform.XProperty,Duration=TimeSpan.FromMilliseconds(160),Easing=new ElasticEasing() } };
     }
     internal void Reveal() { Motion.Set(this,OpacityProperty,1d);Motion.Set(Offset,TranslateTransform.XProperty,0d); }
     internal void Dismiss() { IsHitTestVisible=false;Motion.Set(this,OpacityProperty,0d);Motion.Set(Offset,TranslateTransform.XProperty,18d); }

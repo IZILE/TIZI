@@ -17,7 +17,7 @@ internal sealed class NavigationGlyph : Canvas
     internal Geometry? FilledBody { get; }
     internal IBrush OutlineBrush { get; }
     internal const double StrokeWidth = 1.5;
-    internal const int DurationMilliseconds = 240;
+    internal const int DurationMilliseconds = 160;
 
     static NavigationGlyph()
     {

@@ -26,7 +26,7 @@ internal sealed partial class MainWindow
     internal async Task ReturnFromAboutAsync()
     {
         if(_aboutView is not { IsHitTestVisible:true } about || _aboutReturn is not { } previous)return;
-        about.Dismiss();await Task.Delay(300);
+        about.Dismiss();await Task.Delay(160);
         if(_shutdown || !ReferenceEquals(_aboutView,about) || _page!=previous.Page)return;
         _aboutView=null;_aboutReturn=null;_pageHost.Content=previous.Content;_pageActions.Children.Clear();
         foreach(var action in previous.Actions)_pageActions.Children.Add(action);

@@ -11,7 +11,7 @@ internal sealed partial class AppController
     private Task _qualityTask=Task.CompletedTask;
     internal IpQualityResult? IpQualityResult { get; private set; }
     internal bool IpQualityChecking { get; private set; }
-    private void NotifyChanged() { ScheduleIpQuality();Changed?.Invoke(); }
+    private void NotifyChanged() { RefreshAutomaticSwitch();ScheduleIpQuality();Changed?.Invoke(); }
     private void ScheduleIpQuality()
     {
         var node=State.Nodes.FirstOrDefault(n=>n.Id==State.SelectedNode);

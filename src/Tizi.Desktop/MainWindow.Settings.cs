@@ -73,10 +73,17 @@ internal sealed partial class MainWindow
         }
         StackPanel Card(string section, string title)
         {
-            var body = new StackPanel { Spacing = 18 }; body.Children.Add(Heading(title));
-            groups[section].Children.Add(new Border { Background = Skin.ChromeBrush, CornerRadius = new(14), Padding = new(24), Child = body }); return body;
+            var compact = section == "Diagnostics";
+            var body = new StackPanel { Spacing = compact ? 6 : 18, Tag = section };
+            var heading = Heading(title); if (compact) heading.Margin = new(0,0,0,4);
+            body.Children.Add(heading);
+            groups[section].Children.Add(new Border { Background = Skin.ChromeBrush, CornerRadius = new(14), Padding = new(compact ? 16 : 24), Child = body }); return body;
         }
-        void Field(StackPanel body, string label, Control control) => body.Children.Add(Labeled(label, control));
+        void Field(StackPanel body, string label, Control control)
+        {
+            var field = Labeled(label, control); if (body.Tag is "Diagnostics") field.Spacing = 4;
+            body.Children.Add(field);
+        }
         TextBox Text(string value, bool multiline = false) => new() { Text = value, AcceptsReturn = multiline, Height = multiline ? 112 : double.NaN, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap, VerticalContentAlignment = multiline ? VerticalAlignment.Top : VerticalAlignment.Center, Classes = { "text-input" } };
         StableChoice Choice(string[] values, string value) => new() { ItemsSource = values, SelectedIndex = Math.Max(0, Array.IndexOf(values, value)), ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object>((item, _) => Ui.Text(item?.ToString() ?? "")) };
         var general = Card("General", "Language");
@@ -101,6 +108,16 @@ internal sealed partial class MainWindow
         var outbound = _settingsOutbound = Choice(interfaces, state.OutboundInterface); outbound.Tag = "settings-outbound-interface"; Field(proxy, "Outbound interface", outbound);
         var connectionHint = _settingsConnectionHint = Ui.Text("Disconnect before changing the local port or outbound interface.", true, 12);
         connectionHint.TextWrapping = TextWrapping.Wrap; proxy.Children.Add(connectionHint);
+        var automaticSwitchText = Ui.Text("Switch timed-out nodes within the same country or region"); automaticSwitchText.TextWrapping = TextWrapping.Wrap;
+        var automaticSwitch = new CheckBox { Content = automaticSwitchText, IsChecked = state.AutoSwitchOnTimeout };
+        ToolTip.SetTip(automaticSwitch, UiText.Get("After two failed connection checks, use a verified available node with the same country or region label. Keep the current node if none is available."));
+        automaticSwitch.IsCheckedChanged += async (_, _) =>
+        {
+            var enabled = automaticSwitch.IsChecked == true; if (enabled == _app.State.AutoSwitchOnTimeout) return;
+            try { await _app.ExecuteAsync(() => _app.ApplyAsync(_app.State with { AutoSwitchOnTimeout = enabled })); }
+            catch (Exception failure) { automaticSwitch.IsChecked = _app.State.AutoSwitchOnTimeout; ShowError(failure.Message); }
+        };
+        Card("Proxy", "Automatic node switching").Children.Add(automaticSwitch);
         var tcp = Card("TCP / UDP", "TCP");
         var ipv6 = Option("Enable IPv6", state.Transport.Ipv6); tcp.Children.Add(ipv6);
         var concurrent = Option("Concurrent TCP connections", state.Transport.TcpConcurrent); tcp.Children.Add(concurrent);
@@ -137,6 +154,9 @@ internal sealed partial class MainWindow
         tools.Children.Add(new WrapPanel { ItemSpacing = 10, LineSpacing = 10, Children = { Ui.Button("DNS lookup", DnsLookup), Ui.Button("Open data folder", () => Process.Start(new ProcessStartInfo(EnsureDataFolder()) { UseShellExecute = true })), Ui.Button("Recover saved data", RecoverSavedData) } });
         _settingsDataSummary = Ui.Value(UiText.Format("{0} subscriptions · {1} nodes · {2} rules", state.Subscriptions.Count, state.Nodes.Count, state.Rules.Count), true, 13);
         _settingsDataSummary.TextWrapping = TextWrapping.Wrap; tools.Children.Add(_settingsDataSummary);
+        var toolsCard = (Control)tools.Parent!; var ipCard = (Control)ipTools.Parent!;
+        groups["Diagnostics"].Children.Remove(toolsCard); groups["Diagnostics"].Children.Remove(ipCard);
+        groups["Diagnostics"].Children.Add(new StackPanel { Spacing = 18, Tag = "diagnostics-tools-column", Children = { toolsCard, ipCard } });
         static List<string> Lines(TextBox input) => (input.Text ?? "").Split(['\r', '\n', ','], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
         var syncingGeneral = false; var generalGeneration = 0;
         _syncGeneralOptions = () =>
@@ -238,6 +258,7 @@ internal sealed partial class MainWindow
         SettingsSections.SelectedIndex = Math.Clamp(selectedSection, 0, sections.Length - 1);
         selected.Content = groups[sections[SettingsSections.SelectedIndex]];
         var scroll = new ScrollViewer { AllowAutoHide = false, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Content = selected };
+        Ui.OverlayScrollBar(scroll);
         var footerContent = new Grid { ColumnDefinitions = new("*,16,Auto"), Children = { draftStatus, save } }; Grid.SetColumn(save, 2);
         var footer = new Border { Padding = new(0, 16, 16, 0), Child = new StackPanel { Spacing = 10, Children = { error, footerContent } } };
         var layout = new Grid { RowDefinitions = new("Auto,16,*,Auto"), Children = { SettingsSections, scroll, footer } }; Grid.SetRow(scroll, 2); Grid.SetRow(footer, 3);
@@ -286,15 +307,20 @@ internal sealed class SettingsCards : Panel
     internal SettingsCards()
     {
         _ghosts=new GhostSurface(this) { IsHitTestVisible=false, ZIndex=-1 }; VisualChildren.Add(_ghosts);
-        Transitions = new() { new DoubleTransition { Property=ProgressProperty, Duration=TimeSpan.FromMilliseconds(240), Easing=new SplineEasing(.16,1,.3,1) } };
+        Transitions = new() { new DoubleTransition { Property=ProgressProperty, Duration=TimeSpan.FromMilliseconds(160), Easing=new SplineEasing(.16,1,.3,1) } };
         PropertyChanged += (_,e) => { if(e.Property==ProgressProperty) _ghosts.InvalidateVisual(); };
+        AttachedToVisualTree += (_, _) =>
+        {
+            var generation = _generation;
+            Dispatcher.UIThread.Post(() => { if(generation==_generation && VisualRoot is not null) Motion.SettlePaint(this); },DispatcherPriority.Loaded);
+        };
     }
     internal void ContinueFrom(SettingsCards previous)
     {
         _from=previous.DisplayedCards(); _fromHeight=previous.Bounds.Height;
         var transitions=Transitions; Transitions=null; Progress=0; Transitions=transitions;
         var generation=++_generation;
-        Dispatcher.UIThread.Post(() => { if(generation==_generation && VisualRoot is not null) Progress=1; },DispatcherPriority.Loaded);
+        Dispatcher.UIThread.Post(() => { if(generation==_generation && VisualRoot is not null) { Motion.SettlePaint(this); Progress=1; } },DispatcherPriority.Loaded);
     }
     internal Rect[] DisplayedCards() => Children.Select(c=>c.Bounds).Concat(
         _from.Skip(Children.Count).Select(r=>new Rect(r.X,r.Y,r.Width,r.Height*(1-Math.Clamp(Progress,0,1))))).Where(r=>r.Height>.1).ToArray();
