@@ -1,5 +1,6 @@
-<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:Tizi.Desktop">
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:Tizi.Desktop" xmlns:conv="using:Avalonia.Controls.Converters">
   <Styles.Resources>
+  <conv:PlatformKeyGestureConverter x:Key="TiziMenuGestureConverter" />
   <!-- Keep native caption styles for DWM animations while the main window draws its own caption. -->
   <ControlTheme x:Key="TiziWindowDecorations" TargetType="WindowDrawnDecorations">
     <Setter Property="Template">
@@ -155,27 +156,80 @@
     <Style Selector="^:selected /template/ Border#row"><Setter Property="local:Motion.Background" Value="{DynamicResource TiziSelectionFill}" /></Style>
     <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.4" /></Style>
   </ControlTheme>
-  <ControlTheme x:Key="MacMenuItemTheme" TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
-    <Setter Property="CornerRadius" Value="5" /><Setter Property="Padding" Value="8,3" /><Setter Property="Margin" Value="3,1" />
+  <ControlTheme x:Key="MacMenuFaceTheme" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource TiziMenuSurface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TiziMenuEdge}" />
+    <Setter Property="BorderThickness" Value="0.5" /><Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="4" /><Setter Property="Margin" Value="8" /><Setter Property="MinWidth" Value="152" />
+    <Setter Property="BoxShadow" Value="0 4 14 0 #28000000" />
+  </ControlTheme>
+  <ControlTheme x:Key="MacMenuItemTheme" TargetType="MenuItem">
+    <Setter Property="Foreground" Value="{DynamicResource TiziLabel}" /><Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="5" /><Setter Property="Padding" Value="10,5" /><Setter Property="Margin" Value="3,1" />
     <Setter Property="ItemsPanel"><ItemsPanelTemplate><local:MenuSelectionPanel /></ItemsPanelTemplate></Setter>
+    <Setter Property="Template"><ControlTemplate>
+      <Panel>
+        <Border Name="PART_LayoutRoot" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" SharedSizeGroup="ToggleIcon" /><ColumnDefinition Width="Auto" SharedSizeGroup="MenuItemIcon" />
+              <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" SharedSizeGroup="MenuItemIGT" /><ColumnDefinition Width="Auto" SharedSizeGroup="MenuItemChevron" />
+            </Grid.ColumnDefinitions>
+            <ContentControl Name="PART_ToggleIconPresenter" Grid.Column="0" IsVisible="False" Width="16" Margin="0,0,10,0" />
+            <ContentControl Name="PART_IconPresenter" Grid.Column="1" IsVisible="False" Content="{TemplateBinding Icon}" Width="16" Margin="0,0,10,0" />
+            <ContentPresenter Name="PART_HeaderPresenter" Grid.Column="2" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}"
+                              Foreground="{TemplateBinding Foreground}" RecognizesAccessKey="True" VerticalAlignment="Center" />
+            <TextBlock Name="PART_InputGestureText" Grid.Column="3" Text="{TemplateBinding InputGesture, Converter={StaticResource TiziMenuGestureConverter}}"
+                       Foreground="{DynamicResource TiziSecondary}" Margin="24,0,0,0" VerticalAlignment="Center" />
+            <Path Name="PART_ChevronPath" Grid.Column="4" Data="M0,0 L4,4 L0,8" Width="4" Height="8" Margin="14,0,0,0"
+                  Stroke="{DynamicResource TiziSecondary}" StrokeThickness="1.2" StrokeLineCap="Round" StrokeJoin="Round" VerticalAlignment="Center" />
+          </Grid>
+        </Border>
+        <Popup Name="PART_Popup" Placement="RightEdgeAlignedTop" PlacementTarget="PART_LayoutRoot" HorizontalOffset="-1" VerticalOffset="-13"
+               ShouldUseOverlayLayer="True" WindowManagerAddShadowHint="False" IsLightDismissEnabled="False" IsOpen="{TemplateBinding IsSubMenuOpen, Mode=TwoWay}">
+          <local:PopupRevealSurface GentleMenuMotion="True">
+            <Border Name="menuFace" Theme="{StaticResource MacMenuFaceTheme}">
+              <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" MaxHeight="480">
+                <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" Grid.IsSharedSizeScope="True" />
+              </ScrollViewer>
+            </Border>
+          </local:PopupRevealSurface>
+        </Popup>
+      </Panel>
+    </ControlTemplate></Setter>
     <Style Selector="^ /template/ Border#PART_LayoutRoot">
       <Setter Property="Transitions"><Transitions><BrushTransition Property="Background" Duration="0:0:0.08" Easing="0,0,0.58,1" /></Transitions></Setter>
     </Style>
     <Style Selector="^:selected /template/ Border#PART_LayoutRoot"><Setter Property="local:Motion.Background" Value="{DynamicResource TiziBlue}" /></Style>
+    <Style Selector="^:selected"><Setter Property="Foreground" Value="{DynamicResource TiziOnAccent}" /></Style>
+    <Style Selector="^:open"><Setter Property="Foreground" Value="{DynamicResource TiziOnAccent}" /></Style>
+    <Style Selector="^:selected /template/ Path#PART_ChevronPath"><Setter Property="Stroke" Value="{DynamicResource TiziOnAccent}" /></Style>
+    <Style Selector="^:open /template/ Path#PART_ChevronPath"><Setter Property="Stroke" Value="{DynamicResource TiziOnAccent}" /></Style>
     <Style Selector="^.moving-menu /template/ Border#PART_LayoutRoot"><Setter Property="local:Motion.Background" Value="Transparent" /></Style>
     <Style Selector="^.moving-menu /template/ Border#PART_LayoutRoot"><Setter Property="Transitions" Value="{x:Null}" /></Style>
     <Style Selector="^.moving-menu:selected /template/ Border#PART_LayoutRoot"><Setter Property="local:Motion.Background" Value="Transparent" /></Style>
+    <Style Selector="^:empty /template/ Path#PART_ChevronPath"><Setter Property="IsVisible" Value="False" /></Style>
+    <Style Selector="^:icon /template/ ContentControl#PART_IconPresenter"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:disabled /template/ Border#PART_LayoutRoot"><Setter Property="Opacity" Value="0.45" /></Style>
+    <Style Selector="^:separator"><Setter Property="Template"><ControlTemplate><Separator /></ControlTemplate></Setter></Style>
+    <Style Selector="^:checked:toggle /template/ ContentControl#PART_ToggleIconPresenter">
+      <Setter Property="IsVisible" Value="True" /><Setter Property="Content"><Template><Path Width="14" Height="10" Data="M0,5 L5,10 L14,0" Stroke="{DynamicResource TiziLabel}" StrokeThickness="1.4" /></Template></Setter>
+    </Style>
+    <Style Selector="^:checked:radio /template/ ContentControl#PART_ToggleIconPresenter">
+      <Setter Property="IsVisible" Value="True" /><Setter Property="Content"><Template><Ellipse Width="8" Height="8" Fill="{DynamicResource TiziLabel}" /></Template></Setter>
+    </Style>
   </ControlTheme>
-  <ControlTheme x:Key="MacMenuBarTheme" TargetType="MenuItem" BasedOn="{StaticResource FluentTopLevelMenuItem}">
+  <ControlTheme x:Key="MacMenuBarTheme" TargetType="MenuItem">
+    <Setter Property="Foreground" Value="{DynamicResource TiziLabel}" /><Setter Property="Background" Value="Transparent" />
     <Setter Property="CornerRadius" Value="6" /><Setter Property="Padding" Value="10,3" /><Setter Property="Margin" Value="2,3" />
     <Setter Property="Template"><ControlTemplate>
       <Panel>
         <Border Name="PART_LayoutRoot" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}">
-          <ContentPresenter Name="PART_HeaderPresenter" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}" RecognizesAccessKey="True" VerticalAlignment="Center" />
+          <ContentPresenter Name="PART_HeaderPresenter" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}" Foreground="{TemplateBinding Foreground}" RecognizesAccessKey="True" VerticalAlignment="Center" />
         </Border>
-        <Popup Name="PART_Popup" Placement="BottomEdgeAlignedLeft" PlacementTarget="PART_LayoutRoot" VerticalOffset="-0.5" ShouldUseOverlayLayer="True" WindowManagerAddShadowHint="False" IsLightDismissEnabled="False" IsOpen="{TemplateBinding IsSubMenuOpen, Mode=TwoWay}">
+        <Popup Name="PART_Popup" Placement="BottomEdgeAlignedLeft" PlacementTarget="PART_LayoutRoot" HorizontalOffset="-8" VerticalOffset="-8" ShouldUseOverlayLayer="True" WindowManagerAddShadowHint="False" IsLightDismissEnabled="False" IsOpen="{TemplateBinding IsSubMenuOpen, Mode=TwoWay}">
           <local:PopupRevealSurface GentleMenuMotion="True">
-            <Border Background="{DynamicResource TiziFieldFill}" BorderBrush="{DynamicResource TiziFieldEdge}" BorderThickness="0.5,0,0.5,0.5" Padding="4" CornerRadius="0,8,8,8">
+            <Border Name="menuFace" Theme="{StaticResource MacMenuFaceTheme}">
               <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" MaxHeight="480">
                 <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" Grid.IsSharedSizeScope="True" />
               </ScrollViewer>
@@ -193,17 +247,20 @@
     <Style Selector="^.moving-menu /template/ Border#PART_LayoutRoot"><Setter Property="local:Motion.Background" Value="Transparent" /></Style>
     <Style Selector="^.moving-menu:pointerover /template/ Border#PART_LayoutRoot"><Setter Property="local:Motion.Background" Value="Transparent" /></Style>
     <Style Selector="^.moving-menu:selected /template/ Border#PART_LayoutRoot"><Setter Property="local:Motion.Background" Value="Transparent" /></Style>
-    <Style Selector="^:open /template/ Border#PART_LayoutRoot"><Setter Property="local:Motion.Background" Value="{DynamicResource TiziFieldFill}" /><Setter Property="CornerRadius" Value="6,6,0,0" /></Style>
+    <Style Selector="^.moving-menu /template/ Border#PART_LayoutRoot"><Setter Property="Transitions" Value="{x:Null}" /></Style>
+    <Style Selector="^:open /template/ Border#PART_LayoutRoot"><Setter Property="local:Motion.Background" Value="{DynamicResource TiziMenuSelected}" /></Style>
+    <Style Selector="^.moving-menu:open /template/ Border#PART_LayoutRoot"><Setter Property="local:Motion.Background" Value="Transparent" /></Style>
+    <Style Selector="^:disabled /template/ Border#PART_LayoutRoot"><Setter Property="Opacity" Value="0.45" /></Style>
   </ControlTheme>
   <ControlTheme x:Key="MacContextMenuTheme" TargetType="ContextMenu">
     <Setter Property="Focusable" Value="True" />
-    <Setter Property="Background" Value="{DynamicResource TiziFieldFill}" /><Setter Property="BorderBrush" Value="{DynamicResource TiziFieldEdge}" />
-    <Setter Property="BorderThickness" Value="0.5" /><Setter Property="CornerRadius" Value="12" /><Setter Property="Padding" Value="4" />
+    <Setter Property="Foreground" Value="{DynamicResource TiziLabel}" /><Setter Property="Background" Value="{DynamicResource TiziMenuSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource TiziMenuEdge}" />
+    <Setter Property="BorderThickness" Value="0.5" /><Setter Property="CornerRadius" Value="8" /><Setter Property="Padding" Value="4" />
     <Setter Property="ItemsPanel"><ItemsPanelTemplate><local:MenuSelectionPanel /></ItemsPanelTemplate></Setter>
     <Setter Property="ItemContainerTheme" Value="{StaticResource MacMenuItemTheme}" />
     <Setter Property="Template"><ControlTemplate>
       <local:PopupRevealSurface RevealOnAttach="True">
-        <Border Name="actionMenuFace" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+        <Border Name="actionMenuFace" Theme="{StaticResource MacMenuFaceTheme}" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                 BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
           <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" MaxHeight="480">
             <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" Grid.IsSharedSizeScope="True" />

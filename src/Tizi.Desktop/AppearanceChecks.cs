@@ -70,6 +70,7 @@ internal static class AppearanceChecks
                 Appearance.Set(theme,false);Layout(window);
                 check(((ISolidColorBrush)TrafficChart.DownloadColor).Color==Color.Parse("#58D6B2")&&((ISolidColorBrush)TrafficChart.UploadColor).Color==Color.Parse("#82B4FF")
                     &&((ISolidColorBrush)TrafficChart.LatencyColor).Color==Color.Parse("#F6C76C"),theme+" preserves the original colored metrics and chart palette");
+                MenuAppearanceChecks.Run(window,theme,output,check);
                 foreach(var page in NavigationRail.Pages.Where(p=>p!="Second"))
                 {
                     window.Rail.Select(page);window.ShowPage(page);Layout(window);

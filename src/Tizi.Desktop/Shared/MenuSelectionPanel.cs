@@ -21,12 +21,13 @@ internal sealed class MenuSelectionPanel : StackPanel
     private static readonly StyledProperty<double> AlphaProperty = AvaloniaProperty.Register<MenuSelectionPanel, double>("HighlightAlpha");
     private readonly HashSet<Control> _items = [];
     private readonly Surface _surface;
-    private bool _placed, _queued, _attached;
+    private bool _placed, _queued, _attached, _menuExpanded;
     private int _generation;
     private Rect _destination;
     internal Rect HighlightBounds => new(GetValue(LeftProperty), GetValue(TopProperty), GetValue(HighlightWidthProperty), GetValue(HighlightHeightProperty));
     internal Rect Destination => _destination;
     internal double HighlightAlpha => GetValue(AlphaProperty);
+    internal IBrush HighlightFill => Orientation == Orientation.Horizontal ? (_menuExpanded ? Skin.MenuSurface : Skin.TabFront) : MenuBlue;
     internal Control? Highlighted { get; private set; }
 
     public MenuSelectionPanel()
@@ -86,12 +87,17 @@ internal sealed class MenuSelectionPanel : StackPanel
     private void Refresh()
     {
         var enabled = Children.Where(item => item is MenuItem or ComboBoxItem && item.IsEnabled && item.IsVisible).ToArray();
-        var item = enabled.FirstOrDefault(item => item.IsPointerOver)
+        var open = Orientation == Orientation.Horizontal ? enabled.OfType<MenuItem>().FirstOrDefault(item => item.IsSubMenuOpen) : null;
+        if (_menuExpanded != (open is not null))
+        { _menuExpanded = open is not null; _surface.InvalidateVisual(); }
+        // An expanded menu owns the horizontal surface. Pointer hover must not paint
+        // another heading while its dropdown still belongs to the previous heading.
+        var item = open ?? enabled.FirstOrDefault(item => item.IsPointerOver)
             ?? enabled.FirstOrDefault(item => item is MenuItem { IsSelected: true } or ComboBoxItem { IsSelected: true })
             ?? enabled.FirstOrDefault(item => item is MenuItem { IsSubMenuOpen: true })
             ?? (IsPointerOver && enabled.Contains(Highlighted) ? Highlighted : null);
         Highlighted = item;
-        foreach(var row in enabled)
+        foreach(var row in enabled.OfType<ComboBoxItem>())
         foreach(var text in row.GetVisualDescendants().OfType<TextBlock>())
         {
             if(Orientation==Orientation.Vertical&&ReferenceEquals(row,item))
@@ -120,7 +126,7 @@ internal sealed class MenuSelectionPanel : StackPanel
         {
             if (owner.HighlightAlpha <= 0 || owner.HighlightBounds.Width <= 0) return;
             using (context.PushOpacity(owner.HighlightAlpha))
-                context.DrawRectangle(owner.Orientation == Orientation.Horizontal ? Skin.TabFront : MenuBlue, null,
+                context.DrawRectangle(owner.HighlightFill, null,
                     owner.HighlightBounds, owner.Orientation == Orientation.Horizontal ? 6 : 5, owner.Orientation == Orientation.Horizontal ? 6 : 5);
         }
     }
