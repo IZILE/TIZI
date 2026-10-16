@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -37,7 +38,8 @@ internal sealed class MenuSelectionPanel : StackPanel
         PropertyChanged += (_, args) =>
         {
             if (args.Property == LeftProperty || args.Property == TopProperty || args.Property == HighlightWidthProperty
-                || args.Property == HighlightHeightProperty || args.Property == AlphaProperty) _surface.InvalidateVisual();
+                || args.Property == HighlightHeightProperty || args.Property == AlphaProperty)
+            { _surface.InvalidateVisual(); RefreshInk(); }
             if (args.Property == IsPointerOverProperty) Schedule();
         };
         // Hit-test the space between rows too. Crossing a margin or separator must not briefly
@@ -54,6 +56,7 @@ internal sealed class MenuSelectionPanel : StackPanel
         DetachedFromVisualTree += (_, _) =>
         {
             foreach(var (text,ink) in _originalInk)text.Foreground=ink;_originalInk.Clear();
+            foreach(var item in _items)item.Classes.Remove("moving-menu-ink");
             ++_generation; _queued = false; _placed = false; _attached = false; Highlighted = null;
             var transitions = Transitions; Transitions = null; SetValue(AlphaProperty, 0); Transitions = transitions;
         };
@@ -64,7 +67,7 @@ internal sealed class MenuSelectionPanel : StackPanel
         if (!VisualChildren.Contains(_surface)) VisualChildren.Add(_surface);
         var current = Children.Where(item => item is MenuItem or ComboBoxItem).ToHashSet();
         foreach (var item in _items.Except(current).ToArray())
-        { item.PropertyChanged -= ItemChanged; item.Classes.Remove("moving-menu"); _items.Remove(item); }
+        { item.PropertyChanged -= ItemChanged; item.Classes.Remove("moving-menu"); item.Classes.Remove("moving-menu-ink"); _items.Remove(item); }
         foreach (var item in current.Except(_items).ToArray())
         { item.Classes.Add("moving-menu"); item.PropertyChanged += ItemChanged; _items.Add(item); }
         Schedule();
@@ -114,11 +117,26 @@ internal sealed class MenuSelectionPanel : StackPanel
         Motion.Set(this, HighlightWidthProperty, bounds.Width); Motion.Set(this, HighlightHeightProperty, bounds.Height);
         Motion.Set(this, AlphaProperty, 1.0); Transitions = transitions;
         _destination = bounds; _placed = true;
+        RefreshInk();
+    }
+    private void RefreshInk()
+    {
+        foreach(var row in _items.OfType<MenuItem>())
+        {
+            var header=row.GetVisualDescendants().OfType<ContentPresenter>()
+                .FirstOrDefault(p=>p.Name=="PART_HeaderPresenter"&&ReferenceEquals(p.TemplatedParent,row));
+            var white=Orientation==Orientation.Vertical&&HighlightAlpha>=.995&&header is { Bounds.Width: >0, Bounds.Height: >0 }
+                &&header.TranslatePoint(default,this) is { } origin
+                &&HighlightBounds.Contains(new Rect(origin,header.Bounds.Size));
+            // White ink is safe only while the moving blue surface covers the label.
+            // Logical selection/open state can outlive pointer departure or lead the surface.
+            row.Classes.Set("moving-menu-ink",white);
+        }
     }
     protected override Size ArrangeOverride(Size finalSize)
     {
         var result = base.ArrangeOverride(finalSize);
-        _surface.Measure(finalSize); _surface.Arrange(new Rect(finalSize)); Refresh(); return result;
+        _surface.Measure(finalSize); _surface.Arrange(new Rect(finalSize)); Refresh(); RefreshInk(); return result;
     }
     private sealed class Surface(MenuSelectionPanel owner) : Control
     {

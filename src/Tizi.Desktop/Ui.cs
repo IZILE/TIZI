@@ -190,7 +190,7 @@ internal sealed class MovingRows : Grid
                 if (entry.Provider is not null || _nodeGrid)
                 {
                     Border ground = _nodeGrid ? new NodeCardGround { Tag = entry.Id }
-                        : new Border { Background = Skin.TabBack, CornerRadius = new(12), Tag = entry.Id };
+                        : new Border { Background = Skin.ContentCardFill, CornerRadius = new(12), Tag = entry.Id };
                     _grounds.Add(entry.Id, ground); _cardGrounds.Children.Add(ground);
                 }
                 button.Classes.Set("provider-card", entry.Provider is not null || _nodeGrid);
@@ -308,7 +308,7 @@ internal sealed class MovingRows : Grid
             var bounds = _buttons[id].Bounds; Canvas.SetLeft(ground, bounds.X); Canvas.SetTop(ground, bounds.Y);
             ground.Width = bounds.Width; ground.Height = bounds.Height;
             if (ground is NodeCardGround nodeGround) nodeGround.SetCurrent(_display.GetValueOrDefault(id)?.Current == true);
-            else ground.Background = _multiple?.Contains(id) == true ? Ui.SelectionBrush : _display.GetValueOrDefault(id)?.Provider is not null ? Skin.TabBack : Brushes.Transparent;
+            else ground.Background = _multiple?.Contains(id) == true ? Ui.SelectionBrush : _display.GetValueOrDefault(id)?.Provider is not null ? Skin.ContentCardFill : Brushes.Transparent;
         }
         if (!_nodeGrid && _multiple is null && _selected is { } selected && _display.GetValueOrDefault(selected)?.Provider is null && _buttons.TryGetValue(selected, out var button) && button.Bounds.Width > 0) _indicator.MoveTo(button.Bounds);
     }
@@ -330,7 +330,7 @@ internal sealed class NodeCardGround : Border
     internal double Selection { get => GetValue(SelectionProperty); set => SetValue(SelectionProperty, value); }
     internal NodeCardGround()
     {
-        Background = Skin.TabBack; CornerRadius = new(12);
+        Background = Skin.ContentCardFill; CornerRadius = new(12);
         Transitions = new Transitions { new DoubleTransition { Property = SelectionProperty,
             Duration = TimeSpan.FromMilliseconds(SelectionIndicator.DurationMilliseconds), Easing = new SplineEasing(0, 0, .58, 1) } };
     }
@@ -340,9 +340,9 @@ internal sealed class NodeCardGround : Border
         base.OnPropertyChanged(change);
         if (change.Property != SelectionProperty) return;
         var amount = Math.Clamp(Selection, 0, 1);
-        if (amount == 0) { Background = Skin.TabBack; return; }
+        if (amount == 0) { Background = Skin.ContentCardFill; return; }
         if (amount == 1) { Background = MovingRows.CurrentNodeBrush; return; }
-        var gray = ((ISolidColorBrush)Skin.TabBack).Color; var blue = ((ISolidColorBrush)MovingRows.CurrentNodeBrush).Color;
+        var gray = Skin.ContentCardFill.Color; var blue = ((ISolidColorBrush)MovingRows.CurrentNodeBrush).Color;
         var alpha = gray.A + (blue.A - gray.A) * amount;
         byte Mix(byte from, byte to) => alpha <= 0 ? (byte)0
             : (byte)Math.Round((from * gray.A * (1 - amount) + to * blue.A * amount) / alpha);

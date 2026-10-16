@@ -208,6 +208,14 @@
     <Style Selector="^.moving-menu /template/ Border#PART_LayoutRoot"><Setter Property="local:Motion.Background" Value="Transparent" /></Style>
     <Style Selector="^.moving-menu /template/ Border#PART_LayoutRoot"><Setter Property="Transitions" Value="{x:Null}" /></Style>
     <Style Selector="^.moving-menu:selected /template/ Border#PART_LayoutRoot"><Setter Property="local:Motion.Background" Value="Transparent" /></Style>
+    <Style Selector="^.moving-menu"><Setter Property="Foreground" Value="{DynamicResource TiziLabel}" /></Style>
+    <Style Selector="^.moving-menu:selected"><Setter Property="Foreground" Value="{DynamicResource TiziLabel}" /></Style>
+    <Style Selector="^.moving-menu:open"><Setter Property="Foreground" Value="{DynamicResource TiziLabel}" /></Style>
+    <Style Selector="^.moving-menu /template/ Path#PART_ChevronPath"><Setter Property="Stroke" Value="{DynamicResource TiziSecondary}" /></Style>
+    <Style Selector="^.moving-menu:selected /template/ Path#PART_ChevronPath"><Setter Property="Stroke" Value="{DynamicResource TiziSecondary}" /></Style>
+    <Style Selector="^.moving-menu:open /template/ Path#PART_ChevronPath"><Setter Property="Stroke" Value="{DynamicResource TiziSecondary}" /></Style>
+    <Style Selector="^.moving-menu.moving-menu-ink"><Setter Property="Foreground" Value="{DynamicResource TiziOnAccent}" /></Style>
+    <Style Selector="^.moving-menu.moving-menu-ink /template/ Path#PART_ChevronPath"><Setter Property="Stroke" Value="{DynamicResource TiziOnAccent}" /></Style>
     <Style Selector="^:empty /template/ Path#PART_ChevronPath"><Setter Property="IsVisible" Value="False" /></Style>
     <Style Selector="^:icon /template/ ContentControl#PART_IconPresenter"><Setter Property="IsVisible" Value="True" /></Style>
     <Style Selector="^:disabled /template/ Border#PART_LayoutRoot"><Setter Property="Opacity" Value="0.45" /></Style>
@@ -369,6 +377,10 @@
     <Style Selector="^:pressed /template/ Border#popupFeedback"><Setter Property="local:Motion.Opacity" Value="0.1" /></Style>
     <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.4" /></Style>
     <Style Selector="^[SelectedIndex=-1] /template/ TextBlock#choicePlaceholder"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^.capture-mode"><Setter Property="Background" Value="{DynamicResource TiziToolbarFill}" /></Style>
+    <Style Selector="^.capture-mode:disabled"><Setter Property="Opacity" Value="1" /><Setter Property="Background" Value="{DynamicResource TiziToolbarDisabledFill}" /><Setter Property="BorderBrush" Value="{DynamicResource TiziToolbarDisabledEdge}" /></Style>
+    <Style Selector="^.capture-mode:disabled /template/ Grid#choiceContent"><Setter Property="Opacity" Value="0.4" /></Style>
+    <Style Selector="^.capture-mode:disabled /template/ Border#popupFeedback"><Setter Property="IsVisible" Value="False" /></Style>
     <Style Selector="^.single-node /template/ Path#choiceArrow"><Setter Property="IsVisible" Value="False" /></Style>
     <Style Selector="^.header-node"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /></Style>
     <Style Selector="^.header-node[IsDropDownOpen=True]"><Setter Property="Background" Value="{DynamicResource TiziFieldFill}" /></Style>

@@ -34,8 +34,46 @@ internal static class MenuAppearanceChecks
         var oldLanguage=UiText.Language;
         var menu=window.GetVisualDescendants().OfType<Menu>().Single();var headings=menu.Items.OfType<MenuItem>().ToArray();
         var help=headings[3];var commands=help.Items.OfType<MenuItem>().ToArray();var language=commands[1];var choices=language.Items.OfType<MenuItem>().ToArray();
-        Color Ink(MenuItem item)=>!headings.Contains(item)&&(item.IsSelected||item.IsSubMenuOpen)?Skin.OnAccent.Color:Skin.Label;
+        Color Ink(MenuItem item)=>item.Classes.Contains("moving-menu-ink")?Skin.OnAccent.Color:Skin.Label;
+        static void SettleRows(Control owner)
+        {
+            using var clock=new UiAnimationClock(owner.GetVisualDescendants().OfType<MenuSelectionPanel>().ToArray());
+            clock.Pulse(0);clock.Pulse(200);Layout(owner);
+        }
         var samples=new List<object>();
+        void RowInkMotion(string locale)
+        {
+            help.IsSelected=true;help.IsSubMenuOpen=true;Layout(window);
+            var popup=PopupFor(help);((PopupRevealSurface)popup.Child!).SetImmediately(1);
+            language.IsSelected=true;language.IsSubMenuOpen=true;Layout(window);
+            ((PopupRevealSurface)PopupFor(language).Child!).SetImmediately(1);
+            var panel=Face(popup).GetVisualDescendants().OfType<MenuSelectionPanel>().Single(p=>p.Children.Contains(language));
+            using var clock=new UiAnimationClock(panel);clock.Pulse(0);
+            window.MouseMove(Bounds(language,window).Center);Layout(window);clock.Pulse(1);clock.Pulse(201);Layout(window);
+            check(Header(language).Foreground==Skin.OnAccent,theme+" "+locale+" settled blue language row has white text");
+            var frames=new List<object>();
+            void Sample(int ms)
+            {
+                clock.Pulse(ms);Layout(window);
+                var rows=commands.Select(item=>new{item.Header,ink=((ISolidColorBrush)Header(item).Foreground!).Color,label=Bounds(Header(item),panel),selected=item.IsSelected,submenuOpen=item.IsSubMenuOpen}).ToArray();
+                check(rows.All(row=>row.ink==Skin.Label||(row.ink==Skin.OnAccent.Color&&panel.HighlightAlpha>=.995&&panel.HighlightBounds.Contains(row.label))),
+                      theme+" "+locale+" every menu label stays readable during moving and departing blue fill at "+ms+" ms");
+                frames.Add(new{milliseconds=ms,highlight=panel.HighlightBounds,alpha=panel.HighlightAlpha,rows});
+                if(ms is 218 or 250 or 386)
+                {AvaloniaHeadlessPlatform.ForceRenderTimerTick();using var image=window.CaptureRenderedFrame()!;image.Save(Path.Combine(output,theme.ToLowerInvariant()+"-menu-leave-"+locale+"-"+ms+".png"),new PngBitmapEncoderOptions());}
+            }
+            window.MouseMove(Bounds(commands[2],window).Center);Layout(window);
+            for(var ms=202;ms<=386;ms+=8)Sample(ms);
+            check(Header(language).Foreground==Skin.LabelBrush&&Header(commands[2]).Foreground==Skin.OnAccent,
+                  theme+" "+locale+" departed language row restores normal ink while the covered destination is white");
+            window.MouseMove(Bounds(language,window).Center);Layout(window);Sample(387);Sample(427);
+            window.MouseMove(Bounds(commands[0],window).Center);Layout(window);
+            for(var ms=428;ms<=612;ms+=8)Sample(ms);
+            check(Header(commands[0]).Foreground==Skin.OnAccent&&Header(language).Foreground==Skin.LabelBrush,
+                  theme+" "+locale+" interrupted reverse movement restores old-row ink and settles readable destination ink");
+            menu.Close();Layout(window);
+            File.WriteAllText(Path.Combine(output,theme.ToLowerInvariant()+"-menu-ink-"+locale+".json"),JsonSerializer.Serialize(frames,new JsonSerializerOptions{WriteIndented=true}));
+        }
         void HeadingMotion(string locale)
         {
             menu.Close();Layout(window);
@@ -76,7 +114,7 @@ internal static class MenuAppearanceChecks
                 var primary=PopupFor(help);((PopupRevealSurface)primary.Child!).SetImmediately(1);
                 language.IsSelected=true;language.IsSubMenuOpen=true;language.Focus();Layout(window);
                 var secondary=PopupFor(language);((PopupRevealSurface)secondary.Child!).SetImmediately(1);Layout(window);
-                var primaryFace=Face(primary);var secondaryFace=Face(secondary);
+                SettleRows(window);var primaryFace=Face(primary);var secondaryFace=Face(secondary);
                 foreach(var item in headings.Concat(commands).Concat(choices))
                 {
                     var presenter=Header(item);var texts=presenter.GetVisualDescendants().OfType<TextBlock>().ToArray();
@@ -95,7 +133,7 @@ internal static class MenuAppearanceChecks
                       theme+" "+locale+" submenu joins the primary edge and aligns its first row with the parent row");
                 window.MouseMove(first.Center);Layout(window);
                 check(language.IsSubMenuOpen&&help.IsSubMenuOpen,theme+" "+locale+" entering the submenu keeps its parent menu open");
-                choices[0].IsSelected=true;choices[0].Focus();Layout(window);
+                choices[0].IsSelected=true;choices[0].Focus();Layout(window);SettleRows(window);
                 var arrow=language.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().Single(p=>p.Name=="PART_ChevronPath");
                 check(arrow.Stroke==Skin.OnAccent,theme+" "+locale+" the submenu chevron remains white on the original blue highlight");
                 Save(window,Path.Combine(output,theme.ToLowerInvariant()+"-menu-"+locale+".png"));
@@ -115,6 +153,7 @@ internal static class MenuAppearanceChecks
                 check(!help.IsSubMenuOpen&&!language.IsSubMenuOpen,theme+" "+locale+" Escape dismisses the cascading menu without dispatching an action");
                 window.MouseMove(new Point(window.Bounds.Width-5,window.Bounds.Height-5));
             }
+            foreach(var locale in new[]{"zh-CN","en"}){UiText.Language=locale;RowInkMotion(locale);}
             if(theme=="Light")
                 check(new[]{Skin.ChromeBrush,Skin.ControlFill,Skin.FieldFill,Skin.PopupFill,Skin.MenuSurface}.Cast<ISolidColorBrush>().All(b=>b.Color.R==b.Color.G&&b.Color.G==b.Color.B)
                       &&Skin.Chrome.R<Skin.Pasteboard.R&&Skin.ControlFill.Color.R<Skin.Chrome.R,

@@ -24,8 +24,8 @@ internal sealed partial class MainWindow : Window
     private readonly AppController _app;
     private readonly bool _preview;
     private readonly NavigationRail _rail = new();
-    private readonly SegmentedChoice _mode = new("Rule", "Global", "Direct");
-    private readonly StableChoice _capture = new() { ItemsSource = new[] { "System proxy", "TUN", "Local proxy" }, HorizontalContentAlignment = HorizontalAlignment.Center };
+    private readonly SegmentedChoice _mode = new("Rule", "Global", "Direct") { Background = Skin.ToolbarFill };
+    private readonly StableChoice _capture = new() { Classes = { "capture-mode" }, ItemsSource = new[] { "System proxy", "TUN", "Local proxy" }, HorizontalContentAlignment = HorizontalAlignment.Center };
     private readonly ConnectionButton _connect = new();
     private readonly SearchField _search = new();
     private readonly MovingRows _rows = new();

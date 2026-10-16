@@ -71,6 +71,23 @@ internal static class AppearanceChecks
                 check(((ISolidColorBrush)TrafficChart.DownloadColor).Color==Color.Parse("#58D6B2")&&((ISolidColorBrush)TrafficChart.UploadColor).Color==Color.Parse("#82B4FF")
                     &&((ISolidColorBrush)TrafficChart.LatencyColor).Color==Color.Parse("#F6C76C"),theme+" preserves the original colored metrics and chart palette");
                 MenuAppearanceChecks.Run(window,theme,output,check);
+                var capture=window.GetVisualDescendants().OfType<StableChoice>().Single(c=>c.Classes.Contains("capture-mode"));
+                var enabled=capture.IsEnabled;var selected=capture.SelectedIndex;
+                capture.IsEnabled=true;Layout(window);
+                check(ReferenceEquals(window.ModeControl.Background,Skin.ToolbarFill)&&ReferenceEquals(capture.Background,Skin.ToolbarFill),
+                    theme+" routing and capture controls share the same toolbar fill");
+                capture.SelectedIndex=1;capture.IsEnabled=false;Layout(window);
+                check(capture.Opacity==1&&ReferenceEquals(capture.Background,Skin.ToolbarDisabledFill)
+                      &&capture.GetVisualDescendants().OfType<Grid>().Single(g=>g.Name=="choiceContent").Opacity==.4,
+                    theme+" disabled capture control keeps its backplate visible while its label retains the disabled cue");
+                if(theme=="Light")
+                {
+                    check(Skin.ToolbarFill.Color.R==Skin.ToolbarFill.Color.G&&Skin.ToolbarFill.Color.G==Skin.ToolbarFill.Color.B
+                          &&Skin.FieldFill.Color==Skin.ToolbarFill.Color&&Skin.ToolbarFill.Color.A==255,
+                        "Light toolbar controls share the slightly deeper neutral fill of the other selectors");
+                    using var image=Frame(window);image.Save(Path.Combine(output,"light-toolbar-disabled.png"),new PngBitmapEncoderOptions());
+                }
+                capture.IsEnabled=enabled;capture.SelectedIndex=selected;Layout(window);
                 foreach(var page in NavigationRail.Pages.Where(p=>p!="Second"))
                 {
                     window.Rail.Select(page);window.ShowPage(page);Layout(window);
@@ -81,6 +98,12 @@ internal static class AppearanceChecks
                         var now=DateTimeOffset.UtcNow;
                         for(var i=0;i<60;i++){monitor.Chart.Add(125000+(i%8)*9000,320000+(i%9)*14000,now.AddSeconds(i-60));monitor.Chart.AddLatency(80+i%7,now.AddSeconds(i-60));}
                         monitor.Chart.PreviewElapsed=1;
+                    }
+                    if(page=="Providers")
+                    {
+                        var cards=window.PageView.GetVisualDescendants().OfType<ProviderCardButton>().ToArray();
+                        check(cards.Length>0&&cards.All(card=>card.GetVisualAncestors().OfType<MovingRows>().Single().RowSurfaceColor(card)==Skin.ContentCardFill.Color),
+                            theme+" airport cards use the same neutral content-card fill as node cards");
                     }
                     using var image=Frame(window);image.Save(Path.Combine(output,theme.ToLowerInvariant()+"-"+page.ToLowerInvariant()+".png"),new PngBitmapEncoderOptions());
                     check(window.PageHeading.Foreground==Skin.LabelBrush&&window.ContentSurface.Background==Skin.PasteboardBrush&&((ISolidColorBrush)window.ContentSurface.Background).Color.A==255,
