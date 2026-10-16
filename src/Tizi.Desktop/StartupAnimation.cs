@@ -100,7 +100,7 @@ internal sealed class StartupAnimation : Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);var p=Progress;var frost=Frost;
-        using(context.PushOpacity(.84*frost))context.FillRectangle(Skin.ChromeBrush,new Rect(Bounds.Size));
+        using(context.PushOpacity(.84*frost))context.FillRectangle(Skin.WindowBackdrop,new Rect(Bounds.Size));
         var place=Placement(p);using(context.PushTransform(Matrix.CreateScale(place.Scale,place.Scale)*Matrix.CreateTranslation(place.Center.X,place.Center.Y)))
         using(context.PushOpacity(Skin.Label.A/255d))
             context.DrawGeometry(null,new Pen(Skin.BrandInk,Mark.Stroke,lineCap:PenLineCap.Round,lineJoin:PenLineJoin.Round),BrandGeometry.Path(Strokes(p)));

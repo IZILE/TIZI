@@ -20,7 +20,7 @@ internal static partial class Skin
     public static Color Chrome => IsLight ? Color.Parse("#F0F1F4") : Color.FromRgb(0x24, 0x24, 0x24);
 
     /// <summary><c>NSColor(white: 0.105)</c>: the pasteboard drawn behind the picture in EditorCanvas.draw.</summary>
-    public static Color Pasteboard => IsLight ? Color.Parse("#FAFAFC") : Color.FromRgb(0x1B, 0x1B, 0x1B);
+    public static Color Pasteboard => IsLight ? Colors.White : Color.FromRgb(0x1B, 0x1B, 0x1B);
 
     /// <summary>The transparency checker: <c>NSColor(white: 0.30)</c> with <c>0.35</c> squares, 10 points each.</summary>
     public static readonly Color CheckerBase = Color.FromRgb(0x4D, 0x4D, 0x4D);

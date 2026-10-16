@@ -22,7 +22,7 @@ internal static class Revision0132Checks
         {
             check(window.TransparencyLevelHint[0]==WindowTransparencyLevel.AcrylicBlur&&window.FrostedChromeVisible,
                 "The main window requests the restrained frosted chrome material");
-            check(window.TransparencyBackgroundFallback is ISolidColorBrush fallback&&fallback.Color==Skin.Chrome
+            check(window.TransparencyBackgroundFallback is ISolidColorBrush fallback&&fallback.Color==Skin.WindowBackdrop.Color
                 &&window.ContentSurface.Background is ISolidColorBrush background&&background.Color==Skin.Pasteboard&&background.Color.A==255,
                 "The native fallback and functional page remain opaque while the outer chrome is frosted");
             check(window.Opacity==1,"No application-wide transparent fade is applied to the main window");

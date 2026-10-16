@@ -13,6 +13,8 @@ internal static partial class Skin
         var a=Color.Parse(dark);var b=Color.Parse(light);var brush=new SolidColorBrush(IsLight?b:a);
         Palette.Add("Tizi"+key,(brush,a,b));return brush;
     }
+    internal static readonly SolidColorBrush WindowBackdrop=Tone("WindowBackdrop","#21201F","#F5F2F2");
+    internal static readonly SolidColorBrush WindowBackdropTint=Tone("WindowBackdropTint","#FA21201F","#FAF5F2F2");
     internal static readonly SolidColorBrush ControlFill=Tone("ControlFill","#3A3A3A","#E3E5EA");
     internal static readonly SolidColorBrush FieldFill=Tone("FieldFill","#353535","#E8EAF0");
     internal static readonly SolidColorBrush InputFill=Tone("InputFill","#1A1A1A","#FFFFFF");

@@ -92,8 +92,27 @@ internal static class AppearanceChecks
                 check(mode.SelectedIndex==(theme=="Light"?1:0),theme+" is reflected in the whole-field appearance picker");
                 check(window.VersionUpdateButton?.Content is TextBlock update&&update.Foreground==Skin.LabelBrush,theme+" neutral update action keeps readable label contrast");
                 var oldNode=window.Controller.State.SelectedNode;
-                check(window.FrostedChromeVisible&&window.TransparencyLevelHint[0]==WindowTransparencyLevel.AcrylicBlur&&window.TransparencyBackgroundFallback==Skin.ChromeBrush,
+                check(window.FrostedChromeVisible&&window.TransparencyLevelHint[0]==WindowTransparencyLevel.AcrylicBlur&&window.TransparencyBackgroundFallback==Skin.WindowBackdrop,
                     theme+" frosted chrome requests compositor blur with an opaque fallback");
+                var target=Skin.WindowBackdrop.Color;
+                var samples=new List<object>();
+                using(var tint=new RenderTargetBitmap(new PixelSize(64,64),new Vector(96,96)))
+                {
+                    using(var context=tint.CreateDrawingContext())context.FillRectangle(window.ChromeMaterial.Background!,new Rect(0,0,64,64));
+                    var pixel=Pixels(tint);var index=(32*64+32)*4;var alpha=pixel[index+3];
+                    check(alpha is >=249 and <255,theme+" backdrop retains restrained transparency");
+                    foreach(var underlay in new[]{Colors.Black,Colors.White,Colors.Red,Colors.Lime,Colors.Blue})
+                    {
+                        // CopyPixels is premultiplied BGRA; composite over each extreme desktop color.
+                        var red=pixel[index+2]+underlay.R*(255-alpha)/255d;
+                        var green=pixel[index+1]+underlay.G*(255-alpha)/255d;
+                        var blue=pixel[index]+underlay.B*(255-alpha)/255d;
+                        var delta=Math.Max(Math.Abs(red-target.R),Math.Max(Math.Abs(green-target.G),Math.Abs(blue-target.B)));
+                        check(delta<=6,theme+" backdrop stays close to its reference on "+underlay);
+                        samples.Add(new{underlay=underlay.ToString(),red,green,blue,maximumChannelDelta=delta});
+                    }
+                }
+                File.WriteAllText(Path.Combine(output,theme.ToLowerInvariant()+"-backdrop-samples.json"),JsonSerializer.Serialize(new{target=target.ToString(),samples},new JsonSerializerOptions{WriteIndented=true}));
                 check(window.ContentSurface.Background==Skin.PasteboardBrush&&((ISolidColorBrush)window.ContentSurface.Background).Color.A==255&&window.Controller.State.SelectedNode==oldNode,
                     theme+" frosted chrome leaves the functional page and selected node intact");
                 using(var image=Frame(window))image.Save(Path.Combine(output,theme.ToLowerInvariant()+"-frosted.png"),new PngBitmapEncoderOptions());

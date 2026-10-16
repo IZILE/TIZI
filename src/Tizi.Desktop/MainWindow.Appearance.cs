@@ -8,22 +8,20 @@ internal sealed partial class MainWindow
 {
     private Grid? _captionGrid,_shellRoot;
     private WordmarkHost? _wordmarkHost;
-    private readonly ExperimentalAcrylicBorder _chromeMaterial=new(){IsHitTestVisible=false,IsVisible=false};
+    private readonly Border _chromeMaterial=new(){IsHitTestVisible=false,IsVisible=false};
     internal bool FrostedChromeVisible=>_chromeMaterial.IsVisible;
-    internal ExperimentalAcrylicBorder ChromeMaterial=>_chromeMaterial;
+    internal Border ChromeMaterial=>_chromeMaterial;
     private void ApplyWindowAppearance()
     {
-        TransparencyBackgroundFallback=Skin.ChromeBrush;
+        TransparencyBackgroundFallback=Skin.WindowBackdrop;
         TransparencyLevelHint=[WindowTransparencyLevel.AcrylicBlur,WindowTransparencyLevel.Mica,WindowTransparencyLevel.None];
         Background=Brushes.Transparent;
         _clientSurface.Background=Brushes.Transparent;
         _workspace.Background=Brushes.Transparent;_rail.Background=Brushes.Transparent;
         if(_captionGrid is {} caption)caption.Background=Brushes.Transparent;
-        _chromeMaterial.Material=new ExperimentalAcrylicMaterial
-        {
-            BackgroundSource=AcrylicBackgroundSource.Digger,TintColor=Skin.Chrome,
-            TintOpacity=Skin.IsLight?.82:.86,MaterialOpacity=.92,FallbackColor=Skin.Chrome
-        };
+        // Windows supplies the backdrop blur. A separate tint keeps the requested
+        // near-black / soft-white colors without acrylic's extra luminosity layer.
+        _chromeMaterial.Background=Skin.WindowBackdropTint;
         _chromeMaterial.IsVisible=true;
         var syncing=_syncing;_syncing=true;
         try
