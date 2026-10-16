@@ -378,8 +378,15 @@
     <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.4" /></Style>
     <Style Selector="^[SelectedIndex=-1] /template/ TextBlock#choicePlaceholder"><Setter Property="IsVisible" Value="True" /></Style>
     <Style Selector="^.capture-mode"><Setter Property="Background" Value="{DynamicResource TiziToolbarFill}" /></Style>
+    <Style Selector="^.capture-mode /template/ Border#popupFeedback"><Setter Property="IsVisible" Value="False" /></Style>
+    <Style Selector="^.capture-mode /template/ Grid#choiceContent">
+      <Setter Property="local:Motion.Opacity" Value="0.92" />
+      <Setter Property="Transitions"><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.08" Easing="0,0,0.58,1" /></Transitions></Setter>
+    </Style>
+    <Style Selector="^.capture-mode:pointerover /template/ Grid#choiceContent"><Setter Property="local:Motion.Opacity" Value="1" /></Style>
+    <Style Selector="^.capture-mode:pressed /template/ Grid#choiceContent"><Setter Property="local:Motion.Opacity" Value="0.68" /></Style>
     <Style Selector="^.capture-mode:disabled"><Setter Property="Opacity" Value="1" /><Setter Property="Background" Value="{DynamicResource TiziToolbarDisabledFill}" /><Setter Property="BorderBrush" Value="{DynamicResource TiziToolbarDisabledEdge}" /></Style>
-    <Style Selector="^.capture-mode:disabled /template/ Grid#choiceContent"><Setter Property="Opacity" Value="0.4" /></Style>
+    <Style Selector="^.capture-mode:disabled /template/ Grid#choiceContent"><Setter Property="Transitions" Value="{x:Null}" /><Setter Property="local:Motion.Opacity" Value="0.4" /></Style>
     <Style Selector="^.capture-mode:disabled /template/ Border#popupFeedback"><Setter Property="IsVisible" Value="False" /></Style>
     <Style Selector="^.single-node /template/ Path#choiceArrow"><Setter Property="IsVisible" Value="False" /></Style>
     <Style Selector="^.header-node"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /></Style>

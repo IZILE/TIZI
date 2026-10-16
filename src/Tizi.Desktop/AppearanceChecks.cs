@@ -76,6 +76,28 @@ internal static class AppearanceChecks
                 capture.IsEnabled=true;Layout(window);
                 check(ReferenceEquals(window.ModeControl.Background,Skin.ToolbarFill)&&ReferenceEquals(capture.Background,Skin.ToolbarFill),
                     theme+" routing and capture controls share the same toolbar fill");
+                if(theme=="Light")
+                {
+                    var toolbarSamples=new List<object>();var feedback=capture.GetVisualDescendants().OfType<Border>().Single(b=>b.Name=="popupFeedback");
+                    using var clock=new UiAnimationClock(feedback);clock.Pulse(0);
+                    Color Sample(Bitmap image,Control control,Point point)
+                    {
+                        var p=control.TranslatePoint(point,window)!.Value;var data=Pixels(image);
+                        var index=((int)Math.Floor(p.Y*window.RenderScaling)*image.PixelSize.Width+(int)Math.Floor(p.X*window.RenderScaling))*4;
+                        return Color.FromRgb(data[index+2],data[index+1],data[index]);
+                    }
+                    foreach(var step in new[]{0,1,2})
+                    {
+                        window.MouseMove(step==1?capture.TranslatePoint(new(capture.Bounds.Width/2,capture.Bounds.Height/2),window)!.Value:new(window.Bounds.Width-5,window.Bounds.Height-5));
+                        Layout(window);clock.Pulse(step*102+1);clock.Pulse(step*102+101);
+                        using var image=Frame(window);
+                        var routing=Sample(image,window.ModeControl.ButtonAt(1),new(5,31));var proxy=Sample(image,capture,new(18,5));
+                        check(routing==proxy&&proxy==Skin.ToolbarFill.Color,"Light toolbar controls have identical rendered fill when "+new[]{"idle","hovered","pointer has left"}[step]);
+                        toolbarSamples.Add(new{phase=new[]{"idle","hover","leave"}[step],routing=routing.ToString(),capture=proxy.ToString()});
+                        if(step==2)image.Save(Path.Combine(output,"light-toolbar-enabled.png"),new PngBitmapEncoderOptions());
+                    }
+                    File.WriteAllText(Path.Combine(output,"toolbar-fill-samples.json"),JsonSerializer.Serialize(toolbarSamples,new JsonSerializerOptions{WriteIndented=true}));
+                }
                 capture.SelectedIndex=1;capture.IsEnabled=false;Layout(window);
                 check(capture.Opacity==1&&ReferenceEquals(capture.Background,Skin.ToolbarDisabledFill)
                       &&capture.GetVisualDescendants().OfType<Grid>().Single(g=>g.Name=="choiceContent").Opacity==.4,
@@ -83,9 +105,12 @@ internal static class AppearanceChecks
                 if(theme=="Light")
                 {
                     check(Skin.ToolbarFill.Color.R==Skin.ToolbarFill.Color.G&&Skin.ToolbarFill.Color.G==Skin.ToolbarFill.Color.B
-                          &&Skin.FieldFill.Color==Skin.ToolbarFill.Color&&Skin.ToolbarFill.Color.A==255,
-                        "Light toolbar controls share the slightly deeper neutral fill of the other selectors");
+                          &&Skin.FieldFill.Color.R-Skin.ToolbarFill.Color.R==6&&Skin.ToolbarFill.Color.A==255,
+                        "Light routing and capture controls alone retain their slightly deeper neutral fill");
                     using var image=Frame(window);image.Save(Path.Combine(output,"light-toolbar-disabled.png"),new PngBitmapEncoderOptions());
+                    var point=capture.TranslatePoint(new(18,5),window)!.Value;var bytes=Pixels(image);
+                    var index=((int)Math.Floor(point.Y*window.RenderScaling)*image.PixelSize.Width+(int)Math.Floor(point.X*window.RenderScaling))*4;
+                    check(Color.FromRgb(bytes[index+2],bytes[index+1],bytes[index])==Skin.ToolbarFill.Color,"Light disabled TUN backplate renders the same gray as the routing control");
                 }
                 capture.IsEnabled=enabled;capture.SelectedIndex=selected;Layout(window);
                 foreach(var page in NavigationRail.Pages.Where(p=>p!="Second"))

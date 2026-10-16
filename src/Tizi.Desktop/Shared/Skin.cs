@@ -17,7 +17,7 @@ internal static partial class Skin
     // ---- What the Mac build writes down ----
 
     /// <summary><c>Color(white: 0.14)</c>: the editor's own background in ContentView.</summary>
-    public static Color Chrome => IsLight ? Color.Parse("#EFEFEF") : Color.FromRgb(0x24, 0x24, 0x24);
+    public static Color Chrome => IsLight ? Color.Parse("#F5F5F5") : Color.FromRgb(0x24, 0x24, 0x24);
 
     /// <summary><c>NSColor(white: 0.105)</c>: the pasteboard drawn behind the picture in EditorCanvas.draw.</summary>
     public static Color Pasteboard => IsLight ? Colors.White : Color.FromRgb(0x1B, 0x1B, 0x1B);
