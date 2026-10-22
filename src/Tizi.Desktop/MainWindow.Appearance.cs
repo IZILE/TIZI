@@ -20,15 +20,9 @@ internal sealed partial class MainWindow
         _workspace.Background=Brushes.Transparent;_rail.Background=Brushes.Transparent;
         if(_captionGrid is {} caption)caption.Background=Brushes.Transparent;
         // Windows supplies the backdrop blur. A separate tint keeps the requested
-        // near-black / soft-white colors without acrylic's extra luminosity layer.
+        // near-black color without acrylic's extra luminosity layer.
         _chromeMaterial.Background=Skin.WindowBackdropTint;
         _chromeMaterial.IsVisible=true;
-        var syncing=_syncing;_syncing=true;
-        try
-        {
-            if(_settingsAppearance is {} choice)choice.SelectedIndex=Appearance.Current.Theme switch {"Light"=>1,"System"=>2,_=>0};
-        }
-        finally{_syncing=syncing;}
         // Every functional page retains its own opaque pasteboard and card surfaces.
         foreach(var control in this.GetVisualDescendants().OfType<Control>())control.InvalidateVisual();
     }

@@ -1367,7 +1367,5 @@
   "Model detection failed (HTTP {0}). Check the key and endpoint.": "获取模型失败（HTTP {0}），请检查密钥和接口地址。",
   "Model detection timed out. Reopen settings to retry.": "获取模型超时，可重新打开设置重试。",
   "Search was incomplete; previous results kept.": "搜索未完成，已保留原有结果。",
-  "Search output reached its length limit; previous results kept.": "模型返回内容达到长度上限，已保留原有结果。",
-  "Appearance": "外观",
-  "Follow system": "跟随系统"
+  "Search output reached its length limit; previous results kept.": "模型返回内容达到长度上限，已保留原有结果。"
 }

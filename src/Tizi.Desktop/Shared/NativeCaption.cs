@@ -20,10 +20,10 @@ internal static class NativeCaption
             // Match the application chrome while preserving Windows caption controls.
             void Refresh()
             {
-                var dark=Skin.IsLight?0:1;DwmSetWindowAttribute(handle.Handle,20,ref dark,sizeof(int));
+                var dark=1;DwmSetWindowAttribute(handle.Handle,20,ref dark,sizeof(int));
                 var caption=CaptionColor(window);DwmSetWindowAttribute(handle.Handle,35,ref caption,sizeof(int));
             }
-            Refresh();Appearance.Changed+=Refresh;
+            Refresh();
             if (HideCaptionIcon(window))
             {
                 // A null HICON falls back to Windows' generic document icon. Only the
@@ -38,7 +38,6 @@ internal static class NativeCaption
             }
             window.Closed += (_, _) =>
             {
-                Appearance.Changed-=Refresh;
                 Win32Properties.RemoveWndProcHookCallback(window, Hook);
                 if (CaptionIcons.Remove(handle.Handle, out var icon)) DestroyIcon(icon);
                 Attached.Remove(window);

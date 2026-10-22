@@ -29,7 +29,7 @@ internal static class Program
         if(args is ["--verify-startup-native",var startupOutput,var startupTheme])
         {
             startupOutput=Path.GetFullPath(startupOutput);DesktopChecks.Prepare(startupOutput);StartupAnimation.AllowVerification=true;
-            File.WriteAllText(UserData.File("appearance.json"),System.Text.Json.JsonSerializer.Serialize(new AppearancePreferences(startupTheme)));
+            if(startupTheme!="Dark")return 2;
             Build(false).SetupWithoutStarting();return NativePresentationChecks.Run(startupOutput);
         }
         if (args is ["--verify-wireguard-sample", var qr1, var qr2, var userData, var searchVault, var importReport]) return ImportChecks.WireGuardSample(qr1, qr2, userData, searchVault, importReport);

@@ -63,7 +63,7 @@ internal static class NativePresentationChecks
                     passed = checks.Count, checks, backend = "normal Windows platform", firstShowMs,
                     initialCloak, cloakedAtOpening, loadedAtOpening, finalCloak, disabledTransitions,
                     targetActuallyDrew = frame.FrameRendered, timeout = frame.TimedOut, networkConnection = false,
-                    theme=Appearance.Current.Theme,frosted=window.FrostedChromeVisible,actualTransparency,startupAnimation=StartupAnimation.AllowVerification,
+                    theme=window.ActualThemeVariant.ToString(),frosted=window.FrostedChromeVisible,actualTransparency,startupAnimation=StartupAnimation.AllowVerification,
                     limitation = "Native draw and DWM visibility ordering verified; no high-speed desktop recording.", binary = VerificationStamp.Current()
                 }, new JsonSerializerOptions { WriteIndented = true }));
             }

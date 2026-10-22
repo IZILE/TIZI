@@ -173,8 +173,7 @@ internal sealed partial class MainWindow : Window
             if (enabled) { _lastProbe = DateTimeOffset.MinValue; _probeTask = ProbeSelectedAsync(); }
         };
         Content = _clientSurface = new Grid { Background = Skin.ChromeBrush, ClipToBounds = true, Children = { root, _notification } }; SizeChanged += (_, _) => Responsive();
-        _clientSurface.Children.Insert(0,_chromeMaterial);Appearance.Changed+=ApplyWindowAppearance;ApplyWindowAppearance();
-        Closed+=(_,_)=>Appearance.Changed-=ApplyWindowAppearance;
+        _clientSurface.Children.Insert(0,_chromeMaterial);ApplyWindowAppearance();
         Closed += (_, _) => { foreach (var dialog in _dialogs.ToArray()) dialog.ForceClose(); };
         Deactivated += (_, _) =>
         {

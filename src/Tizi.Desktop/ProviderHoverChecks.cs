@@ -27,13 +27,12 @@ internal static class ProviderHoverChecks
     }
     internal static void Verify(string output,Action<bool,string> check)
     {
-        Directory.CreateDirectory(output);var old=Appearance.Current;
-        try{foreach(var theme in new[]{"Light","Dark"}){VerifyTheme(theme,output,check);VerifyListRows(theme,output,check);}}
-        finally{Appearance.Set(old.Theme,false);}
+        Directory.CreateDirectory(output);VerifyTheme("Dark",output,check);VerifyListRows("Dark",output,check);
     }
+
     private static void VerifyListRows(string theme,string output,Action<bool,string> check)
     {
-        Appearance.Set(theme,false);var folder=Path.Combine(output,"list-hover-"+theme.ToLowerInvariant());Directory.CreateDirectory(folder);
+var folder=Path.Combine(output,"list-hover-"+theme.ToLowerInvariant());Directory.CreateDirectory(folder);
         var rows=new MovingRows{Margin=new(16)};
         rows.SetRows([new("rule","45.43.32.234/32","IP-CIDR · no-resolve"),new("connection","chatgpt.com:443","TCP · DomainSuffix chatgpt.com")],null);
         var window=new Window{Width=650,Height=400,Background=Skin.PasteboardBrush,Content=rows};window.Show();
@@ -67,7 +66,7 @@ internal static class ProviderHoverChecks
     private static void VerifyTheme(string theme,string output,Action<bool,string> check)
     {
         static void Layout(Control top){top.UpdateLayout();Dispatcher.UIThread.RunJobs();top.UpdateLayout();}
-        Appearance.Set(theme,false);
+
         var directory=Path.Combine(output,"provider-hover-"+theme.ToLowerInvariant());Directory.CreateDirectory(directory);
         var sites=new[]{new ProviderSite{Name="Airport A",Url="https://a.example/"},new ProviderSite{Name="Airport B",Url="https://b.example/"}};
         var invoked=0;var rows=new MovingRows{Margin=new(16),ContextActions=_=>[("Details",()=>invoked++)]};

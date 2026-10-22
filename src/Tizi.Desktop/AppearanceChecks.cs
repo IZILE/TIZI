@@ -18,7 +18,7 @@ internal static class AppearanceChecks
 {
     internal static int Run(string output)
     {
-        Directory.CreateDirectory(output);var checks=new List<string>();var old=Appearance.Current;
+        Directory.CreateDirectory(output);var checks=new List<string>();
         void Check(bool okay,string label){if(!okay)throw new InvalidDataException(label);checks.Add(label);}
         try
         {
@@ -27,7 +27,6 @@ internal static class AppearanceChecks
             return 0;
         }
         catch(Exception failure){File.WriteAllText(Path.Combine(output,"appearance-failure.txt"),string.Join('\n',checks)+"\n"+failure);return 1;}
-        finally{Appearance.Set(old.Theme,false);}
     }
     private static void Capture(string output,Action<bool,string> check)
     {
@@ -43,12 +42,6 @@ internal static class AppearanceChecks
         {
             return VerificationPixels.Bgra(image);
         }
-        static double Luminance(Color color)
-        {
-            double C(byte value){var x=value/255d;return x<=.04045?x/12.92:Math.Pow((x+.055)/1.055,2.4);}
-            return .2126*C(color.R)+.7152*C(color.G)+.0722*C(color.B);
-        }
-        static double Contrast(Color a,Color b){var x=Luminance(a);var y=Luminance(b);return(Math.Max(x,y)+.05)/(Math.Min(x,y)+.05);}
         var subscription=new Subscription{Name="示例订阅 · Example",Url="https://fixture.example/subscription",Usage=new(0,89_000_000_000,300_000_000_000,DateTimeOffset.UtcNow.AddDays(30))};
         var node=NodeImport.Parse("ss://YWVzLTEyOC1nY206Zml4dHVyZQ@node.example:443#Tokyo%20%7C%2001").Single();
         var state=new AppState{AutoUpdate=false,AutoUpdateProviders=false,RestoreConnection=false,Subscriptions=[subscription],Nodes=Enumerable.Range(0,48).Select(i=>node with{Id=Guid.NewGuid(),Name="Tokyo | "+(i+1).ToString("D2"),SubscriptionId=subscription.Id,CountryCode="JP"}).ToList(),
@@ -64,9 +57,9 @@ internal static class AppearanceChecks
         var originalOrder=window.Controller.State.Nodes.Select(n=>n.Id).ToArray();
         try
         {
-            foreach(var theme in new[]{"Dark","Light"})
+            foreach(var theme in new[]{"Dark"})
             {
-                Appearance.Set(theme,false);Layout(window);
+                Layout(window);
                 var about=new AboutPage(typeof(MainWindow).Assembly.GetName().Version!.ToString(3));
                 var aboutWindow=new Window{Width=520,Height=370,Background=Skin.PasteboardBrush,Content=about};
                 aboutWindow.Show();about.Reveal();Layout(aboutWindow);
@@ -101,47 +94,10 @@ internal static class AppearanceChecks
                 capture.IsEnabled=true;Layout(window);
                 check(ReferenceEquals(window.ModeControl.Background,Skin.ToolbarFill)&&ReferenceEquals(capture.Background,Skin.ToolbarFill),
                     theme+" routing and capture controls share the same toolbar fill");
-                if(theme=="Light")
-                {
-                    var toolbarSamples=new List<object>();var feedback=capture.GetVisualDescendants().OfType<Border>().Single(b=>b.Name=="popupFeedback");
-                    using var clock=new UiAnimationClock(feedback);clock.Pulse(0);
-                    Color Sample(Bitmap image,Control control,Point point)
-                    {
-                        var p=control.TranslatePoint(point,window)!.Value;var data=Pixels(image);
-                        var index=((int)Math.Floor(p.Y*window.RenderScaling)*image.PixelSize.Width+(int)Math.Floor(p.X*window.RenderScaling))*4;
-                        return Color.FromRgb(data[index+2],data[index+1],data[index]);
-                    }
-                    foreach(var step in new[]{0,1,2,3})
-                    {
-                        var routingButton=window.ModeControl.ButtonAt(1);
-                        window.MouseMove(step==1?capture.TranslatePoint(new(capture.Bounds.Width/2,capture.Bounds.Height/2),window)!.Value
-                            :step==2?routingButton.TranslatePoint(new(routingButton.Bounds.Width/2,routingButton.Bounds.Height/2),window)!.Value:new(window.Bounds.Width-5,window.Bounds.Height-5));
-                        Layout(window);clock.Pulse(step*102+1);clock.Pulse(step*102+101);
-                        using var image=Frame(window);
-                        var routing=Sample(image,window.ModeControl.ButtonAt(1),new(5,31));var proxy=Sample(image,capture,new(18,5));
-                        check(routing==proxy&&proxy==Skin.ToolbarFill.Color,"Light toolbar controls have identical rendered fill when "+new[]{"idle","capture hovered","routing hovered","pointer has left"}[step]);
-                        toolbarSamples.Add(new{phase=new[]{"idle","capture-hover","routing-hover","leave"}[step],routing=routing.ToString(),capture=proxy.ToString()});
-                        if(step==3)image.Save(Path.Combine(output,"light-toolbar-enabled.png"),new PngBitmapEncoderOptions());
-                    }
-                    File.WriteAllText(Path.Combine(output,"toolbar-fill-samples.json"),JsonSerializer.Serialize(toolbarSamples,new JsonSerializerOptions{WriteIndented=true}));
-                }
                 capture.SelectedIndex=1;capture.IsEnabled=false;Layout(window);
                 check(capture.Opacity==1&&ReferenceEquals(capture.Background,Skin.ToolbarDisabledFill)
                       &&capture.GetVisualDescendants().OfType<Grid>().Single(g=>g.Name=="choiceContent").Opacity==.4,
                     theme+" disabled capture control keeps its backplate visible while its label retains the disabled cue");
-                if(theme=="Light")
-                {
-                    check(Skin.ToolbarFill.Color.R>=Skin.ToolbarFill.Color.G&&Skin.ToolbarFill.Color.G>=Skin.ToolbarFill.Color.B&&Skin.ToolbarFill.Color.R-Skin.ToolbarFill.Color.B<=3
-                          &&Skin.FieldFill.Color.R-Skin.ToolbarFill.Color.R==6&&Skin.ToolbarFill.Color.A==255,
-                        "Light routing and capture controls alone retain their slightly deeper neutral fill");
-                    using var image=Frame(window);image.Save(Path.Combine(output,"light-toolbar-disabled.png"),new PngBitmapEncoderOptions());
-                    var point=capture.TranslatePoint(new(18,5),window)!.Value;var bytes=Pixels(image);
-                    var index=((int)Math.Floor(point.Y*window.RenderScaling)*image.PixelSize.Width+(int)Math.Floor(point.X*window.RenderScaling))*4;
-                    check(Color.FromRgb(bytes[index+2],bytes[index+1],bytes[index])==Skin.ToolbarFill.Color,"Light disabled TUN backplate renders the same gray as the routing control");
-                    var shades=new[]{(Skin.Chrome,245),(Skin.ControlFill.Color,238),(Skin.FieldFill.Color,240),(Skin.ContentCardFill.Color,236),(Skin.ToolbarFill.Color,234)};
-                    check(shades.All(s=>Math.Abs(.2126*s.Item1.R+.7152*s.Item1.G+.0722*s.Item1.B-s.Item2)<.2),
-                        "Light card and button warmth changes preserve the previous perceived brightness");
-                }
                 capture.IsEnabled=enabled;capture.SelectedIndex=selected;Layout(window);
                 foreach(var page in NavigationRail.Pages.Where(p=>p!="Second"))
                 {
@@ -163,12 +119,10 @@ internal static class AppearanceChecks
                     using var image=Frame(window);image.Save(Path.Combine(output,theme.ToLowerInvariant()+"-"+page.ToLowerInvariant()+".png"),new PngBitmapEncoderOptions());
                     check(window.PageHeading.Foreground==Skin.LabelBrush&&window.ContentSurface.Background==Skin.PasteboardBrush&&((ISolidColorBrush)window.ContentSurface.Background).Color.A==255,
                         theme+" "+page+" keeps its functional page opaque and its heading readable");
-                    if(theme=="Light")check(Contrast(Skin.Label,Skin.Pasteboard)>=7&&Contrast(Skin.Secondary,Skin.Pasteboard)>=4.5,
-                        "Light "+page+" primary and secondary labels meet their contrast targets");
                 }
                 window.ShowPage("Settings");Layout(window);
-                var mode=window.PageView.GetVisualDescendants().OfType<StableChoice>().Single(c=>c.Tag is "settings-appearance");
-                check(mode.SelectedIndex==(theme=="Light"?1:0),theme+" is reflected in the whole-field appearance picker");
+                check(!window.PageView.GetVisualDescendants().OfType<StableChoice>().Any(c=>c.Tag is "settings-appearance"),
+                    "Settings contain no appearance picker");
                 check(window.VersionUpdateButton?.Content is TextBlock update&&update.Foreground==Skin.LabelBrush,theme+" neutral update action keeps readable label contrast");
                 var oldNode=window.Controller.State.SelectedNode;
                 check(window.FrostedChromeVisible&&window.TransparencyLevelHint[0]==WindowTransparencyLevel.AcrylicBlur&&window.TransparencyBackgroundFallback==Skin.WindowBackdrop,
@@ -221,8 +175,15 @@ internal static class AppearanceChecks
             }
             check(window.Controller.State.Nodes.Select(n=>n.Id).SequenceEqual(originalOrder)&&!window.Controller.Connected&&!window.Controller.Engine.IsRunning,
                 "Appearance changes preserve node order and never start a network connection");
-            Appearance.Set("Light",true);check(Appearance.Read()==new AppearancePreferences("Light"),"The light preference survives a local interface preference reload");
-            Appearance.Set("System",false);check(Application.Current!.RequestedThemeVariant==Avalonia.Styling.ThemeVariant.Default,"Follow system restores the platform theme variant");
+            var preference=UserData.File("appearance.json");
+            Directory.CreateDirectory(UserData.DirectoryPath);
+            foreach(var legacy in new[]{"{\"Theme\":\"Light\"}","{\"Theme\":\"System\"}"})
+            {
+                File.WriteAllText(preference,legacy);Appearance.Initialize(Application.Current!);
+                check(Application.Current!.RequestedThemeVariant==Avalonia.Styling.ThemeVariant.Dark
+                      &&window.ActualThemeVariant==Avalonia.Styling.ThemeVariant.Dark&&File.ReadAllText(preference)==legacy,
+                      "Legacy appearance settings are ignored without rewriting user preferences: "+legacy);
+            }
             var durations=new List<double>();var timingSamples=new List<object>();
             foreach(var readyAt in new[]{.1,.9,1.8,3.8})
             {

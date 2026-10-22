@@ -17,7 +17,6 @@ internal sealed partial class MainWindow
     internal SegmentedChoice? SettingsSections { get; private set; }
     internal bool SettingsDirty { get; private set; }
     private StableChoice? _settingsLanguage;
-    private StableChoice? _settingsAppearance;
     private Control? _settingsView;
     private Action? _syncGeneralOptions;
     private string? _settingsFingerprint;
@@ -90,16 +89,6 @@ internal sealed partial class MainWindow
         var general = Card("General", "Language");
         var language = _settingsLanguage = Choice(["简体中文", "English"], UiText.Language == "en" ? "English" : "简体中文");
         language.SelectionChanged += (_, _) => { var next = language.SelectedIndex == 1 ? "en" : "zh-CN"; if (!_syncing && UiText.Language != next) SetLanguage(next); }; general.Children.Add(language);
-        general.Children.Add(Heading("Appearance"));
-        var appearance=_settingsAppearance=Choice(["Dark","Light","Follow system"],Appearance.Current.Theme switch {"Light"=>"Light","System"=>"Follow system",_=>"Dark"});appearance.Tag="settings-appearance";general.Children.Add(appearance);
-        void ChangeAppearance()
-        {
-            if(_syncing)return;
-            try{Appearance.Set(appearance.SelectedIndex switch {1=>"Light",2=>"System",_=>"Dark"},!_preview);}
-            catch(Exception failure) when(failure is IOException or UnauthorizedAccessException)
-            {appearance.SelectedIndex=Appearance.Current.Theme switch {"Light"=>1,"System"=>2,_=>0};ShowError(failure.Message);}
-        }
-        appearance.SelectionChanged+=(_,_)=>ChangeAppearance();
         general.Children.Add(Heading("Version updates")); general.Children.Add(Ui.Value("TIZI " + AppVersion, true)); general.Children.Add(_versionUpdateButton = Ui.Button("Check for updates", ShowUpdates)); RefreshUpdateButton();
         var startup = Card("General", "Startup and closing");
         var login = Option("Start TIZI when I sign in", state.StartAtLogin); startup.Children.Add(login);

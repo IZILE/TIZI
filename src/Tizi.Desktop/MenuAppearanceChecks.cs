@@ -137,12 +137,6 @@ internal static class MenuAppearanceChecks
                 var arrow=language.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().Single(p=>p.Name=="PART_ChevronPath");
                 check(arrow.Stroke==Skin.OnAccent,theme+" "+locale+" the submenu chevron remains white on the original blue highlight");
                 Save(window,Path.Combine(output,theme.ToLowerInvariant()+"-menu-"+locale+".png"));
-                Appearance.Set(theme=="Light"?"Dark":"Light",false);Layout(window);
-                check(Header(commands[0]).Foreground is ISolidColorBrush changed&&changed.Color==Skin.Label
-                      &&Header(choices[0]).Foreground is ISolidColorBrush nested&&nested.Color==Ink(choices[0])
-                      &&ReferenceEquals(Face(primary).Background,Face(secondary).Background),
-                      theme+" "+locale+" changing appearance with both menu levels open updates the labels and surfaces together");
-                Appearance.Set(theme,false);Layout(window);
                 PressKey(window,Key.Left,PhysicalKey.ArrowLeft);Layout(window);
                 check(!language.IsSubMenuOpen&&help.IsSubMenuOpen,theme+" "+locale+" Left closes only the nested menu");
                 language.IsSelected=true;language.Focus();PressKey(window,Key.Right,PhysicalKey.ArrowRight);Layout(window);
@@ -154,12 +148,8 @@ internal static class MenuAppearanceChecks
                 window.MouseMove(new Point(window.Bounds.Width-5,window.Bounds.Height-5));
             }
             foreach(var locale in new[]{"zh-CN","en"}){UiText.Language=locale;RowInkMotion(locale);}
-            if(theme=="Light")
-                check(new[]{Skin.ChromeBrush,Skin.ControlFill,Skin.FieldFill,Skin.PopupFill,Skin.MenuSurface}.Cast<ISolidColorBrush>().All(b=>b.Color.R>=b.Color.G&&b.Color.G>=b.Color.B&&b.Color.R-b.Color.B<=3)
-                      &&Skin.Chrome.R<Skin.Pasteboard.R&&Skin.ControlFill.Color.R<Skin.Chrome.R,
-                      "Light card and control surfaces remain near-neutral without a blue tint and distinct from the pure-white page");
             File.WriteAllText(Path.Combine(output,theme.ToLowerInvariant()+"-menu-layout.json"),JsonSerializer.Serialize(samples,new JsonSerializerOptions{WriteIndented=true}));
         }
-        finally{language.IsSubMenuOpen=false;help.IsSubMenuOpen=false;UiText.Language=oldLanguage;Appearance.Set(theme,false);Layout(window);}
+        finally{language.IsSubMenuOpen=false;help.IsSubMenuOpen=false;UiText.Language=oldLanguage;Layout(window);}
     }
 }

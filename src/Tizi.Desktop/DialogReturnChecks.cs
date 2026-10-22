@@ -25,18 +25,13 @@ internal static class DialogReturnChecks
     }
     internal static void Verify(string output,Action<bool,string> check)
     {
-        var old=Appearance.Current;Directory.CreateDirectory(output);
-        try
-        {
-            foreach(var theme in new[]{"Light","Dark"})
-            foreach(var scale in new[]{1d,1.25,1.5,2})VerifyFixture(theme,scale,output,check);
-        }
-        finally{Appearance.Set(old.Theme,false);}
+        Directory.CreateDirectory(output);
+        foreach(var scale in new[]{1d,1.25,1.5,2})VerifyFixture("Dark",scale,output,check);
     }
+
     private static void VerifyFixture(string theme,double scale,string output,Action<bool,string> check)
     {
         static void Layout(Control control){control.UpdateLayout();Dispatcher.UIThread.RunJobs();control.UpdateLayout();}
-        Appearance.Set(theme,false);
         var name=theme+"-"+(int)(scale*100);var directory=Path.Combine(output,"dialog-return-"+name);Directory.CreateDirectory(directory);
         var button=Ui.Button(UiText.Get("Log settings"),()=>{});button.HorizontalAlignment=HorizontalAlignment.Left;button.VerticalAlignment=VerticalAlignment.Top;button.Margin=new(120,80,0,0);
         var panel=new Grid{Children={button}};

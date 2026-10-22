@@ -9,18 +9,17 @@ using Avalonia.Themes.Fluent;
 namespace Tizi.Desktop;
 
 /// <summary>
-/// Shared surfaces retain the established dark appearance. Skin.Appearance supplies the semantic
-/// light palette while keeping the existing control geometry and interaction states.
+/// Shared surfaces and semantic controls use the established dark appearance.
 /// </summary>
 internal static partial class Skin
 {
     // ---- What the Mac build writes down ----
 
     /// <summary><c>Color(white: 0.14)</c>: the editor's own background in ContentView.</summary>
-    public static Color Chrome => IsLight ? Color.Parse("#F6F5F3") : Color.FromRgb(0x24, 0x24, 0x24);
+    public static Color Chrome => Color.FromRgb(0x24, 0x24, 0x24);
 
     /// <summary><c>NSColor(white: 0.105)</c>: the pasteboard drawn behind the picture in EditorCanvas.draw.</summary>
-    public static Color Pasteboard => IsLight ? Colors.White : Color.FromRgb(0x1B, 0x1B, 0x1B);
+    public static Color Pasteboard => Color.FromRgb(0x1B, 0x1B, 0x1B);
 
     /// <summary>The transparency checker: <c>NSColor(white: 0.30)</c> with <c>0.35</c> squares, 10 points each.</summary>
     public static readonly Color CheckerBase = Color.FromRgb(0x4D, 0x4D, 0x4D);
@@ -59,9 +58,9 @@ internal static partial class Skin
     public static readonly Color AccentPressed = Color.FromRgb(0x00, 0x60, 0xC9);
 
     /// <summary><c>NSColor.labelColor</c> in the dark appearance: white at 0.85.</summary>
-    public static Color Label => IsLight ? Color.Parse("#24282F") : Color.FromArgb(0xD9, 0xFF, 0xFF, 0xFF);
+    public static Color Label => Color.FromArgb(0xD9, 0xFF, 0xFF, 0xFF);
     /// <summary><c>NSColor.secondaryLabelColor</c>: white at 0.55, what `.secondary` resolves to.</summary>
-    public static Color Secondary => IsLight ? Color.Parse("#616872") : Color.FromArgb(0x8C, 0xFF, 0xFF, 0xFF);
+    public static Color Secondary => Color.FromArgb(0x8C, 0xFF, 0xFF, 0xFF);
 
     // ---- How the app's own surfaces are painted with them ----
 
