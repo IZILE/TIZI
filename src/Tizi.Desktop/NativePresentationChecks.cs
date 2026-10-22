@@ -47,8 +47,11 @@ internal static class NativePresentationChecks
                 if(StartupAnimation.AllowVerification&&StartupAnimation.AnimationsEnabled())
                 {
                     Check(window.StartupOverlay is not null,"The first composed native window includes the live startup strokes");
-                    while(window.StartupOverlay is not null)await Task.Delay(10,lifetime.Token);
-                    Check(window.ContentSurface.IsEffectivelyVisible&&window.Opacity==1,"Startup finishes with one visible functional page and no window fade");
+                    Check(window.StartupContentHidden,"The first native startup frame hides the functional controls and notification layer");
+                    var covered=true;var startupSamples=0;
+                    while(window.StartupOverlay is not null){covered&=window.StartupContentHidden;startupSamples++;await Task.Delay(10,lifetime.Token);}
+                    Check(covered&&startupSamples>0,"Every sampled native startup frame keeps controls hidden until animation completion");
+                    Check(window.ContentSurface.IsEffectivelyVisible&&window.Opacity==1&&window.StartupContentVisible,"Startup finishes with one visible functional page and no window fade");
                 }
                 window.Hide(); window.Show();
                 Check(ReferenceEquals(frame, window.InitialPresentation), "Tray restore reuses the first presentation instead of re-cloaking");
@@ -75,7 +78,7 @@ internal static class NativePresentationChecks
             }
         });
         Dispatcher.UIThread.MainLoop(lifetime.Token);
-        return failure is null && checks.Count == (StartupAnimation.AllowVerification&&StartupAnimation.AnimationsEnabled()?9:7) ? 0 : 1;
+        return failure is null && checks.Count == (StartupAnimation.AllowVerification&&StartupAnimation.AnimationsEnabled()?11:7) ? 0 : 1;
     }
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(nint window, int attribute, out int value, int size);
 }

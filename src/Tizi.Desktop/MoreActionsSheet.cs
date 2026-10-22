@@ -6,6 +6,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 
 namespace Tizi.Desktop;
 
@@ -23,6 +24,7 @@ internal sealed class MoreActionsSheet : Control
     internal bool Closing => _closing;
     private readonly TaskCompletionSource<int?> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Border _body;
+    private readonly TextBlock _returnCaption;
     private readonly ScrollViewer _scroll;
     private readonly DoubleTransition _transition;
     private readonly double _triggerOpacity;
@@ -56,6 +58,9 @@ internal sealed class MoreActionsSheet : Control
         Grid.SetRow(_scroll, 2);
         _body = new Border { Padding = new(20), Child = content };
         VisualChildren.Add(_body); LogicalChildren.Add(_body);
+        _returnCaption=new TextBlock { IsHitTestVisible=false };
+        CopyTriggerText();
+        VisualChildren.Add(_returnCaption);LogicalChildren.Add(_returnCaption);
         PropertyChanged += (_, change) => { if (change.Property == ProgressProperty) { UpdateClip(); InvalidateVisual(); } };
         DetachedFromVisualTree += (_, _) => Finish(null);
     }
@@ -88,6 +93,7 @@ internal sealed class MoreActionsSheet : Control
         var width = Math.Min(360, Math.Max(0, available.Width - 32));
         var height = Math.Min(Math.Max(0, available.Height - 64), 108 + Actions.Count * 46);
         _body.Measure(new(width, height));
+        _returnCaption.Measure(new(double.PositiveInfinity,double.PositiveInfinity));
         return available;
     }
     protected override Size ArrangeOverride(Size final)
@@ -100,6 +106,14 @@ internal sealed class MoreActionsSheet : Control
         var y = Math.Clamp(origin.Y, 40, Math.Max(40, final.Height - height - 16));
         TargetBounds = new(x, y, width, height);
         _body.Arrange(new Rect(VisibleBounds.Position,TargetBounds.Size));
+        if(TriggerText is {} label&&label.TranslatePoint(default,this) is {} point)
+        {
+            // Keep one unscaled copy of the real button label. The full heading
+            // fades away before the shrinking viewport can cut its glyphs.
+            var p=Smooth(Progress/.65);var offset=point-SourceBounds.Position;
+            var position=VisibleBounds.Position+new Vector(offset.X+(20-offset.X)*p,offset.Y+(20-offset.Y)*p);
+            _returnCaption.Arrange(new Rect(position,label.Bounds.Size));
+        }
         UpdateClip(); return final;
     }
     private void UpdateClip()
@@ -107,7 +121,9 @@ internal sealed class MoreActionsSheet : Control
         var progress = Math.Clamp(Progress, 0, 1); var visible = VisibleBounds;
         var radius = 18 + 2 * progress;
         _body.Clip = new RectangleGeometry(new Rect(visible.Size), radius, radius);
-        _body.Opacity = 1;
+        var content=Smooth((progress-.25)/.4);
+        _body.Opacity = content;
+        _returnCaption.Opacity=(1-content)*_triggerOpacity;
         _body.IsHitTestVisible = !_closing && progress > .7;
     }
     public override void Render(DrawingContext context)
@@ -115,9 +131,23 @@ internal sealed class MoreActionsSheet : Control
         base.Render(context);
         context.DrawRectangle(Brushes.Transparent, null, new Rect(Bounds.Size));
         var p = Math.Clamp(Progress, 0, 1); var radius = 18 + 2 * p;
-        context.DrawRectangle(Skin.MoreFill, null, VisibleBounds, radius, radius,
+        var pColor=Smooth(p/.5);var source=DialogOrigin.SurfaceColor(Trigger);var target=Skin.MoreFill.Color;
+        byte Mix(byte a,byte b)=>(byte)Math.Round(a+(b-a)*pColor);
+        var surface=new SolidColorBrush(Color.FromRgb(Mix(source.R,target.R),Mix(source.G,target.G),Mix(source.B,target.B)));
+        context.DrawRectangle(surface, null, VisibleBounds, radius, radius,
             new BoxShadows(new BoxShadow { OffsetY = 10 * p, Blur = 30 * p, Color = Color.FromArgb((byte)(90 * p), 0, 0, 0) }));
     }
+    private TextBlock? TriggerText=>Trigger.Content as TextBlock??Trigger.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault();
+    private void CopyTriggerText()
+    {
+        if(TriggerText is not {} label)return;
+        _returnCaption.Text=label.Text;_returnCaption.FontFamily=label.FontFamily;_returnCaption.FontSize=label.FontSize;
+        _returnCaption.FontWeight=label.FontWeight;_returnCaption.FontStyle=label.FontStyle;_returnCaption.FontStretch=label.FontStretch;
+        _returnCaption.Foreground=label.Foreground;_returnCaption.FlowDirection=label.FlowDirection;
+        _returnCaption.LineHeight=label.LineHeight;_returnCaption.LetterSpacing=label.LetterSpacing;
+        _returnCaption.UseLayoutRounding=label.UseLayoutRounding;
+    }
+    private static double Smooth(double value){var p=Math.Clamp(value,0,1);return p*p*(3-2*p);}
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         var point = e.GetPosition(this);

@@ -27,6 +27,50 @@ internal static class DialogReturnChecks
     {
         Directory.CreateDirectory(output);
         foreach(var scale in new[]{1d,1.25,1.5,2})VerifyFixture("Dark",scale,output,check);
+        foreach(var language in new[]{"zh-CN","en"})
+            foreach(var scale in new[]{1d,1.25,1.5,2})VerifyMoreFixture(language,scale,output,check);
+    }
+
+    private static void VerifyMoreFixture(string language,double scale,string output,Action<bool,string> check)
+    {
+        var previousLanguage=UiText.Language;UiText.Language=language;
+        static void Layout(Control control){control.UpdateLayout();Dispatcher.UIThread.RunJobs();control.UpdateLayout();}
+        var name="more-"+language+"-"+(int)(scale*100);var directory=Path.Combine(output,name);Directory.CreateDirectory(directory);
+        var button=Ui.Button("More",()=>{});button.HorizontalAlignment=HorizontalAlignment.Left;button.VerticalAlignment=VerticalAlignment.Top;button.Margin=new(120,80,0,0);
+        var panel=new Grid{Children={button}};var window=new Window{Width=640,Height=480,Background=Skin.PasteboardBrush,Content=panel};
+        window.Show();window.SetRenderScaling(scale);Layout(window);
+        if(window.Content is DialogSurface surface){using var settle=new UiAnimationClock(surface,surface.Scale,surface.Offset);surface.Reveal();settle.Pulse(0);settle.Pulse(220);Layout(window);}
+        try
+        {
+            var label=(TextBlock)button.Content!;var originalBounds=button.Bounds;
+            var sheet=new MoreActionsSheet(button,"Providers",["Add website","Directory settings"]);panel.Children.Add(sheet);Layout(window);
+            using var clock=new UiAnimationClock(sheet);sheet.SetImmediately(1);sheet.Open();Layout(window);
+            if(language=="zh-CN"&&scale==1)
+            {
+                sheet.SetImmediately(.4);_=sheet.CloseAsync();clock.Pulse(0);clock.Pulse(40);Layout(window);
+                using var reversing=Capture(window,Path.Combine(directory,"before-reversal.png"));
+                var displayedBounds=sheet.VisibleBounds;
+                var caption=sheet.GetVisualDescendants().OfType<TextBlock>().Single(t=>t.Text==label.Text);
+                var region=caption.TranslatePoint(default,window)!.Value;var size=caption.Bounds.Size;
+                var beforeReverse=Pixels(reversing,region,size,scale);sheet.Open();Layout(window);
+                using var reopened=Capture(window,Path.Combine(directory,"after-reversal.png"));var afterReverse=Pixels(reopened,region,size,scale);
+                check(sheet.VisibleBounds==displayedBounds&&beforeReverse.SequenceEqual(afterReverse),name+" reversing an active close preserves the displayed bounds and rendered label pixels");
+                foreach(var p in new[]{1d,.85,.65,.45,.25,.1,0})
+                {
+                    sheet.SetImmediately(p);Layout(window);Capture(window,Path.Combine(directory,"close-progress-"+(int)Math.Round(p*1000)+".png")).Dispose();
+                }
+            }
+            sheet.SetImmediately(0);Layout(window);
+            var position=label.TranslatePoint(default,window)!.Value;
+            using var beforeFrame=Capture(window,Path.Combine(directory,"before-handoff.png"));var before=Pixels(beforeFrame,position,label.Bounds.Size,scale);
+            sheet.DismissImmediately();panel.Children.Remove(sheet);Layout(window);
+            using var afterFrame=Capture(window,Path.Combine(directory,"after-handoff.png"));var after=Pixels(afterFrame,position,label.Bounds.Size,scale);
+            var maximum=before.Zip(after,(a,b)=>Math.Abs(a-b)).Max();
+            File.WriteAllText(Path.Combine(directory,"samples.json"),JsonSerializer.Serialize(new{maximumHandoffChannelDifference=maximum,scale,language,originalBounds},new JsonSerializerOptions{WriteIndented=true}));
+            check(maximum<=2,name+" More return has no abrupt rendered glyph or background change when the real trigger replaces the overlay (max channel difference "+maximum+")");
+            check(button.Bounds==originalBounds&&button.Opacity==1&&!sheet.IsVisible,name+" closing restores the same toolbar layout and trigger visibility");
+        }
+        finally{window.Close();UiText.Language=previousLanguage;}
     }
 
     private static void VerifyFixture(string theme,double scale,string output,Action<bool,string> check)

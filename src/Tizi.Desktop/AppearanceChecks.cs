@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Layout;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Interactivity;
@@ -153,25 +154,33 @@ internal static class AppearanceChecks
                 window.ShowPage("Overview");Layout(window);
                 var shell=(Grid)typeof(MainWindow).GetField("_shellRoot",flags)!.GetValue(window)!;
                 var mark=window.GetVisualDescendants().OfType<WordmarkHost>().Single();mark.Opacity=0;
-                var blur=new BlurEffect{Radius=16};shell.Effect=blur;
-                var animation=new StartupAnimation(()=>true,()=>mark.TranslatePoint(new(mark.Bounds.Width/2,mark.Bounds.Height/2),window)!.Value,f=>blur.Radius=16*f);
+                shell.Opacity=0;
+                var animation=new StartupAnimation(()=>true,()=>mark.TranslatePoint(new(mark.Bounds.Width/2,mark.Bounds.Height/2),window)!.Value,_=>{});
                 var host=(Grid)window.Content!;host.Children.Add(animation);animation.ZIndex=20;Layout(window);
                 try
                 {
                     foreach(var p in new[]{0d,.18,.3,.46,.56,.7,.86,.94,1})
                     {
-                        animation.PreviewProgress=p;blur.Radius=16*animation.Frost;animation.InvalidateVisual();
+                        animation.PreviewProgress=p;animation.InvalidateVisual();
                         using var image=Frame(window);image.Save(Path.Combine(output,theme.ToLowerInvariant()+"-startup-"+(int)Math.Round(p*1000)+".png"),new PngBitmapEncoderOptions());
                         check(animation.GetVisualChildren().Count()==0&&animation.Strokes(p).Length==11,theme+" startup draws the same live stroke set at "+p);
                     }
-                    animation.PreviewProgress=1;blur.Radius=0;animation.InvalidateVisual();using var before=Frame(window);
-                    host.Children.Remove(animation);mark.Opacity=1;shell.Effect=null;using var after=Frame(window);
+                    var marker=new Border{Width=180,Height=60,Background=Brushes.Magenta,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Top,Margin=new(300,200,0,0),ZIndex=100};
+                    Grid.SetRowSpan(marker,4);shell.Children.Add(marker);
+                    animation.PreviewProgress=.7;animation.InvalidateVisual();using(var hiddenA=Frame(window))
+                    {
+                        marker.Background=Brushes.Cyan;using var hiddenB=Frame(window);
+                        check(Pixels(hiddenA).SequenceEqual(Pixels(hiddenB)),theme+" startup pixels never expose underlying controls while their content changes");
+                    }
+                    shell.Children.Remove(marker);
+                    animation.PreviewProgress=1;animation.InvalidateVisual();using var before=Frame(window);
+                    host.Children.Remove(animation);mark.Opacity=1;shell.Opacity=1;using var after=Frame(window);
                     var a=Pixels(before);var b=Pixels(after);var region=new Rect(mark.TranslatePoint(default,window)!.Value,mark.Bounds.Size);
                     var max=0;for(var y=(int)region.Top;y<(int)region.Bottom;y++)for(var x=(int)region.Left;x<(int)region.Right;x++)for(var c=0;c<3;c++)
                     {var index=(y*before.PixelSize.Width+x)*4+c;max=Math.Max(max,Math.Abs(a[index]-b[index]));}
                     check(max<=4,theme+" startup docks without an image/opacity seam (maximum channel delta "+max+")");
                 }
-                finally{host.Children.Remove(animation);mark.Opacity=1;shell.Effect=null;}
+                finally{host.Children.Remove(animation);mark.Opacity=1;shell.Opacity=1;}
             }
             check(window.Controller.State.Nodes.Select(n=>n.Id).SequenceEqual(originalOrder)&&!window.Controller.Connected&&!window.Controller.Engine.IsRunning,
                 "Appearance changes preserve node order and never start a network connection");
