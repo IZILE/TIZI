@@ -63,7 +63,7 @@
       <BrushTransition Property="BorderBrush" Duration="0:0:0.54" Easing="0.22,0.7,0.2,1" />
     </Transitions></Setter></Style>
     <Style Selector="^.accent /template/ Border#feedback"><Setter Property="local:Motion.Background" Value="Black" /></Style>
-    <!-- The moving backplate owns selection. Light list rows also expose a local hover tint. -->
+    <!-- The moving backplate owns selection; both themes use the same content-opacity feedback. -->
     <Style Selector="^.selection-item /template/ Border#feedback">
       <Setter Property="IsVisible" Value="False" /><Setter Property="Transitions" Value="{x:Null}" />
       <Setter Property="local:Motion.Opacity" Value="0" />
@@ -77,12 +77,6 @@
     <Style Selector="^.selection-item:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="local:Motion.Opacity" Value="1" /></Style>
     <Style Selector="^.selection-item:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="local:Motion.Opacity" Value="0.68" /></Style>
     <Style Selector="^.selection-item.selected-card /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="local:Motion.Opacity" Value="1" /></Style>
-    <Style Selector="^.selection-item.content-list-row /template/ Border#feedback">
-      <Setter Property="IsVisible" Value="True" /><Setter Property="Background" Value="{DynamicResource TiziListRowHover}" />
-      <Setter Property="Transitions"><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.08" Easing="0,0,0.58,1" /></Transitions></Setter>
-    </Style>
-    <Style Selector="^.selection-item.content-list-row:not(.selected-card):pointerover /template/ Border#feedback"><Setter Property="local:Motion.Opacity" Value="1" /></Style>
-    <Style Selector="^.selection-item.content-list-row:not(.selected-card):pressed /template/ Border#feedback"><Setter Property="local:Motion.Opacity" Value="1" /></Style>
     <Style Selector="^.disclosure /template/ Border#feedback"><Setter Property="IsVisible" Value="False" /></Style>
     <Style Selector="^.disclosure"><Setter Property="Background" Value="Transparent" /></Style>
     <Style Selector="^.disclosure:pointerover"><Setter Property="Background" Value="{DynamicResource TiziHoverSubtle}" /></Style>

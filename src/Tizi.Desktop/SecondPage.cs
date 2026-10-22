@@ -26,7 +26,8 @@ internal sealed class AboutPage : SecondPage
     {
         Tag="about-page";Margin=new(0,0,-Ui.PageScrollGutter,0);
         using var stream=typeof(MainWindow).Assembly.GetManifestResourceStream("Tizi.Desktop.BrandMark.png")!;
-        var mark=new Image { Source=new Bitmap(stream),Width=102,Height=68,HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Left,Opacity=Skin.Label.A/255d };
+        var mark=new Border { Tag="about-logo",Background=Skin.BrandInk,OpacityMask=new ImageBrush(new Bitmap(stream)){Stretch=Stretch.Uniform},
+            Width=102,Height=68,HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Left,Opacity=Skin.Label.A/255d };
         RenderOptions.SetBitmapInterpolationMode(mark,BitmapInterpolationMode.HighQuality);
         var body=new StackPanel { Spacing=22,Children={mark,Ui.Value("TIZI "+version,size:24),Ui.Text("Independent project; no servers included.",true)} };
         var credits=new StackPanel { Spacing=14,Children={Ui.Text("Open-source acknowledgements",size:18),Ui.Value("mihomo 1.19.32 · MetaCubeX/mihomo · GPL-3.0",true)} };

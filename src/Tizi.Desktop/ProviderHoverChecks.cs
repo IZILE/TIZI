@@ -42,7 +42,8 @@ internal static class ProviderHoverChecks
         try
         {
             var row=rows.For("rule");var feedback=row.GetVisualDescendants().OfType<Border>().Single(b=>b.Name=="feedback"&&ReferenceEquals(b.TemplatedParent,row));
-            using var clock=new UiAnimationClock(feedback);
+            var presenter=row.GetVisualDescendants().OfType<ContentPresenter>().Single(p=>p.Name=="PART_ContentPresenter"&&ReferenceEquals(p.TemplatedParent,row));
+            using var clock=new UiAnimationClock(feedback,presenter);
             Color Frame(int ms,string name)
             {
                 clock.Pulse(ms);Layout();AvaloniaHeadlessPlatform.ForceRenderTimerTick();using var image=window.CaptureRenderedFrame()!;
@@ -50,12 +51,14 @@ internal static class ProviderHoverChecks
                 var point=row.TranslatePoint(new(row.Bounds.Width-30,30),window)!.Value;var data=VerificationPixels.Bgra(image);var index=((int)point.Y*image.PixelSize.Width+(int)point.X)*4;
                 return Color.FromRgb(data[index+2],data[index+1],data[index]);
             }
-            window.MouseMove(new(2,2));var idle=Frame(0,"idle");window.MouseMove(row.TranslatePoint(new(200,30),window)!.Value);Frame(1,"enter");var hover=Frame(101,"hover");
-            check(row.IsPointerOver&&(theme=="Light"?idle.R-hover.R>=12&&idle.G-hover.G>=12&&idle.B-hover.B>=12:hover==idle),
-                theme+" ordinary rule/connection rows expose a visible light-mode hover tint while preserving the dark fill");
-            var shades=new List<int>();window.MouseMove(new(2,2));Frame(102,"leave-start");for(var ms=110;ms<=198;ms+=8)shades.Add(Frame(ms,"leave-"+ms).R);
-            check(shades.Zip(shades.Skip(1),(a,b)=>theme=="Light"?b>=a:b==a).All(v=>v)&&shades[^1]==idle.R,
-                theme+" ordinary row hover fades back monotonically to the unchanged page fill");
+            window.MouseMove(new(2,2));var idle=Frame(0,"idle");var idleInk=presenter.Opacity;
+            window.MouseMove(row.TranslatePoint(new(200,30),window)!.Value);Frame(1,"enter");var hover=Frame(101,"hover");
+            check(row.IsPointerOver&&hover==idle&&idleInk<1&&presenter.Opacity==1,
+                theme+" ordinary rule/connection rows highlight their text while keeping the page background unchanged");
+            var shades=new List<int>();var opacity=new List<double>();window.MouseMove(new(2,2));Frame(102,"leave-start");
+            for(var ms=110;ms<=198;ms+=8){shades.Add(Frame(ms,"leave-"+ms).R);opacity.Add(presenter.Opacity);}
+            check(shades.All(shade=>shade==idle.R)&&opacity.Zip(opacity.Skip(1),(a,b)=>b<=a).All(v=>v)&&Math.Abs(opacity[^1]-idleInk)<.001,
+                theme+" ordinary row text returns monotonically to its idle opacity without a background layer");
             rows.Select("rule");Motion.SettlePaint(rows);var before=Frame(300,"selected");window.MouseMove(row.TranslatePoint(new(200,30),window)!.Value);Frame(301,"selected-enter");var after=Frame(401,"selected-hover");
             check(before==after&&rows.Indicator.IsVisible,theme+" selected rows keep the existing moving selection color without another hover layer");
         }
@@ -67,7 +70,8 @@ internal static class ProviderHoverChecks
         Appearance.Set(theme,false);
         var directory=Path.Combine(output,"provider-hover-"+theme.ToLowerInvariant());Directory.CreateDirectory(directory);
         var sites=new[]{new ProviderSite{Name="Airport A",Url="https://a.example/"},new ProviderSite{Name="Airport B",Url="https://b.example/"}};
-        var rows=new MovingRows{Margin=new(16)};var entries=sites.Select(p=>new DisplayRow(p.Id.ToString(),p.Name,p.Url,Provider:p)).ToArray();rows.SetRows(entries,null);
+        var invoked=0;var rows=new MovingRows{Margin=new(16),ContextActions=_=>[("Details",()=>invoked++)]};
+        var entries=sites.Select(p=>new DisplayRow(p.Id.ToString(),p.Name,p.Url,Provider:p)).ToArray();rows.SetRows(entries,null);
         var window=new Window{Width=650,Height=500,Background=Skin.PasteboardBrush,Content=rows};window.Show();Layout(window);
         if(window.Content is DialogSurface dialog){using var settle=new UiAnimationClock(dialog,dialog.Scale,dialog.Offset);dialog.Reveal();settle.Pulse(0);settle.Pulse(220);}
         try
@@ -135,6 +139,23 @@ internal static class ProviderHoverChecks
             check(cards[0].IsPointerOver&&Difference(nested,hover)<=1,theme+" entering the nested website button retains the parent card hover");
             rows.Select(sites[0].Id.ToString());Move(-1);Frame(2502,"final");var final=Frame(2702,"final",true);
             check(final.All(c=>Difference(c,idle)<=1)&&cards[0].Classes.Contains("selected-card"),theme+" pointer departure clears hover even when the card remains selected for actions");
+            void OpenContext(int index)
+            {
+                var point=cards[index].TranslatePoint(new(220,75),window)!.Value;
+                window.MouseMove(point);window.MouseDown(point,MouseButton.Right);window.MouseUp(point,MouseButton.Right);Layout(window);Move(-1);
+            }
+            OpenContext(0);Frame(2800,"context-enter");var held=Frame(3000,"context-held",true);
+            check(cards[0].ContextMenu!.IsOpen&&!cards[0].IsPointerOver&&Difference(held[0],hover)<=1&&Difference(held[1],idle)<=1,
+                theme+" an open airport context menu holds the target card highlight after the pointer leaves it");
+            ItemContextMenu.CloseImmediately(cards[0].ContextMenu!);Frame(3001,"context-close");var closed=Frame(3201,"context-closed",true);
+            check(!cards[0].ContextMenu!.IsOpen&&closed.All(c=>Difference(c,idle)<=1)&&invoked==0,
+                theme+" dismissing the airport context menu clears its highlight without invoking an action");
+            OpenContext(1);Frame(3300,"context-second-enter");var second=Frame(3500,"context-second-held",true);
+            check(cards[1].ContextMenu!.IsOpen&&Difference(second[0],idle)<=1&&Difference(second[1],hover)<=1,
+                theme+" opening another airport menu highlights only its operation target");
+            ItemContextMenu.CloseImmediately(cards[1].ContextMenu!);Frame(3501,"context-second-close");var reset=Frame(3701,"context-final",true);
+            check(reset.All(c=>Difference(c,idle)<=1)&&invoked==0,
+                theme+" repeated airport context menus leave no stale background emphasis or dispatched action");
             File.WriteAllText(Path.Combine(directory,"samples.json"),JsonSerializer.Serialize(new{theme,idle=idle.ToString(),hover=hover.ToString(),worst,monotonic,samples},new JsonSerializerOptions{WriteIndented=true}));
         }
         finally{window.Close();}

@@ -67,6 +67,32 @@ internal static class AppearanceChecks
             foreach(var theme in new[]{"Dark","Light"})
             {
                 Appearance.Set(theme,false);Layout(window);
+                var about=new AboutPage(typeof(MainWindow).Assembly.GetName().Version!.ToString(3));
+                var aboutWindow=new Window{Width=520,Height=370,Background=Skin.PasteboardBrush,Content=about};
+                aboutWindow.Show();about.Reveal();Layout(aboutWindow);
+                if(aboutWindow.Content is DialogSurface aboutSurface)
+                {
+                    using var settle=new UiAnimationClock(aboutSurface,aboutSurface.Scale,aboutSurface.Offset);
+                    aboutSurface.Reveal();settle.Pulse(0);settle.Pulse(220);Layout(aboutWindow);
+                }
+                try
+                {
+                    var logo=about.GetVisualDescendants().OfType<Border>().Single(b=>b.Tag is "about-logo");
+                    using var visible=Frame(aboutWindow);var logoOpacity=logo.Opacity;logo.Opacity=0;
+                    using var hidden=Frame(aboutWindow);logo.Opacity=logoOpacity;
+                    var front=Pixels(visible);var back=Pixels(hidden);var origin=logo.TranslatePoint(default,aboutWindow)!.Value;
+                    var changed=0;var maximum=0;
+                    for(var y=(int)origin.Y;y<(int)(origin.Y+logo.Bounds.Height);y++)
+                    for(var x=(int)origin.X;x<(int)(origin.X+logo.Bounds.Width);x++)
+                    {
+                        var index=(y*visible.PixelSize.Width+x)*4;
+                        var delta=Enumerable.Range(0,3).Max(c=>Math.Abs(front[index+c]-back[index+c]));
+                        if(delta>40)changed++;maximum=Math.Max(maximum,delta);
+                    }
+                    check(changed>200&&maximum>100,theme+" About logo renders visible contrasting ink from the original artwork (pixels "+changed+")");
+                    visible.Save(Path.Combine(output,theme.ToLowerInvariant()+"-about.png"),new PngBitmapEncoderOptions());
+                }
+                finally{aboutWindow.Close();}
                 check(((ISolidColorBrush)TrafficChart.DownloadColor).Color==Color.Parse("#58D6B2")&&((ISolidColorBrush)TrafficChart.UploadColor).Color==Color.Parse("#82B4FF")
                     &&((ISolidColorBrush)TrafficChart.LatencyColor).Color==Color.Parse("#F6C76C"),theme+" preserves the original colored metrics and chart palette");
                 MenuAppearanceChecks.Run(window,theme,output,check);

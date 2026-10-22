@@ -34,6 +34,7 @@ internal static class ItemContextMenu
             menu.Items.Add(item);
         }
         menu.Opening += (_, _) => { if (closing) return; ++generation; select(); if (Surface() is { } surface) surface.IsHitTestVisible = true; };
+        menu.Opened += (_, _) => { if (owner is ProviderCardButton card) card.SetContextMenuActive(menu,true); };
         menu.Closing += (_, e) =>
         {
             if (allowClose || TopLevel.GetTopLevel(owner) is not Window { IsVisible: true } || Surface() is not { } surface) return;
@@ -44,6 +45,7 @@ internal static class ItemContextMenu
         };
         menu.Closed += (_, _) =>
         {
+            if (owner is ProviderCardButton card) card.SetContextMenuActive(menu,false);
             ++generation; closing = false;
             var action = pending; pending = null;
             if (action is not null) Dispatcher.UIThread.Post(action);

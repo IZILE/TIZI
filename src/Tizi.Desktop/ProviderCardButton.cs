@@ -13,10 +13,17 @@ internal sealed class ProviderCardButton : Button
     private readonly bool _nodeTile;
     private Border? _face;
     private bool _multipleSelected;
+    private ContextMenu? _activeContextMenu;
     private static readonly IBrush HoverTint=new SolidColorBrush(Color.Parse("#182979F5")), MultipleTint=new SolidColorBrush(Color.Parse("#262979F5"));
     private static readonly IBrush ClearNodeTint=new SolidColorBrush(Color.FromArgb(0,41,121,245));
     internal ProviderCardButton(bool nodeTile=false) { _nodeTile=nodeTile; Classes.Add("provider-card"); }
     internal void SetMultipleSelected(bool selected) { _multipleSelected=selected; UpdateFeedback(); }
+    internal void SetContextMenuActive(ContextMenu menu,bool active)
+    {
+        if(active)_activeContextMenu=menu;
+        else if(ReferenceEquals(_activeContextMenu,menu))_activeContextMenu=null;
+        UpdateFeedback();
+    }
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
         base.OnApplyTemplate(e);_face=e.NameScope.Find<Border>("buttonFace");
@@ -43,7 +50,7 @@ internal sealed class ProviderCardButton : Button
         if(_face is null)return;
         if(!_nodeTile)
         {
-            Motion.Set(_face,OpacityProperty,IsPointerOver?1d:0d);
+            Motion.Set(_face,OpacityProperty,IsPointerOver||_activeContextMenu is not null?1d:0d);
             return;
         }
         _face.BorderThickness=new Thickness(1.25);

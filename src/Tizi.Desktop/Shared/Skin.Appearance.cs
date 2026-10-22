@@ -35,7 +35,6 @@ internal static partial class Skin
     internal static readonly SolidColorBrush HoverInk=Tone("HoverInk","#FFFFFF","#000000");
     internal static readonly SolidColorBrush HoverSubtle=Tone("HoverSubtle","#0AFFFFFF","#0A000000");
     internal static readonly SolidColorBrush RowHover=Tone("RowHover","#0BFFFFFF","#0B000000");
-    internal static readonly SolidColorBrush ListRowHover=Tone("ListRowHover","#00FFFFFF","#10000000");
     internal static readonly SolidColorBrush MenuHover=Tone("MenuHover","#1CFFFFFF","#10000000");
     internal static readonly SolidColorBrush MenuSelected=Tone("MenuSelected","#2BFFFFFF","#19000000");
     internal static readonly SolidColorBrush ChevronInk=Tone("ChevronInk","#DFFFFFFF","#DE24282F");
