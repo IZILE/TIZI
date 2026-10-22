@@ -2,7 +2,7 @@
 
 TIZI 是面向 Windows 的代理客户端，提供节点与订阅管理、分流规则、网络监控和机场导航。
 
-[下载 TIZI 0.1.42](https://github.com/IZILE/TIZI/releases/tag/v0.1.42) · [更新说明](CHANGELOG.md) · [订阅导入说明](docs/SUBSCRIPTIONS.md)
+[下载 TIZI 0.1.43](https://github.com/IZILE/TIZI/releases/tag/v0.1.43) · [更新说明](CHANGELOG.md) · [订阅导入说明](docs/SUBSCRIPTIONS.md)
 
 - 链接、网址、二维码图片、剪贴板、JSON、Clash YAML 和部分 Shadowrocket .conf 导入；兼容单条 Shadowrocket 订阅 JSON、`.url` / `sub://` 和带状态说明的订阅列表，详见 [订阅导入说明](docs/SUBSCRIPTIONS.md)。
 - JSON / YAML、常见协议分享链接、二维码及订阅地址导出。
@@ -22,7 +22,7 @@ TIZI 是面向 Windows 的代理客户端，提供节点与订阅管理、分流
 - 机场搜索复用保存的条件，支持独立取消与重试，综合已有排名和使用者评价，最多缓存 100 项。
 - 分区设置涵盖隧道、TCP / UDP、DNS 与诊断，日志按代理、DNS 和应用分类。
 - 日志仅排版可见区域的记录，保留完整分类复制、滚动位置和文本片段选择。
-- 连接节点后自动检测出口 IP；类型、风控参考分及原生参考结果以紧凑标签显示，来源和原始评分在悬停时展示，详情见 [IP 检测说明](docs/IP-QUALITY.md)。
+- 连接节点后自动检测出口 IP；仅以紧凑标签显示已知的网络类型与原生 IP 参考结果，不确定项隐藏，悬停可查看来源与判定依据，详情见 [IP 检测说明](docs/IP-QUALITY.md)。
 
 安装程序允许选择目录，默认安装到当前用户的 `C:\Users\<用户名>\AppData\Local\Programs\TIZI`。运行不需要另装 .NET。首次启动保持断开；后续可恢复退出时的连接状态。
 

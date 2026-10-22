@@ -45,18 +45,19 @@ internal static class TagAlignmentChecks
         try
         {
             foreach(var scale in new[]{1d,1.25,1.5,1.75,2,2.5,3,4})
-            foreach(var score in new[]{0,18,35,50,75,88,100})
+            foreach(var native in new[]{true,false})
             {
                 window.SetRenderScaling(scale);
-                badges.Update(new("家庭宽带",score+"/100","原生 IP","Synthetic type","Synthetic score","Synthetic native",score,true),true);
+                badges.Update(new("家庭宽带",native?"原生 IP":"注册地不同","Synthetic type","Synthetic native",native),true);
                 window.UpdateLayout();Dispatcher.UIThread.RunJobs();AvaloniaHeadlessPlatform.ForceRenderTimerTick();
                 using var image=window.CaptureRenderedFrame()!;
-                image.Save(Path.Combine(folder,score+"-"+(int)(scale*100)+".png"),new PngBitmapEncoderOptions());
+                image.Save(Path.Combine(folder,(native?"native":"registration-differs")+"-"+(int)(scale*100)+".png"),new PngBitmapEncoderOptions());
                 var badge=badges.Badges[1];var (offset,weight,boundsOffset)=Measure(image,window,badge,(TextBlock)badge.Child!,scale,((ISolidColorBrush)badge.Background!).Color);
-                check(weight>20*scale*scale,"The "+score+"/100 score has real rendered text ink at scale "+scale);
-                check(Math.Abs(offset)<=.65,"The "+score+"/100 score's painted text center matches its badge at scale "+scale+" (offset "+offset.ToString("0.###")+")");
-                samples.Add(new {label=score+"/100",scale,offsetLogicalPixels=offset,paintedCoverage=weight});
-                if(score==18)
+                var name=((TextBlock)badge.Child!).Text;
+                check(weight>20*scale*scale,"The "+name+" reference has real rendered text ink at scale "+scale);
+                check(Math.Abs(boundsOffset)<=.7,"The "+name+" reference's painted text center matches its badge at scale "+scale+" (offset "+boundsOffset.ToString("0.###")+")");
+                samples.Add(new {label=name,scale,offsetLogicalPixels=boundsOffset,paintedCoverage=weight});
+                if(native)
                 {
                     var other=badges.Badges.Where((_,index)=>index!=1).Select(border=>((Control)border,(TextBlock)border.Child!,((ISolidColorBrush)border.Background!).Color))
                         .Concat(window.OverviewMonitor.GetVisualDescendants().OfType<Button>().Where(button=>button.Tag is string tag&&tag.StartsWith("chart-series-"))

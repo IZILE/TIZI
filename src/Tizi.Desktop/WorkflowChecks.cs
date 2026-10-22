@@ -580,6 +580,8 @@ internal static class WorkflowChecks
             await OperationNotificationChecks.RunAsync(output, Check);
             await Revision0122Checks.RunAsync(output, Check);
             ProviderCardChecks.Run(output, Check);
+            ProviderHoverChecks.Verify(Path.Combine(output,"provider-hover"),Check);
+            DialogReturnChecks.Verify(Path.Combine(output,"dialog-return"),Check);
             NodeHoverChecks.Verify(output,Check);
             await Revision0127Checks.RunAsync(output, Check);
             await Revision0128Checks.RunAsync(output, Check);

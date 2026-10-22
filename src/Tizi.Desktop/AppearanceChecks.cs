@@ -41,8 +41,7 @@ internal static class AppearanceChecks
         }
         static byte[] Pixels(Bitmap image)
         {
-            var data=new byte[image.PixelSize.Width*image.PixelSize.Height*4];var pin=GCHandle.Alloc(data,GCHandleType.Pinned);
-            try{image.CopyPixels(new PixelRect(image.PixelSize),pin.AddrOfPinnedObject(),data.Length,image.PixelSize.Width*4);}finally{pin.Free();}return data;
+            return VerificationPixels.Bgra(image);
         }
         static double Luminance(Color color)
         {
@@ -86,15 +85,17 @@ internal static class AppearanceChecks
                         var index=((int)Math.Floor(p.Y*window.RenderScaling)*image.PixelSize.Width+(int)Math.Floor(p.X*window.RenderScaling))*4;
                         return Color.FromRgb(data[index+2],data[index+1],data[index]);
                     }
-                    foreach(var step in new[]{0,1,2})
+                    foreach(var step in new[]{0,1,2,3})
                     {
-                        window.MouseMove(step==1?capture.TranslatePoint(new(capture.Bounds.Width/2,capture.Bounds.Height/2),window)!.Value:new(window.Bounds.Width-5,window.Bounds.Height-5));
+                        var routingButton=window.ModeControl.ButtonAt(1);
+                        window.MouseMove(step==1?capture.TranslatePoint(new(capture.Bounds.Width/2,capture.Bounds.Height/2),window)!.Value
+                            :step==2?routingButton.TranslatePoint(new(routingButton.Bounds.Width/2,routingButton.Bounds.Height/2),window)!.Value:new(window.Bounds.Width-5,window.Bounds.Height-5));
                         Layout(window);clock.Pulse(step*102+1);clock.Pulse(step*102+101);
                         using var image=Frame(window);
                         var routing=Sample(image,window.ModeControl.ButtonAt(1),new(5,31));var proxy=Sample(image,capture,new(18,5));
-                        check(routing==proxy&&proxy==Skin.ToolbarFill.Color,"Light toolbar controls have identical rendered fill when "+new[]{"idle","hovered","pointer has left"}[step]);
-                        toolbarSamples.Add(new{phase=new[]{"idle","hover","leave"}[step],routing=routing.ToString(),capture=proxy.ToString()});
-                        if(step==2)image.Save(Path.Combine(output,"light-toolbar-enabled.png"),new PngBitmapEncoderOptions());
+                        check(routing==proxy&&proxy==Skin.ToolbarFill.Color,"Light toolbar controls have identical rendered fill when "+new[]{"idle","capture hovered","routing hovered","pointer has left"}[step]);
+                        toolbarSamples.Add(new{phase=new[]{"idle","capture-hover","routing-hover","leave"}[step],routing=routing.ToString(),capture=proxy.ToString()});
+                        if(step==3)image.Save(Path.Combine(output,"light-toolbar-enabled.png"),new PngBitmapEncoderOptions());
                     }
                     File.WriteAllText(Path.Combine(output,"toolbar-fill-samples.json"),JsonSerializer.Serialize(toolbarSamples,new JsonSerializerOptions{WriteIndented=true}));
                 }
@@ -104,13 +105,16 @@ internal static class AppearanceChecks
                     theme+" disabled capture control keeps its backplate visible while its label retains the disabled cue");
                 if(theme=="Light")
                 {
-                    check(Skin.ToolbarFill.Color.R==Skin.ToolbarFill.Color.G&&Skin.ToolbarFill.Color.G==Skin.ToolbarFill.Color.B
+                    check(Skin.ToolbarFill.Color.R>=Skin.ToolbarFill.Color.G&&Skin.ToolbarFill.Color.G>=Skin.ToolbarFill.Color.B&&Skin.ToolbarFill.Color.R-Skin.ToolbarFill.Color.B<=3
                           &&Skin.FieldFill.Color.R-Skin.ToolbarFill.Color.R==6&&Skin.ToolbarFill.Color.A==255,
                         "Light routing and capture controls alone retain their slightly deeper neutral fill");
                     using var image=Frame(window);image.Save(Path.Combine(output,"light-toolbar-disabled.png"),new PngBitmapEncoderOptions());
                     var point=capture.TranslatePoint(new(18,5),window)!.Value;var bytes=Pixels(image);
                     var index=((int)Math.Floor(point.Y*window.RenderScaling)*image.PixelSize.Width+(int)Math.Floor(point.X*window.RenderScaling))*4;
                     check(Color.FromRgb(bytes[index+2],bytes[index+1],bytes[index])==Skin.ToolbarFill.Color,"Light disabled TUN backplate renders the same gray as the routing control");
+                    var shades=new[]{(Skin.Chrome,245),(Skin.ControlFill.Color,238),(Skin.FieldFill.Color,240),(Skin.ContentCardFill.Color,236),(Skin.ToolbarFill.Color,234)};
+                    check(shades.All(s=>Math.Abs(.2126*s.Item1.R+.7152*s.Item1.G+.0722*s.Item1.B-s.Item2)<.2),
+                        "Light card and button warmth changes preserve the previous perceived brightness");
                 }
                 capture.IsEnabled=enabled;capture.SelectedIndex=selected;Layout(window);
                 foreach(var page in NavigationRail.Pages.Where(p=>p!="Second"))

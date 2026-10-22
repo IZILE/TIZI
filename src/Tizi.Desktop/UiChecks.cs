@@ -402,10 +402,10 @@ internal static class UiChecks
                         {
                             window.MouseMove(selectedCard.TranslatePoint(new(200,60),window)!.Value);
                             hoverClock.Pulse(0);hoverClock.Pulse(200);Layout(window);
-                            Check(face.Background is ISolidColorBrush hoverFill&&hoverFill.Color==Color.Parse("#414141")&&face.BorderThickness==default,
+                            Check(face.Background is ISolidColorBrush hoverFill&&hoverFill.Color==Color.Parse("#414141")&&face.Opacity==1&&face.BorderThickness==default,
                                 $"{language}/{width}: hovering an airport fills its card with the shared neutral emphasis without a selection outline");
                             window.MouseMove(new(4,100));hoverClock.Pulse(210);hoverClock.Pulse(420);Layout(window);
-                            Check(face.Background is ISolidColorBrush empty&&empty.Color.A==0&&!providerRows.Backplate.IsVisible,
+                            Check(face.Opacity==0&&!providerRows.Backplate.IsVisible,
                                 $"{language}/{width}: leaving a selected airport restores its ordinary background");
                         }
                     }

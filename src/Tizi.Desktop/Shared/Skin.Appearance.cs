@@ -15,19 +15,19 @@ internal static partial class Skin
     }
     internal static readonly SolidColorBrush WindowBackdrop=Tone("WindowBackdrop","#21201F","#F5F2F2");
     internal static readonly SolidColorBrush WindowBackdropTint=Tone("WindowBackdropTint","#FA21201F","#FAF5F2F2");
-    internal static readonly SolidColorBrush ControlFill=Tone("ControlFill","#3A3A3A","#EEEEEE");
-    internal static readonly SolidColorBrush FieldFill=Tone("FieldFill","#353535","#F0F0F0");
-    internal static readonly SolidColorBrush ToolbarFill=Tone("ToolbarFill","#353535","#EAEAEA");
-    internal static readonly SolidColorBrush ToolbarDisabledFill=Tone("ToolbarDisabledFill","#66353535","#EAEAEA");
+    internal static readonly SolidColorBrush ControlFill=Tone("ControlFill","#3A3A3A","#EFEEEC");
+    internal static readonly SolidColorBrush FieldFill=Tone("FieldFill","#353535","#F1F0EE");
+    internal static readonly SolidColorBrush ToolbarFill=Tone("ToolbarFill","#353535","#EBEAE8");
+    internal static readonly SolidColorBrush ToolbarDisabledFill=Tone("ToolbarDisabledFill","#66353535","#EBEAE8");
     internal static readonly SolidColorBrush ToolbarDisabledEdge=Tone("ToolbarDisabledEdge","#0F666666","#14000000");
-    internal static readonly SolidColorBrush ContentCardFill=Tone("ContentCardFill","#09FFFFFF","#ECECEC");
+    internal static readonly SolidColorBrush ContentCardFill=Tone("ContentCardFill","#09FFFFFF","#EDECEA");
     internal static readonly SolidColorBrush InputFill=Tone("InputFill","#1A1A1A","#FFFFFF");
     internal static readonly SolidColorBrush ControlEdge=Tone("ControlEdge","#52666666","#24000000");
     internal static readonly SolidColorBrush FieldEdge=Tone("FieldEdge","#25666666","#20000000");
     internal static readonly SolidColorBrush InputEdge=Tone("InputEdge","#18FFFFFF","#26000000");
     internal static readonly SolidColorBrush SearchEdge=Tone("SearchEdge","#20FFFFFF","#27000000");
-    internal static readonly SolidColorBrush PopupFill=Tone("PopupFill","#353535","#F8F8F8");
-    internal static readonly SolidColorBrush MoreFill=Tone("MoreFill","#303030","#F5F5F5");
+    internal static readonly SolidColorBrush PopupFill=Tone("PopupFill","#353535","#F9F8F6");
+    internal static readonly SolidColorBrush MoreFill=Tone("MoreFill","#303030","#F6F5F3");
     internal static readonly SolidColorBrush SelectionFill=Tone("SelectionFill","#414141","#E7E7E7");
     internal static readonly SolidColorBrush MenuSurface=Tone("MenuSurface","#303030","#FBFBFB");
     internal static readonly SolidColorBrush MenuEdge=Tone("MenuEdge","#26FFFFFF","#1A000000");
@@ -35,6 +35,7 @@ internal static partial class Skin
     internal static readonly SolidColorBrush HoverInk=Tone("HoverInk","#FFFFFF","#000000");
     internal static readonly SolidColorBrush HoverSubtle=Tone("HoverSubtle","#0AFFFFFF","#0A000000");
     internal static readonly SolidColorBrush RowHover=Tone("RowHover","#0BFFFFFF","#0B000000");
+    internal static readonly SolidColorBrush ListRowHover=Tone("ListRowHover","#00FFFFFF","#10000000");
     internal static readonly SolidColorBrush MenuHover=Tone("MenuHover","#1CFFFFFF","#10000000");
     internal static readonly SolidColorBrush MenuSelected=Tone("MenuSelected","#2BFFFFFF","#19000000");
     internal static readonly SolidColorBrush ChevronInk=Tone("ChevronInk","#DFFFFFFF","#DE24282F");

@@ -186,6 +186,7 @@ internal sealed class MovingRows : Grid
                 button.MinHeight = tileLayout ? 82 : entry.Provider is null ? 76 : 164; button.Padding = tileLayout ? new Thickness(12, 10) : new Thickness(16, 14);
                 button.HorizontalAlignment = HorizontalAlignment.Stretch; button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                 button.Classes.Add("plain"); button.Classes.Add("selection-item"); button.CornerRadius = new(12);
+                button.Classes.Set("content-list-row", entry.Provider is null && !_nodeGrid);
                 button.Background = Brushes.Transparent; button.Tag = entry.Id;
                 if (entry.Provider is not null || _nodeGrid)
                 {

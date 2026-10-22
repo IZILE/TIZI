@@ -117,17 +117,16 @@ internal static class Revision0126Checks
             {
                 var monitor = preview.GetVisualDescendants().OfType<NetworkMonitor>().Single();
                 monitor.Update(320_000, 2_150_000, 0, true, "31 ms", TimeSpan.FromMinutes(12));
-                var display = new IpQualityDisplay("家庭宽带", "18/100", "原生 IP",
+                var display = new IpQualityDisplay("家庭宽带", "原生 IP",
                     "IP 类型 · 设计预览\n示例来源 A：家庭宽带\n示例来源 B：家庭宽带\n示例来源 C：数据中心",
-                    "风控参考分 · 设计预览\n示例评分：12、18、95\n中位数：18 / 100\n各来源分歧较大\n所有数值均为界面演示数据",
-                    "原生 IP · 设计预览\n原生判定的依据、来源及查询时间在此显示\n此示例不代表真实出口 IP", 18, true);
+                    "原生 IP · 设计预览\n原生判定的依据、来源及查询时间在此显示\n此示例不代表真实出口 IP", true);
                 monitor.IpQuality.Update(display, true); Layout(preview);
                 var firstLegend = preview.GetVisualDescendants().OfType<Button>().Single(b => b.Tag is "chart-series-0");
                 var badges = monitor.IpQuality;
                 var legendText = firstLegend.GetVisualDescendants().OfType<TextBlock>().Single();
                 check(badges.Badges.All(b => b.Background is ISolidColorBrush brush && brush.Color.A == 255 && ((TextBlock)b.Child!).Foreground is ISolidColorBrush ink&&legendText.Foreground is ISolidColorBrush legendInk&&ink.Color==legendInk.Color && ((TextBlock)b.Child!).FontSize == legendText.FontSize), "IP result pills share the traffic legend typography and keep fully opaque emphasis backgrounds");
                 check(badges.TranslatePoint(new Point(badges.Bounds.Width, 0), preview)!.Value.X < firstLegend.TranslatePoint(default, preview)!.Value.X && Math.Abs(badges.TranslatePoint(default, preview)!.Value.Y - firstLegend.TranslatePoint(default, preview)!.Value.Y) < 1,
-                    "The three compact IP result pills precede the chart legend on the same row");
+                    "The two compact IP result pills precede the chart legend on the same row");
                 Capture(preview, "overview-ip-label-design.png");
                 var scoreBadge = badges.Badges[1]; ToolTip.SetIsOpen(scoreBadge, true); Layout(preview);
                 await Task.Delay(360); Layout(preview);
@@ -148,7 +147,7 @@ internal static class Revision0126Checks
                     using var frame = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize((int)Math.Ceiling(popup.Bounds.Width), (int)Math.Ceiling(popup.Bounds.Height)), new Vector(96, 96));
                     frame.Render(popup); frame.Save(Path.Combine(output, "overview-ip-hover-design.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
                 }
-                check(ToolTip.GetShowDelay(scoreBadge) == 300 && Avalonia.Automation.AutomationProperties.GetHelpText(scoreBadge)?.Contains("12、18、95", StringComparison.Ordinal) == true, "IP result details stay in the hover and keyboard-accessible description rather than adding a permanent information panel");
+                check(ToolTip.GetShowDelay(scoreBadge) == 300 && Avalonia.Automation.AutomationProperties.GetHelpText(scoreBadge)?.Contains("原生判定", StringComparison.Ordinal) == true, "Native reference details stay in the hover and keyboard-accessible description rather than adding a permanent information panel");
                 ToolTip.SetIsOpen(scoreBadge, false);
                 monitor.Update(null, null, 0, false); check(!badges.IsVisible && !badges.HasResult, "Disconnected monitoring clears IP result visuals instead of retaining an old colored result");
             }

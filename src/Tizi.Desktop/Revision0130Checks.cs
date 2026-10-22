@@ -75,14 +75,21 @@ internal static class Revision0130Checks
         check(!badges.IsVisible&&!badges.HasResult&&badges.Badges.All(b=>!b.IsVisible),"Missing IP observations show no unknown type, billing-cycle translation or dash score");
         var partial=new IpQualityResult("8.8.8.8",[new("Fixture","Residential",null,null,null,null,"OK")],null,DateTimeOffset.UtcNow);
         badges.Update(IpQualityPresentation.From(partial),true);
-        check(badges.IsVisible&&badges.Badges[0].IsVisible&&!badges.Badges[1].IsVisible&&!badges.Badges[2].IsVisible,
-            "A known type with no comparable risk score displays only its actual known type");
+        check(badges.IsVisible&&badges.Badges[0].IsVisible&&!badges.Badges[1].IsVisible,
+            "A known type with no native reference displays only its actual known type");
         var conflict=new IpQualityResult("8.8.8.8",[new("A","Residential","US",null,null,5,"OK"),new("B","Residential","US",null,null,90,"OK")],"US",DateTimeOffset.UtcNow);
         badges.Update(IpQualityPresentation.From(conflict),true);
-        check(badges.Badges[0].IsVisible&&!badges.Badges[1].IsVisible&&badges.Badges[2].IsVisible,
-            "Substantial risk disagreement hides the combined score without hiding independent known type/native data");
-        check(Avalonia.Automation.AutomationProperties.GetHelpText(badges.Badges[0])!.Contains("90 / 100"),
-            "Raw scores remain in the known type's hover details when a conflicting combined score is hidden");
+        check(badges.Badges.Count==2&&badges.Badges.All(b=>b.IsVisible),
+            "Risk disagreement never creates a score tag or hides independently known type/native data");
+        check(badges.Badges.All(b=>!Avalonia.Automation.AutomationProperties.GetHelpText(b)!.Contains("/ 100")),
+            "IP tooltip details contain no risk values");
+        var uncertain=conflict with {Sources=[new("A","Residential","US",null,null,5,"OK"),new("B","Hosting","GB",null,null,90,"OK")]};
+        badges.Update(IpQualityPresentation.From(uncertain),true);
+        check(!badges.IsVisible&&badges.Badges.All(b=>!b.IsVisible),"Conflicting network types and geolocation countries hide both uncertain labels");
+        badges.Update(IpQualityPresentation.From(partial with {Sources=[new("A",null,"US",null,null,5,"OK")],RegisteredCountry="US"}),true);
+        check(badges.IsVisible&&!badges.Badges[0].IsVisible&&badges.Badges[1].IsVisible,"A known native reference can appear independently when network type is unavailable");
+        badges.Update(IpQualityPresentation.From(conflict),false);
+        check(!badges.IsVisible,"Disconnect hides the whole IP reference group");
 
         var subscription=new Subscription {Name="Fixture subscription",Url="https://subscription.example/"};
         var nodes=Enumerable.Range(1,30).Select(index=>NodeImport.Parse("ss://YWVzLTEyOC1nY206Zml4dHVyZQ@node.example:443#Fixture%20"+index).Single() with {SubscriptionId=subscription.Id}).ToList();

@@ -1,4 +1,3 @@
-using System.Globalization;
 using Tizi.Core;
 
 namespace Tizi.Desktop;
@@ -11,11 +10,8 @@ internal static class IpQualityPresentation
         string Type(string? value)=>value switch { "Residential"=>UiText.Get("Home broadband"),"Business"=>UiText.Get("Business network"),"Wireless"=>UiText.Get("Mobile network"),"Hosting"=>UiText.Get("Datacenter"),_=>"" };
         var unknown=UiText.Get("IP data unavailable");var stamp=result.CheckedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
         var typeDetails=string.Join("\n",new[] { UiText.Get("Exit IP")+" · "+(result.Ip.Length>0 ? result.Ip : unknown) }.Concat(result.Sources.Select(s=>s.Name+" · "+(Type(s.Type) is {Length:>0} type ? type : unknown)+" · "+(s.Asn??"—")+" · "+(s.Owner??"—")+" · "+UiText.Get(s.Status))).Append(stamp));
-        var raw=result.Sources.Where(s=>s.Risk is not null).Select(s=>s.Name+" · "+s.Risk!.Value.ToString("0.#",CultureInfo.InvariantCulture)+" / 100").ToList();
-        var score=result.Median?.ToString("0.#",CultureInfo.InvariantCulture)+"/100";
-        var scoreDetails=string.Join("\n",raw.Append(UiText.Format("Median of {0} available sources",result.Scores.Length)).Append(UiText.Get(result.ScoreConflict ? "Sources disagree substantially" : "Risk scores are references, not a guarantee of access")).Append(stamp));
         var countries=string.Join("\n",result.Sources.Where(s=>s.Country is not null).Select(s=>s.Name+" · "+s.Country));
         var nativeDetails=UiText.Get("Native IP is a reference based on registration and geolocation countries, not a physical-location guarantee")+"\nRIPEstat / RIR · "+(result.RegisteredCountry??unknown)+"\n"+countries+"\n"+stamp;
-        return new(Type(result.Type),result.Median is null ? "—" : score,result.NativeReference is { } native ? UiText.Get(native ? "Native IP" : "Registration differs") : UiText.Get("Undetermined"),typeDetails,scoreDetails,nativeDetails,result.Median is { } risk && !result.ScoreConflict ? (int)Math.Ceiling(risk) : null,result.NativeReference);
+        return new(Type(result.Type),result.NativeReference is { } native ? UiText.Get(native ? "Native IP" : "Registration differs") : "",typeDetails,nativeDetails,result.NativeReference);
     }
 }

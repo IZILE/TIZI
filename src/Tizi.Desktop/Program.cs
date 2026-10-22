@@ -58,6 +58,14 @@ internal static class Program
         {
             UserData.DirectoryPath=Path.Combine(Path.GetFullPath(hoverOutput),"settings");Build(true).SetupWithoutStarting();return NodeHoverChecks.Run(hoverOutput);
         }
+        if(args is ["--verify-provider-hover",var providerHoverOutput])
+        {
+            UserData.DirectoryPath=Path.Combine(Path.GetFullPath(providerHoverOutput),"settings");Build(true).SetupWithoutStarting();return ProviderHoverChecks.Run(providerHoverOutput);
+        }
+        if(args is ["--verify-dialog-return",var dialogReturnOutput])
+        {
+            UserData.DirectoryPath=Path.Combine(Path.GetFullPath(dialogReturnOutput),"settings");Build(true).SetupWithoutStarting();return DialogReturnChecks.Run(dialogReturnOutput);
+        }
         if (args is ["--profile-log-navigation", var logOutput])
         {
             UserData.DirectoryPath = Path.Combine(Path.GetFullPath(logOutput), "settings");

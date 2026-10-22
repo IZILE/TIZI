@@ -182,13 +182,26 @@ internal sealed class DialogOverlay : Control
     private readonly DialogOrigin? _origin;
     private readonly Action _dismiss;
     private readonly Grid _body;
+    private readonly TextBlock _caption;
+    private readonly Border _captionSlot;
+    private TextBlock? _returnLabel;
     private readonly DoubleTransition _transition, _visualTransition;
     internal bool HasSourcePreview => false;
     internal int OpeningMilliseconds => _origin?.KeepSourceVisible == true ? 300 : 280;
     internal int ClosingMilliseconds => 220;
     internal Color SourceColor => _origin?.Color ?? Skin.Chrome;
     internal double SourceContentOpacity => 0;
-    internal Color SurfaceColor => Skin.Chrome;
+    internal Color SurfaceColor
+    {
+        get
+        {
+            if(_returnLabel is null||!Retracting)return Skin.Chrome;
+            var p=ReturnTitleProgress;var from=SourceColor;var to=Skin.Chrome;
+            byte Mix(byte a,byte b)=>(byte)Math.Round(a+(b-a)*p);
+            return Color.FromRgb(Mix(from.R,to.R),Mix(from.G,to.G),Mix(from.B,to.B));
+        }
+    }
+    private double ReturnTitleProgress=>Smooth(Progress/.4);
     static DialogOverlay() => AffectsArrange<DialogOverlay>(ProgressProperty);
 
     internal DialogOverlay(Control content, string title, Thickness padding, double width, double? height, double maxHeight, DialogOrigin? origin, Action dismiss)
@@ -196,9 +209,10 @@ internal sealed class DialogOverlay : Control
         _width = width; _height = height; PreferredMaxHeight = maxHeight; _origin = origin; _dismiss = dismiss;
         ClipToBounds = true;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
-        var caption = Ui.Value(title, size: 20); caption.FontWeight = FontWeight.SemiBold; caption.Margin = new(24, 20, 24, 0);
+        var caption = _caption = Ui.Value(title, size: 20); caption.FontWeight = FontWeight.SemiBold; caption.Margin = new(24, 20, 24, 0);
+        _captionSlot=new Border{Child=caption};
         var body = new Border { Padding = padding, Child = content };
-        _body = new Grid { RowDefinitions = new("Auto,16,*"), Children = { caption, body } };
+        _body = new Grid { RowDefinitions = new("Auto,16,*"), Children = { _captionSlot, body } };
         Grid.SetRow(body, 2);
         VisualChildren.Add(_body); LogicalChildren.Add(_body);
         _transition = new DoubleTransition { Property = ProgressProperty, Duration = TimeSpan.FromMilliseconds(OpeningMilliseconds), Easing = new SplineEasing(.2,0,.2,1) };
@@ -207,7 +221,14 @@ internal sealed class DialogOverlay : Control
         PropertyChanged += (_, e) => { if (e.Property == ProgressProperty || e.Property==VisualProgressProperty) { UpdateClip(); InvalidateVisual(); } };
     }
     internal void Reveal() { Retracting = false; _transition.Duration = _visualTransition.Duration = TimeSpan.FromMilliseconds(OpeningMilliseconds); Motion.Set(this, ProgressProperty, 1d);Motion.Set(this,VisualProgressProperty,1d); UpdateClip(); }
-    internal void Dismiss() { Retracting = true; _transition.Duration = _visualTransition.Duration = TimeSpan.FromMilliseconds(ClosingMilliseconds); Motion.Set(this, ProgressProperty, 0d);Motion.Set(this,VisualProgressProperty,0d); UpdateClip(); }
+    internal void Dismiss()
+    {
+        if(_origin is {KeepSourceVisible:false,Control:Button button})
+            _returnLabel=button.Content as TextBlock ?? button.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t=>t.Text==_caption.Text);
+        if(_returnLabel?.Text!=_caption.Text)_returnLabel=null;
+        if(_returnLabel is not null){_captionSlot.Height=_captionSlot.Bounds.Height;_caption.VerticalAlignment=VerticalAlignment.Top;_caption.HorizontalAlignment=HorizontalAlignment.Left;}
+        Retracting = true; _transition.Duration = _visualTransition.Duration = TimeSpan.FromMilliseconds(ClosingMilliseconds); Motion.Set(this, ProgressProperty, 0d);Motion.Set(this,VisualProgressProperty,0d); UpdateClip();
+    }
     internal void SetImmediately(double value) { var transitions = Transitions; Transitions = null; Progress = VisualProgress = value; Transitions = transitions; }
     protected override Size MeasureOverride(Size available)
     {
@@ -238,6 +259,14 @@ internal sealed class DialogOverlay : Control
         var p = Math.Clamp(Progress, 0, 1);var t=Math.Clamp(VisualProgress,0,1); var bounds = VisibleBounds; var radius = Radius(p);
         _body.Clip = new RectangleGeometry(new Rect(bounds.Size), radius, radius);
         _body.Opacity = 1; _body.IsHitTestVisible = !Retracting && p > .7 && t>.45;
+        if(Retracting&&_returnLabel is {} label&&label.TranslatePoint(default,this) is {} point)
+        {
+            var amount=ReturnTitleProgress;var offset=point-SourceBounds.Position;
+            _caption.Margin=new(offset.X+(24-offset.X)*amount,offset.Y+(20-offset.Y)*amount,24,0);
+            _caption.FontSize=label.FontSize+(20-label.FontSize)*amount;
+            _caption.FontWeight=(FontWeight)(int)Math.Round((int)label.FontWeight+((int)FontWeight.SemiBold-(int)label.FontWeight)*amount);
+            _caption.FontFamily=label.FontFamily;_caption.FontStyle=label.FontStyle;_caption.FontStretch=label.FontStretch;_caption.Foreground=label.Foreground;
+        }
     }
     private double Radius(double p) => (_origin?.Radius ?? 18) + (18 - (_origin?.Radius ?? 18)) * p;
     public override void Render(DrawingContext context)

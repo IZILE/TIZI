@@ -155,9 +155,9 @@ internal static class MenuAppearanceChecks
             }
             foreach(var locale in new[]{"zh-CN","en"}){UiText.Language=locale;RowInkMotion(locale);}
             if(theme=="Light")
-                check(new[]{Skin.ChromeBrush,Skin.ControlFill,Skin.FieldFill,Skin.PopupFill,Skin.MenuSurface}.Cast<ISolidColorBrush>().All(b=>b.Color.R==b.Color.G&&b.Color.G==b.Color.B)
+                check(new[]{Skin.ChromeBrush,Skin.ControlFill,Skin.FieldFill,Skin.PopupFill,Skin.MenuSurface}.Cast<ISolidColorBrush>().All(b=>b.Color.R>=b.Color.G&&b.Color.G>=b.Color.B&&b.Color.R-b.Color.B<=3)
                       &&Skin.Chrome.R<Skin.Pasteboard.R&&Skin.ControlFill.Color.R<Skin.Chrome.R,
-                      "Light card and control surfaces are neutral gray and remain distinct from the pure-white page");
+                      "Light card and control surfaces remain near-neutral without a blue tint and distinct from the pure-white page");
             File.WriteAllText(Path.Combine(output,theme.ToLowerInvariant()+"-menu-layout.json"),JsonSerializer.Serialize(samples,new JsonSerializerOptions{WriteIndented=true}));
         }
         finally{language.IsSubMenuOpen=false;help.IsSubMenuOpen=false;UiText.Language=oldLanguage;Appearance.Set(theme,false);Layout(window);}
