@@ -114,7 +114,7 @@ internal static class Revision0127Checks
             window.Rail.Select("Overview");Layout(window);var monitor=window.OverviewMonitor;monitor.Update(1_000_000,2_500_000,0,true,"31 ms");
             var display=new IpQualityDisplay("家庭宽带","注册地不同","Type fixture","Registration fixture",false);
             monitor.IpQuality.Update(display,true);Layout(window);
-            check(monitor.IpQuality.Badges[1].IsVisible && monitor.IpQuality.Badges[0].IsVisible,"A known different registration country displays its explicit reference result");
+            check(!monitor.IpQuality.Badges[1].IsVisible && monitor.IpQuality.Badges[0].IsVisible,"A different registration country keeps only its known type and shows no negative native badge");
             monitor.IpQuality.Update(display with { IsNative=null,Native="待定" },true);
             check(!monitor.IpQuality.Badges[1].IsVisible,"An undetermined native-IP result has no permanent badge");
             monitor.IpQuality.Update(display with { IsNative=true,Native="原生 IP" },true);Layout(window);
@@ -122,6 +122,11 @@ internal static class Revision0127Checks
             var labels=window.GetVisualDescendants().OfType<Button>().Where(b=>b.Tag is string tag&&tag.StartsWith("chart-series-")).SelectMany(b=>b.GetVisualDescendants().OfType<TextBlock>()).Concat(monitor.IpQuality.Badges.Select(b=>(TextBlock)b.Child!));
             check(labels.All(label=>label.Foreground is ISolidColorBrush brush&&brush.Color==Color.Parse("#D6D6D6")),"Traffic and IP label text uses one opaque soft-white color rather than pure white or low-opacity gray");
             Save(window,Path.Combine(output,"overview-tags-0127.png"));
+            ToolTip.SetIsOpen(monitor.IpQuality.Badges[1],true);monitor.IpQuality.Update(display,true);Layout(window);
+            check(!ToolTip.GetIsOpen(monitor.IpQuality.Badges[1])&&!monitor.IpQuality.Badges[1].IsVisible
+                &&string.IsNullOrEmpty(Avalonia.Automation.AutomationProperties.GetName(monitor.IpQuality.Badges[1])),
+                "Replacing a native result with a negative result closes its tooltip and clears its accessible label");
+            Save(window,Path.Combine(output,"overview-known-type-only.png"));
         }
         finally { window.Close();await Until(()=>!window.IsVisible); }
         CheckPlay(output,check);

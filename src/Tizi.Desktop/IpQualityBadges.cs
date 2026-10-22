@@ -34,12 +34,13 @@ internal sealed class IpQualityBadges : StackPanel
     internal void Update(IpQualityDisplay? result, bool connected)
     {
         _badges[0].IsVisible = !string.IsNullOrWhiteSpace(result?.Type) && result.Type != UiText.Get("Unknown");
-        _badges[1].IsVisible = result?.IsNative is not null && !string.IsNullOrWhiteSpace(result.Native);
+        _badges[1].IsVisible = result?.IsNative == true && !string.IsNullOrWhiteSpace(result.Native);
+        foreach(var badge in _badges.Where(badge=>!badge.IsVisible))ToolTip.SetIsOpen(badge,false);
         HasResult = result is not null && _badges.Any(badge => badge.IsVisible);
         IsVisible = connected && HasResult;
         if (result is null) return;
         var blue = Color.Parse("#2866C9"); var nativeGreen = Color.Parse("#4FA83B");
-        var items = new[] { (result.Type, result.TypeDetails, blue), (result.Native, result.NativeDetails, result.IsNative == true ? nativeGreen : blue) };
+        var items = new[] { (result.Type, result.TypeDetails, blue), (result.IsNative == true ? result.Native : "", result.IsNative == true ? result.NativeDetails : "", nativeGreen) };
         for (var i = 0; i < _badges.Length; i++)
         {
             var badge = _badges[i]; var (value, details, tone) = items[i];

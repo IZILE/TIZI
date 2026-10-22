@@ -88,6 +88,12 @@ internal static class Revision0130Checks
         check(!badges.IsVisible&&badges.Badges.All(b=>!b.IsVisible),"Conflicting network types and geolocation countries hide both uncertain labels");
         badges.Update(IpQualityPresentation.From(partial with {Sources=[new("A",null,"US",null,null,5,"OK")],RegisteredCountry="US"}),true);
         check(badges.IsVisible&&!badges.Badges[0].IsVisible&&badges.Badges[1].IsVisible,"A known native reference can appear independently when network type is unavailable");
+        var different=conflict with {RegisteredCountry="CA"};var differentDisplay=IpQualityPresentation.From(different)!;
+        badges.Update(differentDisplay,true);
+        check(differentDisplay.IsNative==false&&differentDisplay.Native==""&&badges.IsVisible&&badges.Badges[0].IsVisible&&!badges.Badges[1].IsVisible,
+            "Presentation omits a negative native label while preserving the confirmed network type");
+        badges.Update(IpQualityPresentation.From(different with {Sources=[new("A",null,"US",null,null,null,"OK")]}),true);
+        check(!badges.IsVisible&&!badges.HasResult,"No reference group is shown when type is unknown and native reference is negative");
         badges.Update(IpQualityPresentation.From(conflict),false);
         check(!badges.IsVisible,"Disconnect hides the whole IP reference group");
 

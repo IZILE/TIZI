@@ -51,7 +51,13 @@ internal static class TagAlignmentChecks
                 badges.Update(new("家庭宽带",native?"原生 IP":"注册地不同","Synthetic type","Synthetic native",native),true);
                 window.UpdateLayout();Dispatcher.UIThread.RunJobs();AvaloniaHeadlessPlatform.ForceRenderTimerTick();
                 using var image=window.CaptureRenderedFrame()!;
-                image.Save(Path.Combine(folder,(native?"native":"registration-differs")+"-"+(int)(scale*100)+".png"),new PngBitmapEncoderOptions());
+                image.Save(Path.Combine(folder,(native?"native":"native-not-shown")+"-"+(int)(scale*100)+".png"),new PngBitmapEncoderOptions());
+                if(!native)
+                {
+                    check(!badges.Badges[1].IsVisible&&string.IsNullOrEmpty(((TextBlock)badges.Badges[1].Child!).Text),"A negative native result has no rendered badge text at scale "+scale);
+                    check(badges.IsVisible&&badges.Badges[0].IsVisible,"The known network type remains visible without a native badge at scale "+scale);
+                    continue;
+                }
                 var badge=badges.Badges[1];var (offset,weight,boundsOffset)=Measure(image,window,badge,(TextBlock)badge.Child!,scale,((ISolidColorBrush)badge.Background!).Color);
                 var name=((TextBlock)badge.Child!).Text;
                 check(weight>20*scale*scale,"The "+name+" reference has real rendered text ink at scale "+scale);

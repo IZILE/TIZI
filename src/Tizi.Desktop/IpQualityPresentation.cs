@@ -12,6 +12,6 @@ internal static class IpQualityPresentation
         var typeDetails=string.Join("\n",new[] { UiText.Get("Exit IP")+" · "+(result.Ip.Length>0 ? result.Ip : unknown) }.Concat(result.Sources.Select(s=>s.Name+" · "+(Type(s.Type) is {Length:>0} type ? type : unknown)+" · "+(s.Asn??"—")+" · "+(s.Owner??"—")+" · "+UiText.Get(s.Status))).Append(stamp));
         var countries=string.Join("\n",result.Sources.Where(s=>s.Country is not null).Select(s=>s.Name+" · "+s.Country));
         var nativeDetails=UiText.Get("Native IP is a reference based on registration and geolocation countries, not a physical-location guarantee")+"\nRIPEstat / RIR · "+(result.RegisteredCountry??unknown)+"\n"+countries+"\n"+stamp;
-        return new(Type(result.Type),result.NativeReference is { } native ? UiText.Get(native ? "Native IP" : "Registration differs") : "",typeDetails,nativeDetails,result.NativeReference);
+        return new(Type(result.Type),result.NativeReference == true ? UiText.Get("Native IP") : "",typeDetails,nativeDetails,result.NativeReference);
     }
 }

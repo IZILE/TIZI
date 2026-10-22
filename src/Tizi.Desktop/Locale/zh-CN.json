@@ -1340,7 +1340,6 @@
   "Risk scores are references, not a guarantee of access": "风控评分仅作参考，不代表网站封禁率或访问保证",
   "Native IP is a reference based on registration and geolocation countries, not a physical-location guarantee": "原生 IP 为注册国家与定位国家一致性的参考判断，不保证服务器的物理位置",
   "Native IP": "原生 IP",
-  "Registration differs": "注册地不同",
   "Undetermined": "待定",
   "IP detection": "IP 检测",
   "Inspect exit IP after connecting": "连接后自动检测出口 IP",
