@@ -8,7 +8,7 @@ namespace Tizi.Tests;
 
 public sealed class TailscaleTests
 {
-    private static TailscaleSettings Phone => new() { Enabled = true, AuthKey = "tskey-auth-synthetic-test-only", ExitNode = "100.100.101.102" };
+    private static TailscaleSettings Phone => new() { Enabled = true, AuthKey = "fixture-auth-never-valid-A", ExitNode = "100.100.101.102" };
     private static ProxyNode Node(string name) => NodeImport.FromOptions(new JsonObject { ["name"] = name, ["type"] = "http", ["server"] = "127.0.0.1", ["port"] = 18080 });
     [Fact]
     public void TransitHasOnlyThePhoneAsFinalProxyAndCannotSelectDirect()
@@ -88,7 +88,7 @@ public sealed class TailscaleTests
             var restored = Path.Combine(root, "restored"); TailscaleIdentityStore.Restore(vault, Phone, restored);
             Assert.Equal(state, File.ReadAllText(Path.Combine(restored, "tailscale", "tailscaled.state")));
             var other = Path.Combine(root, "other");
-            TailscaleIdentityStore.Restore(vault, Phone with { AuthKey = "tskey-auth-other-synthetic-key" }, other);
+            TailscaleIdentityStore.Restore(vault, Phone with { AuthKey = "fixture-auth-never-valid-B" }, other);
             Assert.False(Directory.Exists(other));
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }

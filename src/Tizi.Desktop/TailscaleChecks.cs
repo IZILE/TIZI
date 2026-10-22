@@ -70,7 +70,7 @@ internal static class TailscaleChecks
             await window.Controller.ApplyAsync(state); window.ShowPage("Settings"); Layout(); window.SettingsSections!.ButtonAt(2).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
             var editor = window.GetVisualDescendants().OfType<TailscaleSettingsEditor>().Single();
             check(!editor.Enabled.IsChecked!.Value && !editor.AuthKey.IsEnabled, "Tailscale starts disabled and does not alter existing profiles");
-            editor.Enabled.IsChecked = true; editor.AuthKey.Text = "tskey-auth-synthetic-interface-key"; editor.ExitNode.Text = "100.100.101.102";
+            editor.Enabled.IsChecked = true; editor.AuthKey.Text = "fixture-auth-ui-not-valid"; editor.ExitNode.Text = "100.100.101.102";
             check(window.SettingsDirty && !window.Controller.State.Tailscale.Enabled, "Editing phone settings creates a draft and does not change the saved route");
             check(editor.AuthKey.PasswordChar != '\0' && editor.AuthKey.IsEnabled, "The authentication field is masked and enabled only with the feature");
             window.SettingsSections.ButtonAt(1).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout(); window.SettingsSections.ButtonAt(2).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
@@ -106,7 +106,7 @@ internal static class TailscaleChecks
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var first = NodeImport.FromOptions(new JsonObject { ["name"] = "Local transit A", ["type"] = "http", ["server"] = "127.0.0.1", ["port"] = port });
         var second = first with { Id = Guid.NewGuid(), Name = "Local transit B" };
-        var state = new AppState { Nodes = [first, second], SelectedNode = first.Id, Capture = CaptureMode.LocalOnly, Mode = RouteMode.Rule, MixedPort = EngineClient.FreePort(), Tailscale = new() { Enabled = true, AuthKey = "tskey-auth-synthetic-engine-key", ExitNode = "100.100.101.102", ControlUrl = "https://ts-control.test" }, Rules = [new("MATCH", "", "DIRECT")], Dns = new() { Hosts = new() { ["ts-control.test"] = "127.0.0.1" } } };
+        var state = new AppState { Nodes = [first, second], SelectedNode = first.Id, Capture = CaptureMode.LocalOnly, Mode = RouteMode.Rule, MixedPort = EngineClient.FreePort(), Tailscale = new() { Enabled = true, AuthKey = "fixture-auth-engine-not-valid", ExitNode = "100.100.101.102", ControlUrl = "https://ts-control.test" }, Rules = [new("MATCH", "", "DIRECT")], Dns = new() { Hosts = new() { ["ts-control.test"] = "127.0.0.1" } } };
         await using var engine = new EngineClient();
         await engine.StartAsync(state, Path.Combine(AppContext.BaseDirectory, "engine/mihomo.exe"), Path.Combine(UserData.DirectoryPath, "tailscale-engine"));
         var runtime = engine.RuntimeDirectory; var config = JsonNode.Parse(File.ReadAllText(Path.Combine(runtime, "config.json")))!;
