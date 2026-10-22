@@ -58,7 +58,8 @@ internal sealed partial class MainWindow : Window
     private readonly Queue<int?> _probeHistory = new();
     private TrayIcon? _tray;
     private readonly NativeMenuItem _trayConnection = new("Connect");
-    private readonly TextBlock _speed = Ui.Value("↑ —     ↓ —", true, 11);
+    private readonly TextBlock _exitCountry = Ui.Text("Exit: disconnected", true, 11);
+    internal TextBlock ExitCountryControl => _exitCountry;
     private readonly ClientNotification _notification = new();
     private readonly TextBlock _pagination = Ui.Value("", true, 11);
     private readonly TextBlock _footer = Ui.Value("", true, 11);
@@ -166,7 +167,7 @@ internal sealed partial class MainWindow : Window
         _inspectorBorder.Background = Skin.ChromeBrush; _inspectorBorder.Width = 300; _inspectorBorder.BorderBrush = Skin.TabBackEdge; _inspectorBorder.BorderThickness = new Thickness(0.5, 0, 0, 0);
         _inspectorBorder.Child = Ui.Scroll(_inspector);
         Grid.SetColumn(_inspectorBorder, 2); _workspace.Children.Add(_inspectorBorder); Grid.SetRow(_workspace, 2); root.Children.Add(_workspace);
-        var bottom = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(24, 0), Children = { _footer, _speed } }; Grid.SetColumn(_speed, 1); Grid.SetRow(bottom, 3); root.Children.Add(bottom);
+        var bottom = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(24, 0), Children = { _footer, _exitCountry } }; Grid.SetColumn(_exitCountry, 1); Grid.SetRow(bottom, 3); root.Children.Add(bottom);
         _overview.Children.Add(_monitor);
         _monitor.LatencyMonitoringChanged += enabled =>
         {
@@ -497,14 +498,15 @@ internal sealed partial class MainWindow : Window
     {
         RefreshProfileStatus();
         if (_wasConnected != _app.Connected)
-        { _wasConnected = _app.Connected; if (!_app.Connected) _latencyStop?.Cancel(); _lastUp = _lastDown = _lastPoll = 0; _snapshot = new ConnectionSnapshot(0, 0, []); _speed.Text = "↑ —     ↓ —"; _lastProbe = DateTimeOffset.MinValue; _probeHistory.Clear(); _monitor.Update(null, null, 0, _app.Connected, duration: _app.ConnectedDuration); }
+        { _wasConnected = _app.Connected; if (!_app.Connected) _latencyStop?.Cancel(); _lastUp = _lastDown = _lastPoll = 0; _snapshot = new ConnectionSnapshot(0, 0, []); _lastProbe = DateTimeOffset.MinValue; _probeHistory.Clear(); _monitor.Update(null, null, 0, _app.Connected, duration: _app.ConnectedDuration); }
         _syncing = true;
         // Busy still blocks conflicting input, but does not dim every row for a short save.
         Classes.Set("busy-stable", _app.Busy);
         _mode.SelectedIndex = (int)_app.State.Mode; _capture.SelectedIndex = (int)_app.State.Capture;
         _capture.IsEnabled = _app.Ready && !_app.Connected && !_app.Busy; _mode.IsEnabled = _app.Ready && !_app.Busy;
         _connect.SetState(_app.ConnectionState, _app.Busy || !_app.Ready, _app.ConnectionFailure);
-        _monitor.IpQuality.Update(IpQualityPresentation.From(_app.IpQualityResult),_app.Connected);
+        _monitor.IpQuality.Update(IpQualityPresentation.From(_app.IpQualityResult),_app.Connected && _app.State.IpQuality.Enabled && _app.State.Mode!=RouteMode.Direct);
+        RefreshExitCountry();
         _footer.Text = _app.Updating ? UiText.Get("Updating subscriptions and website status…") : _app.Connected ? $"127.0.0.1:{_app.State.MixedPort}  ·  mihomo 1.19.32" : $"TIZI {AppVersion}  ·  Windows";
         _pageActions.IsEnabled = _app.Ready && !_app.Busy; _rows.IsEnabled = _app.Ready && !_app.Busy; _subscriptionTree.IsEnabled = _app.Ready && !_app.Busy;
         if (_page == "Providers")
@@ -609,7 +611,7 @@ internal sealed partial class MainWindow : Window
     private Control BuildSettings() => BuildSettingsCards();
     private void SetLanguage(string language)
     {
-        UiText.Language = language; if (!_preview) UiText.SaveLanguage(language); _search.PlaceholderText = UiText.Get("Search"); ShowPage(_page);
+        UiText.Language = language; if (!_preview) UiText.SaveLanguage(language); _search.PlaceholderText = UiText.Get("Search"); ShowPage(_page); RefreshExitCountry();
     }
     private void ImportText() { if (!_preview) _ = CreateImportEditor().ShowDialog(this); }
     internal EditorDialog CreateImportEditor() => CreateEditor("Import nodes", [new("text", "Subscription URL, node links, JSON, YAML or .conf", Multiline: true)], (values, session) => ImportContentAsync(values["text"], session), "Import");
@@ -846,6 +848,7 @@ internal sealed partial class MainWindow : Window
     }
     private async Task PollAsync()
     {
+        _app.RefreshExitCountryIfNeeded();
         _monitor.SetDuration(_app.ConnectedDuration);
         if ((_logDirty || _logView.Pending) && _page == "Logs" && _aboutView is null) { _logDirty = false; RefreshLog(); }
         if (DateTimeOffset.Now - _lastLogSave > TimeSpan.FromMinutes(1)) { _lastLogSave = DateTimeOffset.Now; await PersistActivityLogAsync(); }
@@ -855,7 +858,7 @@ internal sealed partial class MainWindow : Window
             var snapshot = await _app.Engine.ConnectionsAsync(); if (!_app.Connected || _shutdown) return;
             var now = Stopwatch.GetTimestamp(); var seconds = _lastPoll == 0 ? 1 : Math.Max(0.1, (now - _lastPoll) / (double)Stopwatch.Frequency);
             var up = _lastPoll == 0 ? 0 : Math.Max(0, snapshot.Upload - _lastUp); var down = _lastPoll == 0 ? 0 : Math.Max(0, snapshot.Download - _lastDown);
-            _speed.Text = $"↑ {UiFormat.Speed((long)(up / seconds))}     ↓ {UiFormat.Speed((long)(down / seconds))}"; _lastUp = snapshot.Upload; _lastDown = snapshot.Download; _lastPoll = now; _snapshot = snapshot;
+            _lastUp = snapshot.Upload; _lastDown = snapshot.Download; _lastPoll = now; _snapshot = snapshot;
             if (_uploadValue is not null) _uploadValue.Text = Bytes(snapshot.Upload); if (_downloadValue is not null) _downloadValue.Text = Bytes(snapshot.Download);
             _monitor.Update((long)(up / seconds), (long)(down / seconds), snapshot.Connections.Count, true, duration: _app.ConnectedDuration);
             if (DateTimeOffset.Now - _lastProbe >= LatencySampleInterval) _probeTask = ProbeSelectedAsync();
@@ -863,6 +866,11 @@ internal sealed partial class MainWindow : Window
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or InvalidOperationException or ObjectDisposedException) { }
         finally { _polling = false; }
+    }
+    private void RefreshExitCountry()
+    {
+        _exitCountry.Text = ExitCountryPresentation.Text(_app.IpQualityResult, _app.Connected, _app.IpQualityChecking);
+        ToolTip.SetTip(_exitCountry, ExitCountryPresentation.Details(_app.IpQualityResult, _app.Connected));
     }
     private static void Required(string text) { if (string.IsNullOrWhiteSpace(text) || text.Length > 200) throw new FormatException(UiText.Get("Enter a name (maximum 200 characters).")); }
     private static string Bytes(long value) => value >= 1024 * 1024 * 1024 ? $"{value / (1024d * 1024 * 1024):0.0} GB" : value >= 1024 * 1024 ? $"{value / (1024d * 1024):0.0} MB" : value >= 1024 ? $"{value / 1024d:0.0} KB" : value + " B";

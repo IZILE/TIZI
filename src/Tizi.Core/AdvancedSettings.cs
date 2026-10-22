@@ -54,6 +54,7 @@ public static class AdvancedValidation
 {
     public static void Check(AppState state)
     {
+        TailscaleSettings.Validate(state.Tailscale);
         if (state.Tunnel.Stack is not ("gvisor" or "system" or "mixed") || state.Tunnel.Mtu is < 1280 or > 9000 || state.Tunnel.UdpTimeout is < 10 or > 3600) throw new FormatException("Invalid tunnel settings.");
         if (state.Tunnel.ExcludedRoutes.Count > 100) throw new FormatException("Too many excluded routes.");
         foreach (var route in state.Tunnel.ExcludedRoutes) { var pair = route.Split('/'); if (pair.Length != 2 || !IPAddress.TryParse(pair[0], out var ip) || !int.TryParse(pair[1], out var prefix) || prefix < 0 || prefix > (ip.AddressFamily == AddressFamily.InterNetwork ? 32 : 128)) throw new FormatException("Invalid excluded route."); }

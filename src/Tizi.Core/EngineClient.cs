@@ -24,9 +24,13 @@ public sealed class EngineClient : IAsyncDisposable
     private CaptureMode _capture;
     private int _apiPort;
     private int _mixedPort;
+    private int _inspectionPort;
+    private RouteMode _mode;
     private string _secret = "";
     private readonly ConcurrentQueue<string> _recentLogs = new();
     private bool _tunDeferred;
+    private TailscaleSettings _tailscale = new();
+    private Vault? _identityVault;
     private readonly SemaphoreSlim _gate = new(1);
     public event Action<string>? Log;
     public event Action? UnexpectedExit;
@@ -58,17 +62,24 @@ public sealed class EngineClient : IAsyncDisposable
             _capture = state.Capture;
             _mixedPort = state.MixedPort;
             _tunDeferred = state.Capture == CaptureMode.Tun && deferTun;
+            _tailscale = state.Tailscale;
+            _identityVault = new Vault(Path.Combine(Path.GetFullPath(runtimeRoot), "identities"));
+            TailscaleIdentityStore.Restore(_identityVault, _tailscale, _runtime);
             _recentLogs.Clear();
-            var session = EngineSession.Create(state, FreePort(state.MixedPort));
+            var apiPort = FreePort(state.MixedPort);
+            _inspectionPort = 0; _mode = state.Mode;
+            if (state.Tailscale.Enabled) do { _inspectionPort = FreePort(state.MixedPort); } while (_inspectionPort == apiPort);
+            var session = EngineSession.Create(state, apiPort, _inspectionPort);
             if (_tunDeferred)
             {
                 var staged = JsonNode.Parse(session.Config)!; staged["tun"]!["enable"] = false;
                 session = session with { Config = staged.ToJsonString() };
             }
             _apiPort = session.ApiPort; _secret = session.Secret;
-            _sensitive = state.Nodes.SelectMany(n => Secrets(n.Options)).Append(session.Secret).Where(s => s.Length >= 4).Distinct().ToArray();
+            _sensitive = state.Nodes.SelectMany(n => Secrets(n.Options)).Append(session.Secret).Append(state.Tailscale.AuthKey).Where(s => s.Length >= 4).Distinct().ToArray();
             var path = Path.Combine(_runtime, "config.json"); await File.WriteAllTextAsync(path, session.Config, cancellation).ConfigureAwait(false);
             var info = ProcessInfo(binary, _runtime, path);
+            state.Tailscale.ConfigureProcess(info);
             var validation = new ProcessStartInfo(info.FileName) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8, WorkingDirectory = _runtime };
             foreach (var arg in new[] { "-t", "-d", _runtime, "-f", path }) validation.ArgumentList.Add(arg);
             using (var check = Process.Start(validation) ?? throw new IOException("Could not validate the proxy configuration."))
@@ -129,11 +140,14 @@ public sealed class EngineClient : IAsyncDisposable
         _api?.Dispose(); _api = null; _lifetime?.Dispose(); _lifetime = null;
         if (_runtime is { } folder)
         {
+            try { if (_identityVault is not null) TailscaleIdentityStore.Save(_identityVault, _tailscale, folder); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or CryptographicException)
+            { PublishLog("Tailscale identity could not be saved. Check the data folder permissions."); }
             try { Directory.Delete(folder, true); }
             catch (IOException) { } catch (UnauthorizedAccessException) { }
             _runtime = null;
         }
-        _sensitive = []; _bundleDirectory = null;
+        _sensitive = []; _bundleDirectory = null; _identityVault = null; _tailscale = new(); _inspectionPort = 0;
     }
     private static ProcessStartInfo ProcessInfo(string binary, string runtime, string config)
     {
@@ -154,17 +168,20 @@ public sealed class EngineClient : IAsyncDisposable
     public async Task SetModeAsync(RouteMode mode, CancellationToken cancellation = default)
     {
         var api = Api; using var response = await api.PatchAsJsonAsync("/configs", new { mode = mode.ToString().ToLowerInvariant() }, cancellation).ConfigureAwait(false); response.EnsureSuccessStatusCode();
+        _mode = mode;
         if (mode == RouteMode.Global) await SelectGlobalAsync(cancellation).ConfigureAwait(false);
     }
     public async Task ReloadAsync(AppState state, CancellationToken cancellation = default)
     {
         if (state.Capture != _capture) throw new InvalidOperationException("Disconnect before changing capture mode.");
+        if (state.Tailscale != _tailscale) throw new InvalidOperationException("Disconnect before changing Tailscale settings.");
         await EnsureGeodataAsync(state, cancellation).ConfigureAwait(false);
-        var session = EngineSession.Create(state, _apiPort);
+        var session = EngineSession.Create(state, _apiPort, _inspectionPort);
         var config = JsonNode.Parse(session.Config)!.AsObject(); config["secret"] = _secret;
         var payload = config.ToJsonString();
-        _sensitive = _sensitive.Concat(state.Nodes.SelectMany(n => Secrets(n.Options))).Where(s => s.Length >= 4).Distinct().ToArray();
+        _sensitive = _sensitive.Concat(state.Nodes.SelectMany(n => Secrets(n.Options))).Append(state.Tailscale.AuthKey).Where(s => s.Length >= 4).Distinct().ToArray();
         using var response = await Api.PutAsJsonAsync("/configs?force=true", new { path = "", payload }, cancellation).ConfigureAwait(false); response.EnsureSuccessStatusCode();
+        _mode = state.Mode;
         if (_runtime is { } folder) await File.WriteAllTextAsync(Path.Combine(folder, "config.json"), payload, cancellation).ConfigureAwait(false);
         if (state.Mode == RouteMode.Global) await SelectGlobalAsync(cancellation).ConfigureAwait(false);
     }
@@ -217,7 +234,11 @@ public sealed class EngineClient : IAsyncDisposable
         _tunDeferred = false;
     }
     public async Task SelectNodeAsync(ProxyNode node, CancellationToken cancellation = default)
-    { using var response = await Api.PutAsJsonAsync("/proxies/TIZI", new { name = node.CoreName }, cancellation).ConfigureAwait(false); response.EnsureSuccessStatusCode(); }
+    {
+        if (_tailscale.Enabled && !_tailscale.ThroughProxy) return;
+        var selector = _tailscale.Enabled ? TailscaleSettings.TransitGroup : "TIZI";
+        using var response = await Api.PutAsJsonAsync("/proxies/" + selector, new { name = node.CoreName }, cancellation).ConfigureAwait(false); response.EnsureSuccessStatusCode();
+    }
     public async Task<int> DelayAsync(ProxyNode node, string url, CancellationToken cancellation = default, int timeoutMs = 5000)
     {
         SourceUpdates.WebUri(url);
@@ -229,9 +250,21 @@ public sealed class EngineClient : IAsyncDisposable
     public async Task CheckConnectionAsync(string url, CancellationToken cancellation = default)
     {
         SourceUpdates.WebUri(url);
-        using var client = new HttpClient(new SocketsHttpHandler { Proxy = new WebProxy("http://127.0.0.1:" + _mixedPort), UseProxy = true, ConnectTimeout = TimeSpan.FromSeconds(6) }) { Timeout = TimeSpan.FromSeconds(8) };
+        using var client = _tailscale.Enabled && _mode != RouteMode.Direct ? CreateTailscaleHttpClient()
+            : new HttpClient(new SocketsHttpHandler { Proxy = new WebProxy("http://127.0.0.1:" + _mixedPort), UseProxy = true, ConnectTimeout = TimeSpan.FromSeconds(6) });
+        client.Timeout = TimeSpan.FromSeconds(_tailscale.Enabled && _mode != RouteMode.Direct ? 45 : 8);
         using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellation).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
+    }
+    public HttpClient CreateTailscaleHttpClient()
+    {
+        if (!_tailscale.Enabled || _inspectionPort == 0 || !IsRunning) throw new InvalidOperationException("Connect the proxy engine first.");
+        return new HttpClient(new SocketsHttpHandler { Proxy = new WebProxy("http://127.0.0.1:" + _inspectionPort), UseProxy = true, UseCookies = false, AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(4) }) { Timeout = Timeout.InfiniteTimeSpan };
+    }
+    public HttpClient CreateLocalProxyHttpClient()
+    {
+        if (!IsRunning) throw new InvalidOperationException("Connect the proxy engine first.");
+        return new HttpClient(new SocketsHttpHandler { Proxy = new WebProxy("http://127.0.0.1:" + _mixedPort), UseProxy = true, UseCookies = false, AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(4) }) { Timeout = Timeout.InfiniteTimeSpan };
     }
     public async Task<ConnectionSnapshot> ConnectionsAsync(CancellationToken cancellation = default)
     {
@@ -259,7 +292,7 @@ public sealed class EngineClient : IAsyncDisposable
     private static IEnumerable<string> Secrets(JsonNode? root)
     {
         if (root is JsonObject o) foreach (var p in o)
-        { if (p.Key is "password" or "uuid" or "private-key" or "public-key" or "pre-shared-key" or "obfs-password" or "psk" or "auth-str" or "key" or "token") yield return p.Value?.ToString() ?? ""; else foreach (var s in Secrets(p.Value)) yield return s; }
+        { if (p.Key is "password" or "uuid" or "private-key" or "public-key" or "pre-shared-key" or "obfs-password" or "psk" or "auth-str" or "key" or "token" or "auth-key") yield return p.Value?.ToString() ?? ""; else foreach (var s in Secrets(p.Value)) yield return s; }
         else if (root is JsonArray array) foreach (var item in array) foreach (var s in Secrets(item)) yield return s;
     }
     public static int FreePort(int except = 0)

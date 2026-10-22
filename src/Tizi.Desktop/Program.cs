@@ -45,6 +45,13 @@ internal static class Program
             UserData.DirectoryPath = Path.Combine(Path.GetFullPath(output), "settings");
             Build(true).SetupWithoutStarting(); return UiChecks.Run(output);
         }
+        if (args is ["--verify-tailscale", var tailscaleOutput])
+        {
+            UserData.DirectoryPath = Path.Combine(Path.GetFullPath(tailscaleOutput), "settings"); Build(true).SetupWithoutStarting();
+            var check = TailscaleChecks.RunAsync(tailscaleOutput);
+            while (!check.IsCompleted) { Avalonia.Threading.Dispatcher.UIThread.RunJobs(); Thread.Sleep(10); }
+            return check.GetAwaiter().GetResult();
+        }
         if (args is ["--verify-brand-motion", var motionOutput])
         {
             UserData.DirectoryPath = Path.Combine(Path.GetFullPath(motionOutput), "settings");

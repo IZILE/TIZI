@@ -116,11 +116,13 @@ internal sealed partial class AppController : IAsyncDisposable
         state = OperationFeedback.ClearSavedErrors(state with { IpQuality=IpQualitySettings.Normalize(state.IpQuality) });
         if (Connected && (state.MixedPort != State.MixedPort || state.OutboundInterface != State.OutboundInterface))
             throw new InvalidOperationException(UiText.Get("Disconnect before changing the local port or outbound interface."));
+        if (Connected && state.Tailscale != State.Tailscale)
+            throw new InvalidOperationException(UiText.Get("Disconnect before changing Tailscale settings."));
         ModelValidation.Rules(state.Rules);
         AdvancedValidation.Check(state);
         if (reload && Connected)
         {
-            if (state.Nodes.Count == 0 && state.Mode != RouteMode.Direct) throw new InvalidOperationException(UiText.Get("Disconnect before removing the last node."));
+            if (state.Nodes.Count == 0 && TailscaleSettings.NeedsProxyNode(state)) throw new InvalidOperationException(UiText.Get("Disconnect before removing the last node."));
             await Engine.ReloadAsync(NetworkEnvironment.ConnectionSettings(state), _lifetime.Token);
         }
         // Keep the visible state on the last durable profile if a write fails.
@@ -193,7 +195,7 @@ internal sealed partial class AppController : IAsyncDisposable
     {
         if (Connected) { _connectionReady = false; _connectedTimestamp = null; try { _lease.Restore(); } finally { await Engine.StopAsync(); } await ApplyAsync(State with { LastConnected = false }); Logged?.Invoke(UiText.Get("Disconnected.")); return; }
         cancellation.ThrowIfCancellationRequested();
-        if (State.Nodes.Count == 0 && State.Mode != RouteMode.Direct) throw new InvalidOperationException(UiText.Get("Import a node before connecting."));
+        if (State.Nodes.Count == 0 && TailscaleSettings.NeedsProxyNode(State)) throw new InvalidOperationException(UiText.Get("Import a node before connecting."));
         if (State.Capture == CaptureMode.Tun && !IsAdministrator) throw new InvalidOperationException(UiText.Get("TUN requires administrator rights."));
         if (State.Capture == CaptureMode.Tun && NetworkEnvironment.OtherTunnels() is { Length: > 0 } tunnels)
             throw new InvalidOperationException(UiText.Format("Another VPN is using a default route: {0}. Turn off its TUN mode before enabling TIZI TUN.", string.Join(", ", tunnels)));

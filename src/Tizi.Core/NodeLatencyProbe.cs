@@ -17,6 +17,7 @@ public sealed class NodeLatencyProbe : IAsyncDisposable
             {
                 Capture = CaptureMode.LocalOnly, Mode = RouteMode.Direct, MixedPort = EngineClient.FreePort(),
                 Rules = [], LastConnected = false, AutoUpdate = false, AutoUpdateProviders = false,
+                Tailscale = state.Tailscale with { Enabled = false },
                 Dns = state.Dns with { RespectRules = false }, Logs = state.Logs with { Level = "silent", Dns = false }
             });
             await probe._engine.StartAsync(isolated, binary, runtimeRoot, cancellation).ConfigureAwait(false);

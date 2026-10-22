@@ -13,6 +13,7 @@ internal sealed partial class AppController
     private bool _automaticSwitchStopping;
     internal event Action<string>? NodeAutoSwitched;
     private bool CanAutoSwitch => State.AutoSwitchOnTimeout && !_qualityPreview && !DesktopChecks.Active && !_closing && !_automaticSwitchStopping
+        && (!State.Tailscale.Enabled || State.Tailscale.ThroughProxy)
         && Connected && ConnectionState == ConnectionPhase.Connected && State.Mode != RouteMode.Direct;
     private void InitializeAutomaticSwitch() => _failoverTimer.Tick += (_, _) =>
     {

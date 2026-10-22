@@ -18,6 +18,20 @@ public sealed class IpQualityTests
     }
     private static HttpResponseMessage Json(string json,HttpStatusCode status=HttpStatusCode.OK)=>new(status) { Content=new StringContent(json,Encoding.UTF8,"application/json") };
     private static Fixture Transport(string own=Own,string proxy=Proxy,string registry=Registry)=>new((request,_)=>Task.FromResult(Json(request.RequestUri!.Host switch { "api.ipquery.io"=>own,"proxycheck.io"=>proxy,"stat.ripe.net"=>registry,"api.ipify.org"=>"{\"ip\":\"8.8.8.8\"}",_=>"{}" })));
+    [Fact] public async Task CountryOnlyLookupUsesTheObservedPublicIpAndNoQualityOrRegistrationApi()
+    {
+        using var transport=Transport();using var http=new HttpClient(transport);
+        var result=await new IpQualityService().QueryCountryAsync(http);
+        Assert.Equal("8.8.8.8",result.Ip);Assert.Equal("US",result.ExitCountry);
+        Assert.Equal(new[]{"api.ipquery.io"},transport.Hosts);Assert.Null(result.RegisteredCountry);
+    }
+    [Fact] public void CountryNeverFallsBackToRegistrationAndConflictsRemainUnknown()
+    {
+        var result=new IpQualityResult("8.8.8.8",[],"JP",DateTimeOffset.UtcNow);Assert.Null(result.ExitCountry);
+        result=result with {Sources=[new("A",null,"US",null,null,null,"OK")]};Assert.Equal("US",result.ExitCountry);
+        result=result with {Sources=[..result.Sources,new("B",null,"CA",null,null,null,"OK")]};Assert.Null(result.ExitCountry);
+        result=result with {Sources=[new("Failed",null,"JP",null,null,null,"Unavailable")]};Assert.Null(result.ExitCountry);
+    }
     [Fact] public async Task RawScoresAndAttributionSurviveMedianAndCountryCrossCheck()
     {
         using var transport=Transport();using var http=new HttpClient(transport);var service=new IpQualityService();

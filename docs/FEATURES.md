@@ -25,8 +25,10 @@
 | 多厂商 AI API | 支持 Responses、OpenAI 兼容 Chat、Claude Messages、Gemini GenerateContent；各厂商配置分别加密保存，自定义模型及地址；请求、鉴权、响应解析和来源过滤通过合成检查，真实账号尚未逐一调用验证 |
 | SS、SSR、VMess、VLESS、Trojan、Hysteria / Hysteria2、TUIC、SOCKS / HTTP、WireGuard、AnyTLS、Snell、SSH、Mieru、Sudoku、MASQUE、TrustTunnel、GOST Relay | 已有对应配置入口；高级参数与不同服务的互通需逐项验证 |
 | NaiveProxy、Juicity、OpenConnect、Brook、Lua | 待额外内核 / 运行时适配 |
-| 按需连接、Tailscale、LAN 共享及认证、链式代理、独立策略组、协议嗅探 | 待完成桌面功能与交互，不能算已完整复刻 |
+| Tailscale 手机出口 | 已增加独立设置，随附真实核心配置、隔离启动、代理中转选择及登录状态加密已验证；代理中转使用 DERP，真实 iPhone/蜂窝/tailnet 仍待联调，见 TAILSCALE.md |
+| 右下角实际出口国家 | 根据出口 IP 的地理位置观测显示，悬停查看 IP；未知或冲突不猜测，不使用节点名称及注册地替代；保持连接时约每两分钟刷新 |
+| 按需连接、LAN 共享及认证、通用链式代理、独立策略组、协议嗅探 | 待完成桌面功能与交互，不能算已完整复刻 |
 | HTTPS 解密、证书管理、URL 重写、脚本、模块、请求详情 | 待完成独立功能与兼容性验证 |
-| 手机蜂窝数据、iOS 小组件、Siri / 快捷指令、苹果专属同步和系统权限项 | 不迁入 Windows；可对应的桌面功能另行设计 |
+| 本机蜂窝硬件、iOS 小组件、Siri / 快捷指令、苹果专属同步和系统权限项 | 不迁入 Windows；可对应的桌面功能另行设计 |
 
 安装包附带代理内核、GeoIP、上游源码归档和第三方许可证。运行环境与构建说明见 BUILDING.md。

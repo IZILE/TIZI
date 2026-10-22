@@ -5,9 +5,10 @@ namespace Tizi.Core;
 
 public sealed record EngineSession(int ApiPort, string Secret, string Config)
 {
-    public static EngineSession Create(AppState state, int apiPort)
+    public static EngineSession Create(AppState state, int apiPort, int inspectionPort = 0)
     {
         if (state.MixedPort is < 1024 or > 65535 || apiPort is < 1024 or > 65535 || state.MixedPort == apiPort) throw new FormatException("Choose distinct ports between 1024 and 65535.");
+        if (inspectionPort != 0 && (inspectionPort is < 1024 or > 65535 || inspectionPort == apiPort || inspectionPort == state.MixedPort)) throw new FormatException("Choose distinct ports between 1024 and 65535.");
         if (state.Nodes.Count > NodeImport.MaxNodes) throw new FormatException("Too many nodes.");
         if (state.OutboundInterface.Length > 256 || state.OutboundInterface.Any(char.IsControl)) throw new FormatException("Invalid outbound interface.");
         var selected = state.Nodes.FirstOrDefault(n => n.Id == state.SelectedNode) ?? state.Nodes.FirstOrDefault();
@@ -23,6 +24,21 @@ public sealed record EngineSession(int ApiPort, string Secret, string Config)
         }
         ModelValidation.Rules(state.Rules);
         AdvancedValidation.Check(state);
+        JsonArray groups;
+        if (state.Tailscale.Enabled)
+        {
+            if (state.Tailscale.ThroughProxy && state.Nodes.Count == 0)
+                throw new FormatException("Import a proxy node before enabling Tailscale transit.");
+            proxies.Add(state.Tailscale.ToProxy(state.Transport.Udp));
+            groups = new(new JsonObject { ["name"] = "TIZI", ["type"] = "select", ["proxies"] = new JsonArray(TailscaleSettings.ProxyName) });
+            if (state.Tailscale.ThroughProxy)
+            {
+                // An unavailable phone or transit node must not silently select DIRECT.
+                names.RemoveAt(names.Count - 1);
+                groups.Add(new JsonObject { ["name"] = TailscaleSettings.TransitGroup, ["type"] = "select", ["proxies"] = names });
+            }
+        }
+        else groups = new(new JsonObject { ["name"] = "TIZI", ["type"] = "select", ["proxies"] = names });
         var rules = new JsonArray();
         if (!state.Transport.Udp) rules.Add("NETWORK,udp,REJECT");
         foreach (var rule in state.Rules) rules.Add(rule.ToCore());
@@ -37,7 +53,7 @@ public sealed record EngineSession(int ApiPort, string Secret, string Config)
             ["disable-keep-alive"] = !state.Transport.KeepAlive, ["keep-alive-idle"] = state.Transport.KeepAliveIdle, ["keep-alive-interval"] = state.Transport.KeepAliveInterval,
             ["profile"] = new JsonObject { ["store-selected"] = false, ["store-fake-ip"] = false },
             ["proxies"] = proxies,
-            ["proxy-groups"] = new JsonArray(new JsonObject { ["name"] = "TIZI", ["type"] = "select", ["proxies"] = names }),
+            ["proxy-groups"] = groups,
             ["rules"] = rules, ["geodata-mode"] = true, ["geo-auto-update"] = false,
             ["tun"] = new JsonObject { ["enable"] = state.Capture == CaptureMode.Tun, ["device"] = "TIZI", ["stack"] = state.Tunnel.Stack, ["mtu"] = state.Tunnel.Mtu, ["strict-route"] = state.Tunnel.StrictRoute, ["udp-timeout"] = state.Tunnel.UdpTimeout, ["auto-route"] = true, ["auto-detect-interface"] = state.OutboundInterface.Length == 0, ["dns-hijack"] = state.Tunnel.HijackDns ? new JsonArray("any:53", "tcp://any:53") : new JsonArray(), ["route-exclude-address"] = new JsonArray(state.Tunnel.ExcludedRoutes.Select(s => (JsonNode?)JsonValue.Create(s)).ToArray()) },
             // This resolver is internal: no DNS listening port or Windows DNS
@@ -45,6 +61,9 @@ public sealed record EngineSession(int ApiPort, string Secret, string Config)
             ["dns"] = new JsonObject { ["enable"] = true, ["ipv6"] = state.Dns.Ipv6 && state.Transport.Ipv6, ["enhanced-mode"] = state.Dns.Mode == "automatic" ? (state.Capture == CaptureMode.Tun ? "fake-ip" : "redir-host") : state.Dns.Mode, ["respect-rules"] = state.Dns.RespectRules, ["use-hosts"] = true, ["fake-ip-range"] = "198.19.0.1/16", ["nameserver"] = Array(state.Dns.Servers), ["proxy-server-nameserver"] = Array(state.Dns.ProxyServers), ["default-nameserver"] = Array(state.Dns.BootstrapServers) },
             ["hosts"] = new JsonObject(state.Dns.Hosts.Select(p => new KeyValuePair<string, JsonNode?>(p.Key, JsonValue.Create(p.Value)))),
         };
+        if (state.Tailscale.Enabled) config["dns"]!["respect-rules"] = true;
+        if (state.Tailscale.Enabled && inspectionPort != 0)
+            config["listeners"] = new JsonArray(new JsonObject { ["name"] = "TIZI-EXIT-CHECK", ["type"] = "mixed", ["listen"] = "127.0.0.1", ["port"] = inspectionPort, ["udp"] = false, ["proxy"] = TailscaleSettings.ProxyName });
         if (state.OutboundInterface.Length > 0) config["interface-name"] = state.OutboundInterface;
         // JSON is a YAML subset accepted by mihomo. Typed serialization quotes every credential.
         return new EngineSession(apiPort, secret, config.ToJsonString());

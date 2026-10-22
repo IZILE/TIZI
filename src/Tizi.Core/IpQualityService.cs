@@ -14,6 +14,16 @@ public sealed record IpQualitySettings
 public sealed record IpQualitySource(string Name,string? Type,string? Country,string? Asn,string? Owner,double? Risk,string Status);
 public sealed record IpQualityResult(string Ip,List<IpQualitySource> Sources,string? RegisteredCountry,DateTimeOffset CheckedAt)
 {
+    public string? ExitCountry
+    {
+        get
+        {
+            if (!IPAddress.TryParse(Ip, out _)) return null;
+            var countries = Sources.Where(s => s.Status == "OK").Select(s => s.Country?.ToUpperInvariant())
+                .Where(c => c is { Length: 2 } && c.All(char.IsAsciiLetter)).Distinct().ToArray();
+            return countries.Length == 1 ? countries[0] : null;
+        }
+    }
     public double[] Scores => Sources.Where(s=>s.Risk is >=0 and <=100).Select(s=>s.Risk!.Value).Order().ToArray();
     public double? Median => Scores is { Length:>0 } values ? values.Length%2==1 ? values[values.Length/2] : (values[values.Length/2-1]+values[values.Length/2])/2 : null;
     public bool ScoreConflict => Scores.Length>1 && Scores.Max()-Scores.Min()>=35;
@@ -33,6 +43,13 @@ public sealed class IpQualityService
 {
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string,DateTimeOffset> _backoff=new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string,IpQualityResult> _cache=new();
+    public async Task<IpQualityResult> QueryCountryAsync(HttpClient http, CancellationToken cancellation = default)
+    {
+        var reply = await ReadAsync(http, new("https://api.ipquery.io/?format=json"), null, cancellation).ConfigureAwait(false);
+        var ip = Text(reply.Data, "ip");
+        return PublicIp(ip) ? new(IPAddress.Parse(ip!).ToString(), [ParseIpQuery(reply.Data, ip!, reply.Status)], null, DateTimeOffset.UtcNow)
+            : new("", [], null, DateTimeOffset.UtcNow);
+    }
     public async Task<IpQualityResult> QueryAsync(HttpClient http,IpQualitySettings settings,CancellationToken cancellation=default)
     {
         settings=IpQualitySettings.Normalize(settings);

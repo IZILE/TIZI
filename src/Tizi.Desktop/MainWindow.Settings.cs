@@ -22,6 +22,7 @@ internal sealed partial class MainWindow
     private string? _settingsFingerprint;
     private NumericUpDown? _settingsPort;
     private StableChoice? _settingsOutbound;
+    private TailscaleSettingsEditor? _settingsTailscale;
     private Button? _settingsSave;
     private TextBlock? _settingsDraftStatus, _settingsConnectionHint, _settingsDataSummary;
     private string? _settingsStatusKey;
@@ -46,7 +47,7 @@ internal sealed partial class MainWindow
     private string SettingsFingerprint() => JsonSerializer.Serialize(new
     {
         _app.State.MixedPort, _app.State.OutboundInterface, _app.State.DelayUrl,
-        _app.State.Tunnel, _app.State.Transport, _app.State.Dns, _app.State.Latency
+        _app.State.Tunnel, _app.State.Transport, _app.State.Dns, _app.State.Latency, _app.State.Tailscale
     });
     private Control BuildSettingsCards()
     {
@@ -118,6 +119,16 @@ internal sealed partial class MainWindow
             catch (Exception failure) { automaticSwitch.IsChecked = _app.State.AutoSwitchOnTimeout; ShowError(failure.Message); }
         };
         Card("Proxy", "Automatic node switching").Children.Add(automaticSwitch);
+        var tailscale = _settingsTailscale = new TailscaleSettingsEditor(state.Tailscale);
+        Card("Proxy", "Tailscale phone exit").Children.Add(tailscale);
+        var phone = Card("Proxy", "Prepare your iPhone");
+        foreach (var instruction in new[] {
+            "In the official iPhone Tailscale app, enable Run as Exit Node, then approve the phone as an exit node in the Tailscale admin console.",
+            "Turn off iPhone Wi-Fi to use cellular data. Keep the phone online and enter its 100.x.x.x Tailscale IP here.",
+            "Enter an authentication key from the same tailnet. TIZI joins as a separate device and saves its identity encrypted on this PC.",
+            "This setting applies to traffic routed to the TIZI proxy strategy. For full-device capture, use TUN and Global mode. Direct rules still go directly.",
+            "Disconnect before changing Tailscale settings. An unavailable exit node does not fall back to a direct connection." })
+        { var text = Ui.Text(instruction, true, 13); text.TextWrapping = TextWrapping.Wrap; phone.Children.Add(text); }
         var tcp = Card("TCP / UDP", "TCP");
         var ipv6 = Option("Enable IPv6", state.Transport.Ipv6); tcp.Children.Add(ipv6);
         var concurrent = Option("Concurrent TCP connections", state.Transport.TcpConcurrent); tcp.Children.Add(concurrent);
@@ -143,7 +154,7 @@ internal sealed partial class MainWindow
         var probeInterval = Number(state.Latency.CurveIntervalSeconds, 1, 300); Field(tests, "Curve interval (seconds)", probeInterval);
         var tools = Card("Diagnostics", "Tools");
         var ipTools=Card("Diagnostics","IP detection");
-        var automaticIp=new CheckBox { Content=Ui.Text("Inspect exit IP after connecting"),IsChecked=state.IpQuality.Enabled };
+        var automaticIp=new CheckBox { Content=Ui.Text("Inspect IP type and native status after connecting"),IsChecked=state.IpQuality.Enabled };
         automaticIp.IsCheckedChanged+=async (_,_)=>
         {
             var enabled=automaticIp.IsChecked==true;if(enabled==_app.State.IpQuality.Enabled)return;
@@ -189,7 +200,7 @@ internal sealed partial class MainWindow
             var preferences = new GeneralPreferences(login.IsChecked == true, hidden.IsChecked == true, restore.IsChecked == true, close.SelectedIndex == 1);
             _settingsAutoSaveTask = SaveGeneralAsync(_settingsAutoSaveTask, preferences, ++generalGeneration);
         };
-        Control[] inputs = [stack, mtu, strict, hijack, routes, port, outbound, ipv6, concurrent, keepalive, idle, keepInterval, udp, udpTimeout, dnsMode, dns6, respect, servers, proxyDns, bootstrap, hosts, method, delay, timeout, parallel, probeInterval];
+        Control[] inputs = [stack, mtu, strict, hijack, routes, port, outbound, ipv6, concurrent, keepalive, idle, keepInterval, udp, udpTimeout, dnsMode, dns6, respect, servers, proxyDns, bootstrap, hosts, method, delay, timeout, parallel, probeInterval, .. tailscale.Inputs];
         string Draft() => JsonSerializer.Serialize(inputs.Select<Control, object?>(input => input switch
         {
             TextBox text => text.Text ?? "", NumericUpDown number => number.Value,
@@ -227,13 +238,16 @@ internal sealed partial class MainWindow
                 Tunnel = previous.Tunnel with { Stack = stack.SelectedItem?.ToString() ?? "gvisor", Mtu = (int)(mtu.Value ?? 1500), StrictRoute = strict.IsChecked == true, HijackDns = hijack.IsChecked == true, UdpTimeout = (int)(udpTimeout.Value ?? 300), ExcludedRoutes = Lines(routes) },
                 Transport = previous.Transport with { Ipv6 = ipv6.IsChecked == true, TcpConcurrent = concurrent.IsChecked == true, KeepAlive = keepalive.IsChecked == true, KeepAliveIdle = (int)(idle.Value ?? 15), KeepAliveInterval = (int)(keepInterval.Value ?? 15), Udp = udp.IsChecked == true },
                 Dns = previous.Dns with { Mode = dnsMode.SelectedItem?.ToString() ?? "automatic", Ipv6 = dns6.IsChecked == true, RespectRules = respect.IsChecked == true, Servers = Lines(servers), ProxyServers = Lines(proxyDns), BootstrapServers = Lines(bootstrap), Hosts = JsonSerializer.Deserialize<Dictionary<string, string>>(hosts.Text ?? "{}") ?? [] },
-                Latency = previous.Latency with { Method = method.SelectedItem?.ToString() ?? "HTTP", TimeoutMs = (int)(timeout.Value ?? 5000), Concurrency = (int)(parallel.Value ?? 4), CurveIntervalSeconds = (int)(probeInterval.Value ?? 1) }
+                Latency = previous.Latency with { Method = method.SelectedItem?.ToString() ?? "HTTP", TimeoutMs = (int)(timeout.Value ?? 5000), Concurrency = (int)(parallel.Value ?? 4), CurveIntervalSeconds = (int)(probeInterval.Value ?? 1) },
+                Tailscale = tailscale.Value
             };
             // A port/interface edit may have been drafted while disconnected, then
             // retained when the user connected. Disabled controls do not make that
             // pending edit safe to apply to a live listener.
             if (_app.Connected && (next.MixedPort != previous.MixedPort || next.OutboundInterface != previous.OutboundInterface))
                 throw new InvalidOperationException(UiText.Get("Disconnect before changing the local port or outbound interface."));
+            if (_app.Connected && next.Tailscale != previous.Tailscale)
+                throw new InvalidOperationException(UiText.Get("Disconnect before changing Tailscale settings."));
             AdvancedValidation.Check(next);
             await _app.ApplyAsync(next, reload: _app.Connected);
             savedDraft = submittedDraft; ClearError(); UpdateDirty(); _settingsFingerprint = SettingsFingerprint();
@@ -276,6 +290,7 @@ internal sealed partial class MainWindow
         var canEditListener = _app.Ready && !_app.Connected && !_app.Busy;
         if (_settingsPort is { } port) port.IsEnabled = canEditListener;
         if (_settingsOutbound is { } outbound) outbound.IsEnabled = canEditListener;
+        if (_settingsTailscale is { } tailscale) tailscale.IsEnabled = canEditListener;
         if (_settingsConnectionHint is { } hint) hint.IsVisible = _app.Connected;
         if (_settingsDataSummary is { } summary) summary.Text = UiText.Format("{0} subscriptions · {1} nodes · {2} rules", _app.State.Subscriptions.Count, _app.State.Nodes.Count, _app.State.Rules.Count);
         var optionOnly = SettingsSections?.SelectedIndex == 0;

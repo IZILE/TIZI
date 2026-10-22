@@ -15,6 +15,7 @@ public sealed class NodeQualityProbe : IAsyncDisposable
     {
         Nodes=[node],SelectedNode=node.Id,Capture=CaptureMode.LocalOnly,Mode=RouteMode.Global,MixedPort=port,
         Rules=[],LastConnected=false,AutoUpdate=false,AutoUpdateProviders=false,
+        Tailscale=state.Tailscale with { Enabled=false },
         Dns=state.Dns with { RespectRules=false },Logs=state.Logs with { Level="silent",Dns=false }
     });
     public static async Task<NodeQualityProbe> StartAsync(AppState state,ProxyNode node,string binary,string runtime,CancellationToken cancellation)
