@@ -159,26 +159,35 @@ internal static class AppearanceChecks
                 var host=(Grid)window.Content!;host.Children.Add(animation);animation.ZIndex=20;Layout(window);
                 try
                 {
-                    foreach(var p in new[]{0d,.18,.3,.46,.56,.7,.86,.94,1})
+                    foreach(var p in new[]{0d,.18,.3,.46,.56,.7,.8,.82,.86,.9,.94,.96,.98,1})
                     {
-                        animation.PreviewProgress=p;animation.InvalidateVisual();
+                        animation.PreviewProgress=p;shell.Opacity=animation.ContentOpacity;animation.InvalidateVisual();
                         using var image=Frame(window);image.Save(Path.Combine(output,theme.ToLowerInvariant()+"-startup-"+(int)Math.Round(p*1000)+".png"),new PngBitmapEncoderOptions());
                         check(animation.GetVisualChildren().Count()==0&&animation.Strokes(p).Length==11,theme+" startup draws the same live stroke set at "+p);
                     }
                     var marker=new Border{Width=180,Height=60,Background=Brushes.Magenta,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Top,Margin=new(300,200,0,0),ZIndex=100};
                     Grid.SetRowSpan(marker,4);shell.Children.Add(marker);
-                    animation.PreviewProgress=.7;animation.InvalidateVisual();using(var hiddenA=Frame(window))
+                    animation.PreviewProgress=.7;shell.Opacity=animation.ContentOpacity;animation.InvalidateVisual();using(var hiddenA=Frame(window))
                     {
                         marker.Background=Brushes.Cyan;using var hiddenB=Frame(window);
-                        check(Pixels(hiddenA).SequenceEqual(Pixels(hiddenB)),theme+" startup pixels never expose underlying controls while their content changes");
+                        check(Pixels(hiddenA).SequenceEqual(Pixels(hiddenB)),theme+" early startup pixels keep underlying controls hidden while their content changes");
+                    }
+                    animation.PreviewProgress=.9;shell.Opacity=animation.ContentOpacity;animation.InvalidateVisual();using(var lateA=Frame(window))
+                    {
+                        marker.Background=Brushes.Magenta;using var lateB=Frame(window);
+                        check(shell.Opacity is >0 and <1&&!Pixels(lateA).SequenceEqual(Pixels(lateB)),theme+" docking-tail frames render real underlying controls at an intermediate opacity");
                     }
                     shell.Children.Remove(marker);
-                    animation.PreviewProgress=1;animation.InvalidateVisual();using var before=Frame(window);
+                    animation.PreviewProgress=1;shell.Opacity=animation.ContentOpacity;animation.InvalidateVisual();using var before=Frame(window);
                     host.Children.Remove(animation);mark.Opacity=1;shell.Opacity=1;using var after=Frame(window);
                     var a=Pixels(before);var b=Pixels(after);var region=new Rect(mark.TranslatePoint(default,window)!.Value,mark.Bounds.Size);
                     var max=0;for(var y=(int)region.Top;y<(int)region.Bottom;y++)for(var x=(int)region.Left;x<(int)region.Right;x++)for(var c=0;c<3;c++)
                     {var index=(y*before.PixelSize.Width+x)*4+c;max=Math.Max(max,Math.Abs(a[index]-b[index]));}
                     check(max<=4,theme+" startup docks without an image/opacity seam (maximum channel delta "+max+")");
+                    var contentRegion=new Rect(window.ContentSurface.TranslatePoint(default,window)!.Value,window.ContentSurface.Bounds.Size);
+                    var contentMax=0;for(var y=(int)contentRegion.Top;y<(int)contentRegion.Bottom;y++)for(var x=(int)contentRegion.Left;x<(int)contentRegion.Right;x++)for(var c=0;c<3;c++)
+                    {var index=(y*before.PixelSize.Width+x)*4+c;contentMax=Math.Max(contentMax,Math.Abs(a[index]-b[index]));}
+                    check(contentMax<=2,theme+" the functional page is already visible before startup removal, with no final opacity cut (maximum channel delta "+contentMax+")");
                 }
                 finally{host.Children.Remove(animation);mark.Opacity=1;shell.Opacity=1;}
             }
@@ -197,17 +206,25 @@ internal static class AppearanceChecks
             foreach(var readyAt in new[]{.1,.9,1.8,3.8})
             {
                 var timing=new StartupTiming();var previous=0d;var largest=0d;var smallest=double.MaxValue;
+                var previousOpacity=0d;var lateFade=true;var partialFrames=0;var largestOpacityStep=0d;
                 while(!timing.Finished&&timing.Elapsed<8)
                 {
                     timing.Advance(1/120d,timing.Elapsed>=readyAt);if(timing.Position<previous)throw new InvalidDataException("Startup reversed.");
+                    var opacity=StartupAnimation.RevealOpacity(timing.Position);
+                    lateFade&=(timing.Position>.8||opacity==0)&&opacity>=previousOpacity;
+                    if(opacity is >0 and <1)partialFrames++;
+                    largestOpacityStep=Math.Max(largestOpacityStep,opacity-previousOpacity);previousOpacity=opacity;
                     if(timing.Position is >.12 and <.94){largest=Math.Max(largest,timing.Velocity);smallest=Math.Min(smallest,timing.Velocity);}previous=timing.Position;
                 }
-                check(timing.Finished&&largest>smallest*1.5,"Startup follows readiness at "+readyAt+" s with acceleration and a settled endpoint");durations.Add(timing.Elapsed);timingSamples.Add(new{readyAt,total=timing.Elapsed,largest,smallest});
+                check(timing.Finished&&largest>smallest*1.5,"Startup follows readiness at "+readyAt+" s with acceleration and a settled endpoint");
+                check(lateFade&&partialFrames>5&&previousOpacity==1&&largestOpacityStep<.12,"Startup reveals controls smoothly in the docking tail at readiness "+readyAt+" s");
+                durations.Add(timing.Elapsed);timingSamples.Add(new{readyAt,total=timing.Elapsed,largest,smallest,partialFrames,largestOpacityStep});
             }
             check(durations.SequenceEqual(durations.Order())&&durations[^1]>durations[0]+2,"Slower initialization lengthens startup while fast initialization can finish earlier");
             var stalled=new StartupTiming();while(!stalled.Finished&&stalled.Elapsed<8)stalled.Advance(1/120d,false);
             check(stalled.Finished&&stalled.Elapsed<6,"A stalled initialization cannot trap the user behind the startup overlay");
-            var probe=new StartupAnimation(()=>true,()=>new(36,62),_=>{});
+            var finishedOpacity=-1d;var probe=new StartupAnimation(()=>true,()=>new(36,62),opacity=>finishedOpacity=opacity);
+            probe.Finish();check(finishedOpacity==1&&!probe.Running,"Skipping startup releases the controls immediately and leaves no animation timer");
             for(var i=0;i<=100;i++)foreach(var rail in StartupAnimation.TopRails.Concat(StartupAnimation.BottomRails))
             {
                 var line=probe.Strokes(i/100d)[rail];var original=StartupAnimation.Letters[rail];

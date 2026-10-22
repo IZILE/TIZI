@@ -32,6 +32,7 @@ internal static class NativePresentationChecks
                     DwmGetWindowAttribute(window.TryGetPlatformHandle()!.Handle, 14, out cloakedAtOpening, sizeof(int));
                 };
                 var watch = Stopwatch.StartNew(); window.Show();
+                var revealSamples=new List<object>();
                 var frame = window.InitialPresentation!;
                 DwmGetWindowAttribute(window.TryGetPlatformHandle()!.Handle, 14, out var initialCloak, sizeof(int));
                 Check(frame.WasCloaked && initialCloak == 1 && cloakedAtOpening == 1,
@@ -48,9 +49,18 @@ internal static class NativePresentationChecks
                 {
                     Check(window.StartupOverlay is not null,"The first composed native window includes the live startup strokes");
                     Check(window.StartupContentHidden,"The first native startup frame hides the functional controls and notification layer");
-                    var covered=true;var startupSamples=0;
-                    while(window.StartupOverlay is not null){covered&=window.StartupContentHidden;startupSamples++;await Task.Delay(10,lifetime.Token);}
-                    Check(covered&&startupSamples>0,"Every sampled native startup frame keeps controls hidden until animation completion");
+                    var covered=true;var continuous=true;var partial=false;var previousOpacity=0d;var startupSamples=0;
+                    while(window.StartupOverlay is {} startup)
+                    {
+                        var progress=startup.Progress;var opacity=window.StartupContentOpacity;
+                        if(progress<=.8)covered&=window.StartupContentHidden;
+                        continuous&=opacity>=previousOpacity-.000001&&window.StartupLayersSynchronized;
+                        partial|=progress<1&&opacity is >0 and <1;previousOpacity=opacity;startupSamples++;
+                        revealSamples.Add(new{milliseconds=watch.Elapsed.TotalMilliseconds,progress,opacity});
+                        await Task.Delay(10,lifetime.Token);
+                    }
+                    Check(covered&&startupSamples>0,"Early native startup frames keep functional controls hidden until the docking tail");
+                    Check(continuous&&partial,"Native startup reveals synchronized control layers progressively before animation completion");
                     Check(window.ContentSurface.IsEffectivelyVisible&&window.Opacity==1&&window.StartupContentVisible,"Startup finishes with one visible functional page and no window fade");
                 }
                 window.Hide(); window.Show();
@@ -66,7 +76,7 @@ internal static class NativePresentationChecks
                     passed = checks.Count, checks, backend = "normal Windows platform", firstShowMs,
                     initialCloak, cloakedAtOpening, loadedAtOpening, finalCloak, disabledTransitions,
                     targetActuallyDrew = frame.FrameRendered, timeout = frame.TimedOut, networkConnection = false,
-                    theme=window.ActualThemeVariant.ToString(),frosted=window.FrostedChromeVisible,actualTransparency,startupAnimation=StartupAnimation.AllowVerification,
+                    theme=window.ActualThemeVariant.ToString(),frosted=window.FrostedChromeVisible,actualTransparency,startupAnimation=StartupAnimation.AllowVerification,revealSamples,
                     limitation = "Native draw and DWM visibility ordering verified; no high-speed desktop recording.", binary = VerificationStamp.Current()
                 }, new JsonSerializerOptions { WriteIndented = true }));
             }
@@ -78,7 +88,7 @@ internal static class NativePresentationChecks
             }
         });
         Dispatcher.UIThread.MainLoop(lifetime.Token);
-        return failure is null && checks.Count == (StartupAnimation.AllowVerification&&StartupAnimation.AnimationsEnabled()?11:7) ? 0 : 1;
+        return failure is null && checks.Count == (StartupAnimation.AllowVerification&&StartupAnimation.AnimationsEnabled()?12:7) ? 0 : 1;
     }
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(nint window, int attribute, out int value, int size);
 }

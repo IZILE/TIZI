@@ -11,15 +11,17 @@ internal sealed partial class MainWindow
     internal StartupAnimation? StartupOverlay=>_startupAnimation;
     internal bool StartupContentHidden=>_shellRoot?.Opacity==0&&_notification.Opacity==0;
     internal bool StartupContentVisible=>_shellRoot?.Opacity==1&&_notification.Opacity==1;
+    internal double StartupContentOpacity=>_shellRoot?.Opacity??1;
+    internal bool StartupLayersSynchronized=>_shellRoot?.Opacity==_notification.Opacity;
     private void PrepareStartupAnimation()
     {
         if(_preview||((Program.Headless||DesktopChecks.Active)&&!StartupAnimation.AllowVerification)||_shellRoot is null||_wordmarkHost is null||!StartupAnimation.AnimationsEnabled())return;
         // Opacity preserves layout and the logo's docking coordinates while
-        // keeping every functional control out of the startup composition.
+        // hiding controls initially, then revealing them during the docking tail.
         _wordmarkHost.Opacity=0;_shellRoot.Opacity=0;_notification.Opacity=0;_shellRoot.IsHitTestVisible=false;
         var animation=_startupAnimation=new StartupAnimation(()=>_app.Ready||_app.LoadFailure is not null,
             ()=>_wordmarkHost.TranslatePoint(new(_wordmarkHost.Bounds.Width/2,_wordmarkHost.Bounds.Height/2),_clientSurface)??new(36,62),
-            _=>{});
+            opacity=>{_shellRoot.Opacity=opacity;_notification.Opacity=opacity;});
         animation.ZIndex=10;_clientSurface.Children.Add(animation);
         void Finish()
         {

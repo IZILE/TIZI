@@ -61,17 +61,19 @@ internal sealed class StartupAnimation : Control
     private double _previous;
     private readonly Func<bool> _ready;
     private readonly Func<Point> _destination;
-    private readonly Action<double> _frost;
+    private readonly Action<double> _applyContentOpacity;
     internal StartupTiming Timing {get;}=new();
     internal double? PreviewProgress {get;set;}
     internal double Progress=>PreviewProgress??Timing.Position;
     internal double Frost=>1-StartupTiming.Smooth((Progress-.50)/.44);
+    internal double ContentOpacity=>RevealOpacity(Progress);
+    internal static double RevealOpacity(double progress)=>StartupTiming.Smooth((progress-.80)/.18);
     internal double StrokeWidth=>Mark.Stroke;
     internal bool Running=>_timer.IsEnabled;
     internal event Action? Completed;
-    internal StartupAnimation(Func<bool> ready,Func<Point> destination,Action<double> frost)
+    internal StartupAnimation(Func<bool> ready,Func<Point> destination,Action<double> applyContentOpacity)
     {
-        _ready=ready;_destination=destination;_frost=frost;UseLayoutRounding=false;Focusable=false;
+        _ready=ready;_destination=destination;_applyContentOpacity=applyContentOpacity;UseLayoutRounding=false;Focusable=false;
         Avalonia.Automation.AutomationProperties.SetName(this,"TIZI");
         _timer.Tick+=(_,_)=>Tick();DetachedFromVisualTree+=(_,_)=>_timer.Stop();
         PointerPressed+=(_,e)=>e.Handled=true;
@@ -84,9 +86,9 @@ internal sealed class StartupAnimation : Control
     private void Tick()
     {
         var now=_watch.Elapsed.TotalSeconds;Timing.Advance(Math.Max(0,now-_previous),_ready());_previous=now;
-        _frost(Frost);InvalidateVisual();if(Timing.Finished)Finish();
+        _applyContentOpacity(ContentOpacity);InvalidateVisual();if(Timing.Finished)Finish();
     }
-    internal void Finish(){_timer.Stop();_watch.Stop();_frost(0);Completed?.Invoke();}
+    internal void Finish(){_timer.Stop();_watch.Stop();_applyContentOpacity(1);Completed?.Invoke();}
     internal Point[][] Strokes(double progress)
     {
         var morph=StartupTiming.Smooth((progress-.12)/.34);
